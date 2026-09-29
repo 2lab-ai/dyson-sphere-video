@@ -30,7 +30,7 @@ const CAM: Record<Cam, { x: number; y: number; s: number; roll: number }> = {
 };
 
 const GLSL = /* glsl */ `
-uniform vec3 uGround, uDeep, uMid;
+uniform vec3 uGround, uDeep, cPalMid;
 uniform vec4 uCam;   // moon centre on screen (p units), scale, roll
 uniform vec4 uSt;    // song time minus each stroke's beat (negative = not yet)
 uniform float uBp, uFull;
@@ -203,7 +203,7 @@ vec3 plate(vec2 p) {
 
   // Beer-style layering: wash density darkens towards the grey wash, ink density towards the ink
   vec3 G = max(uGround, vec3(1e-3));
-  vec3 c = G * pow(max(uMid, vec3(1e-3)) / G, vec3(max(Dw, 0.0)));
+  vec3 c = G * pow(max(cPalMid, vec3(1e-3)) / G, vec3(max(Dw, 0.0)));
   c *= pow(max(uDeep, vec3(1e-3)) / G, vec3(clamp(Di, 0.0, 1.2)));
   return c;
 }
@@ -223,7 +223,7 @@ export default class Moon extends ShaderScene {
     return {
       uGround: { value: new THREE.Vector3(...plin(this.P, 'ground')) },
       uDeep: { value: new THREE.Vector3(...plin(this.P, 'deep')) },
-      uMid: { value: new THREE.Vector3(...plin(this.P, 'mid')) },
+      cPalMid: { value: new THREE.Vector3(...plin(this.P, 'mid')) },
       uCam: { value: new THREE.Vector4(0, 0, 1, 0) },
       uSt: { value: new THREE.Vector4(-9, -9, -9, -9) },
       uBp: { value: 0 },

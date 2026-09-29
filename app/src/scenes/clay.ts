@@ -83,7 +83,7 @@ uniform float uSign, uK, uPress, uS0; // writing head: current sign, wedge withi
 uniform vec3 uTip, uDir; // stylus tip and shaft direction
 uniform float uStyl;    // stylus present
 uniform float uBp;      // beat pulse
-uniform vec3 uGround, uDeep, uMid, uHi, uSig;
+uniform vec3 uGround, uDeep, cPalMid, uHi, uSig;
 
 const vec2 TAB = vec2(${f3(TAB[0])}, ${f3(TAB[1])});
 const float ROW_TOP = ${f3(ROW_TOP)}, ROW_H = ${f3(ROW_H)}, SLOT_W = ${f3(SLOT_W)};
@@ -231,7 +231,7 @@ vec3 plate(vec2 uv) {
     if (bodyD(p) < 0.02) {
       vec2 gd = vec2(bodyD(p + vec2(0.01, 0.0)) - bodyD(p - vec2(0.01, 0.0)), bodyD(p + vec2(0.0, 0.01)) - bodyD(p - vec2(0.0, 0.01)));
       vec3 ns = normalize(vec3(normalize(gd), 0.15));
-      vec3 alb = mix(uMid, uDeep, 0.3);
+      vec3 alb = mix(cPalMid, uDeep, 0.3);
       return alb * (uGround * 0.3 + max(dot(ns, uL), 0.0) * uLi * 0.7 * Lc);
     }
   }
@@ -247,7 +247,7 @@ vec3 plate(vec2 uv) {
       vec3 a1 = normalize(cross(uDir, vec3(0.0, 0.0, 1.0))), a2 = cross(a1, uDir);
       float ang = atan(dot(n, a2), dot(n, a1));
       float fib = 0.82 + 0.18 * sin(ang * 16.0 + 2.0 * snoise(vec2(k * 30.0, ang)));
-      vec3 alb = mix(uDeep, uMid, 0.5) * fib;
+      vec3 alb = mix(uDeep, cPalMid, 0.5) * fib;
       float dif = max(dot(n, uL), 0.0);
       vec3 hv = normalize(uL - rd);
       float sp = pow(max(dot(n, hv), 0.0), 24.0) * 0.25;
@@ -268,8 +268,8 @@ vec3 plate(vec2 uv) {
   bool onTab = bodyD(p) < 0.0;
   vec3 alb;
   if (onTab) {
-    alb = mix(uMid, uHi, 0.16 + 0.1 * snoise(p * 3.0));
-    alb = mix(alb, uMid * 0.85, 0.35 * pit);
+    alb = mix(cPalMid, uHi, 0.16 + 0.1 * snoise(p * 3.0));
+    alb = mix(alb, cPalMid * 0.85, 0.35 * pit);
     alb *= 1.0 - 0.16 * fresh * smoothstep(0.0, 0.2, pit);   // wet clay is darker
   } else {
     alb = uGround * (0.82 + 0.1 * snoise(p * 2.5) + 0.04 * snoise(p * 40.0));
@@ -434,7 +434,7 @@ export default class Clay extends Scene {
       uL: v3([-1, 0.3, 0.3]), uLi: { value: 1 }, uPool: v2([0, 0]), uWin: { value: 0 }, uWinC: v2([0, 0]),
       uSign: { value: S0 }, uK: { value: 0 }, uPress: { value: 0 }, uS0: { value: S0 },
       uTip: v3([0, 0, 1]), uDir: v3([0, 0, 1]), uStyl: { value: 1 }, uBp: { value: 0 },
-      uGround: v3(plin(this.P, 'ground')), uDeep: v3(plin(this.P, 'deep')), uMid: v3(plin(this.P, 'mid')),
+      uGround: v3(plin(this.P, 'ground')), uDeep: v3(plin(this.P, 'deep')), cPalMid: v3(plin(this.P, 'mid')),
       uHi: v3(plin(this.P, 'hi')), uSig: v3(plin(this.P, 'signal')),
     };
     this.pass = new FSPass(GLSL, u);

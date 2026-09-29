@@ -60,7 +60,7 @@ uniform sampler2D uState;           // per disc: r = angle (0 black face .. 1 ye
 uniform vec2 uRes;
 uniform vec3 uPos, uFwd, uRight, uUp; // pinhole camera; the board is the plane z = 0, u = x, v = -y (disc units)
 uniform float uFocal;
-uniform vec3 uGround, uDeep, uMid, uHi;
+uniform vec3 uGround, uDeep, cPalMid, uHi;
 uniform float uGlint;
 const float COLS = ${COLS}.0, ROWS = ${ROWS}.0;
 const float R = 0.43;
@@ -89,7 +89,7 @@ void main() {
     float yaw = yellow ? a - PI : a;          // the visible face's normal, relative to facing the camera
     float lit = 0.62 + 0.38 * max(cos(yaw + 0.55), 0.0);
     float glint = pow(max(cos(yaw + 0.62), 0.0), 40.0);
-    vec3 face = yellow ? uHi * (lit + uGlint * 1.6 * glint) : uDeep * (0.75 + 0.9 * lit) + uMid * 0.35 * glint;
+    vec3 face = yellow ? uHi * (lit + uGlint * 1.6 * glint) : uDeep * (0.75 + 0.9 * lit) + cPalMid * 0.35 * glint;
     // recess ring the disc sits in
     float rr = length(l);
     vec3 cellc = mix(uGround * 0.5, col, smoothstep(0.47 - px, 0.47 + px, rr));
@@ -99,11 +99,11 @@ void main() {
     float dEdge = length(vec2(l.x / edge, l.y / R)) - 1.0;
     float dFace = length(vec2(l.x / hw, l.y / R)) - 1.0;
     float aaE = px / max(edge, 0.02), aaF = px / max(hw, 0.02);
-    cellc = mix(cellc, uMid * 0.55, 1.0 - smoothstep(-aaE, aaE, dEdge));
+    cellc = mix(cellc, cPalMid * 0.55, 1.0 - smoothstep(-aaE, aaE, dEdge));
     cellc = mix(cellc, face, 1.0 - smoothstep(-aaF, aaF, dFace));
     // axle pins above and below the disc
     float pin = min(length(l - vec2(0.0, 0.465)), length(l + vec2(0.0, 0.465)));
-    cellc = mix(cellc, uMid * 0.7, 1.0 - smoothstep(0.035 - px, 0.035 + px, pin));
+    cellc = mix(cellc, cPalMid * 0.7, 1.0 - smoothstep(0.035 - px, 0.035 + px, pin));
     // far away (a disc under ~2 px): the average of the cell, no moire
     vec3 avg = mix(uGround * 0.5, face, PI * R * hw * 0.9);
     col = mix(cellc, avg, smoothstep(0.35, 0.7, px));
@@ -157,7 +157,7 @@ export default class Flipdisc extends Scene {
       uPos: { value: new THREE.Vector3() }, uFwd: { value: new THREE.Vector3() }, uRight: { value: new THREE.Vector3() }, uUp: { value: new THREE.Vector3() },
       uFocal: { value: 3 }, uGlint: { value: 1 },
       uGround: { value: v3(plin(this.P, 'ground')) }, uDeep: { value: v3(plin(this.P, 'deep')) },
-      uMid: { value: v3(plin(this.P, 'mid')) }, uHi: { value: v3(plin(this.P, 'hi')) },
+      cPalMid: { value: v3(plin(this.P, 'mid')) }, uHi: { value: v3(plin(this.P, 'hi')) },
     });
   }
 

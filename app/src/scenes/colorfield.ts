@@ -25,7 +25,7 @@ const AP = { x: 960, y: 520, hx: 720, hy: 320, r: 10 };
 
 const FIELD_GLSL = /* glsl */ `
 uniform vec2 uRes;
-uniform vec3 uGround, uDeep, uMid, uHi;
+uniform vec3 uGround, uDeep, cPalMid, uHi;
 uniform vec2 uC, uHalf;     // aperture centre / half size, logical px (y down)
 uniform float uR, uSoft;    // corner radius, edge softness (px)
 uniform float uBreath;      // 0..1+ luminance breath (beat)
@@ -37,7 +37,7 @@ uniform float uT, uSpill;   // time, light spill onto the wall (px)
 vec3 field(vec2 q, float k) {
   float drift = 0.5 + 0.5 * sin(uT * 0.37 + q.x * 0.0011);
   vec3 top = mix(uHi, uGround, 0.35 + 0.15 * drift);
-  vec3 low = mix(uDeep, uMid, 0.18 * drift);
+  vec3 low = mix(uDeep, cPalMid, 0.18 * drift);
   float m = smoothstep(-0.15, 1.2, k);
   vec3 c = mix(top, low, m * m * (3.0 - 2.0 * m));
   return c * (1.04 + 0.22 * uBreath) + uHi * 0.1 * uBreath;
@@ -81,7 +81,7 @@ export default class Colorfield extends Scene {
     const v3 = (r: 'ground' | 'deep' | 'mid' | 'hi') => ({ value: new THREE.Vector3(...plin(this.P, r)) });
     this.pass = new FSPass(FIELD_GLSL, {
       uRes: { value: new THREE.Vector2(W, H) },
-      uGround: v3('ground'), uDeep: v3('deep'), uMid: v3('mid'), uHi: v3('hi'),
+      uGround: v3('ground'), uDeep: v3('deep'), cPalMid: v3('mid'), uHi: v3('hi'),
       uC: { value: new THREE.Vector2(AP.x, AP.y) }, uHalf: { value: new THREE.Vector2(AP.hx, AP.hy) },
       uR: { value: AP.r }, uSoft: { value: 2 }, uBreath: { value: 0 }, uFlat: { value: 0 }, uWhite: { value: 0 },
       uT: { value: 0 }, uSpill: { value: 260 },

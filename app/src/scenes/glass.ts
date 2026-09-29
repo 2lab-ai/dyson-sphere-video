@@ -36,7 +36,7 @@ uniform float uT, uLt, uFocal, uSun, uSurge, uHeat, uGlow, uShaft, uWall;
 uniform vec3 uPos, uFwd, uRight, uUp, uL, uWC;
 uniform vec2 uSunQ;
 uniform float uRing[6];
-uniform vec3 uGround, uDeep, uMid, uHi, uText, uSignal;
+uniform vec3 uGround, uDeep, cPalMid, uHi, uText, uSignal;
 
 const float WR = ${WR.toFixed(2)};
 const float RB0 = 0.17, RB1 = 0.40, RB2 = 0.66, RB3 = 0.86, RB4 = 1.0, RB5 = 1.1, RF = 1.26;
@@ -125,7 +125,7 @@ vec3 stoneAlb() { return mix(vec3(0.32), uHi * 0.45, 0.2); }
 
 // transmitted colour of a piece, luminance-normalised (cobalt is dark in linear, so it gets the largest gain)
 vec3 jewel(float cls) {
-  return cls < 0.5 ? uDeep * 3.2 : cls < 1.5 ? uMid * 2.3 : cls < 2.5 ? uHi * 1.4 : uText * 2.4;
+  return cls < 0.5 ? uDeep * 3.2 : cls < 1.5 ? cPalMid * 2.3 : cls < 2.5 ? uHi * 1.4 : uText * 2.4;
 }
 
 // 0 before the piece's onset; on the onset a fast rise and a flash that settles to 1
@@ -282,7 +282,7 @@ export default class Glass extends Scene {
       uPos: { value: new THREE.Vector3() }, uFwd: { value: new THREE.Vector3() }, uRight: { value: new THREE.Vector3() }, uUp: { value: new THREE.Vector3() },
       uL: { value: LDIR.clone() }, uWC: { value: v3(WC) }, uSunQ: { value: new THREE.Vector2() },
       uRing: { value: [999, 999, 999, 999, 999, 999] },
-      uGround: { value: v3(plin(P, 'ground')) }, uDeep: { value: v3(plin(P, 'deep')) }, uMid: { value: v3(plin(P, 'mid')) },
+      uGround: { value: v3(plin(P, 'ground')) }, uDeep: { value: v3(plin(P, 'deep')) }, cPalMid: { value: v3(plin(P, 'mid')) },
       uHi: { value: v3(plin(P, 'hi')) }, uText: { value: v3(plin(P, 'text')) }, uSignal: { value: v3(plin(P, 'signal')) },
     });
   }

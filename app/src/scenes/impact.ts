@@ -35,7 +35,7 @@ uniform float uKick;
 uniform vec4 uLand;     // local landing times of the 4 accreting lumps
 uniform vec3 uCamE, uCamT;
 uniform float uFov, uRoll, uAspect;
-uniform vec3 uGround, uDeep, uMid, uHi, uSig;
+uniform vec3 uGround, uDeep, cPalMid, uHi, uSig;
 
 const vec3 BC = vec3(0.0, 0.0, -2.0);   // cyclorama centre
 const float BR = 11.0;                  // cyclorama radius
@@ -224,7 +224,7 @@ vec3 albedo(float id, vec3 p, out float emit) {
   float tt = ti();
   if (id < 1.5) {
     float m = fbm(p * 1.5 + vec3(0.0, uTq * 0.2, 0.0), 3);
-    vec3 c = mix(uMid, uHi, smoothstep(0.05, 0.45, m));
+    vec3 c = mix(cPalMid, uHi, smoothstep(0.05, 0.45, m));
     if (tt > 0.0) {
       float mix2 = smoothstep(0.0, 0.8, tt);
       float sw = fbm(p * 2.1 + dirT() * tt * 1.5, 3);
@@ -236,18 +236,18 @@ vec3 albedo(float id, vec3 p, out float emit) {
   }
   if (id < 5.5) {
     int i = int(id - 2.0);
-    return i == 0 ? uHi : i == 1 ? uDeep : i == 2 ? mix(uMid, uGround, 0.4) : uDeep;
+    return i == 0 ? uHi : i == 1 ? uDeep : i == 2 ? mix(cPalMid, uGround, 0.4) : uDeep;
   }
   if (id < 6.5) {
     float m = fbm(p * 2.4, 2);
     return mix(uDeep, mix(uDeep, uGround, 0.35), smoothstep(0.2, 0.6, m));
   }
-  if (id < 7.5) { emit = 0.5; return mix(uMid, uHi, 0.45); }
+  if (id < 7.5) { emit = 0.5; return mix(cPalMid, uHi, 0.45); }
   if (id < 29.5) {
     float h = hash11((id - 8.0) * 1.37 + 0.5);
-    vec3 c = h < 0.4 ? uMid : h < 0.75 ? uDeep : uHi;
+    vec3 c = h < 0.4 ? cPalMid : h < 0.75 ? uDeep : uHi;
     emit = h < 0.4 ? 0.35 * exp(-tt * 1.2) : 0.0;
-    return mix(c, uMid, 0.3 * smoothstep(0.0, 0.5, fbm(p * 5.0, 2)));
+    return mix(c, cPalMid, 0.3 * smoothstep(0.0, 0.5, fbm(p * 5.0, 2)));
   }
   // the gathering clump: mottled grey-navy clay
   return mix(uDeep, uGround, 0.45 + 0.2 * fbm(p * 4.0, 2));
@@ -265,7 +265,7 @@ vec3 setCol(vec3 p) {
     float r = 0.07 + 0.08 * hash12(cell + 9.0);
     float q = length(f - o) / r;
     if (q < 1.0) {
-      vec3 sc = h > 0.9 ? uDeep : h > 0.82 ? uMid : uHi;
+      vec3 sc = h > 0.9 ? uDeep : h > 0.82 ? cPalMid : uHi;
       float dome = sqrt(1.0 - q * q);
       vec2 g = (f - o) / r;
       float lit = clamp(0.55 + 0.45 * dot(normalize(vec3(g.x, g.y, dome)), normalize(vec3(-0.7, 0.8, 1.0))), 0.0, 1.2);
@@ -349,7 +349,7 @@ export default class Impact extends Scene {
       uTq: { value: 0 }, uImp: { value: this.impT }, uStep: { value: 0 }, uBeat: { value: 0 }, uKick: { value: 0 },
       uLand: { value: new THREE.Vector4(...this.land) },
       uCamE: v3([0, 0, 8]), uCamT: v3([0, 0, 0]), uFov: { value: 40 }, uRoll: { value: 0 }, uAspect: { value: W / H },
-      uGround: v3(plin(this.P, 'ground')), uDeep: v3(plin(this.P, 'deep')), uMid: v3(plin(this.P, 'mid')),
+      uGround: v3(plin(this.P, 'ground')), uDeep: v3(plin(this.P, 'deep')), cPalMid: v3(plin(this.P, 'mid')),
       uHi: v3(plin(this.P, 'hi')), uSig: v3(plin(this.P, 'signal')),
     };
     this.pass = new FSPass(GLSL, u);

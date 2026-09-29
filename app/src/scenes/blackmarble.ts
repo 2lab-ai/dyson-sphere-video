@@ -39,7 +39,7 @@ uniform vec3 uSunG;             // sun direction in the patch (globe) frame
 uniform vec4 uB;                // beat pulse, grid level (float), kick pulse, downbeat pulse
 uniform vec4 uL;                // cell frequency (cells / sphere unit), cell px, street-grid mix, street freq
 uniform vec4 uX;                // exit wave front (px along the wave axis), wave active, text floor on the day side, city districts beyond the word
-uniform vec3 uGround, uDeep, uMid, uHi, uSig;
+uniform vec3 uGround, uDeep, cPalMid, uHi, uSig;
 
 // nearest jittered point of the 3D cell lattice around p (cell units): distance + cell hash
 vec2 cell3(vec3 p) {
@@ -77,7 +77,7 @@ void main() {
     float isLand = smoothstep(-0.02, 0.06, land);
     vec3 base = mix(uGround * 1.4, uDeep * 0.55, isLand) * (0.8 + 0.4 * fbm(S * 14.0, 3));
     // day side: a dim navy wash (never bright), with a thin warm twilight band on the terminator
-    base = mix(base, uDeep * (0.55 + 0.9 * sat(lam * 2.0)) + uMid * 0.10 * sat(lam * 3.0), 1.0 - night);
+    base = mix(base, uDeep * (0.55 + 0.9 * sat(lam * 2.0)) + cPalMid * 0.10 * sat(lam * 3.0), 1.0 - night);
     base += sodium * 0.05 * exp(-abs(lam) * 45.0);
 
     // --- the word continent: settlement density from the mask (tangent-plane projection of the patch)
@@ -98,7 +98,7 @@ void main() {
     float litS = smoothstep(0.30, 0.62, sprawl);
     float outline = smoothstep(0.08, 0.2, max(m, sprawl)) * (1.0 - lit);
     // districts and dark parks inside the strokes: the word is settlements, not a fill
-    float patch = smoothstep(-0.25, 0.35, fbm(S * uL.x * 0.08, 2));
+    float patchN = smoothstep(-0.25, 0.35, fbm(S * uL.x * 0.08, 2));
 
     // --- background towns: sparse chains along rivers and coasts, kept out of the moat around the word
     float river = 1.0 - abs(fbm(S * 5.5 + 7.7, 4));
@@ -112,7 +112,7 @@ void main() {
     float dpx = cl.x * uL.y;                                      // distance to the cell's city in px
     vec2 cl2 = cell3(S * uL.x * 2.3 + 5.1);
     float dpx2 = cl2.x * uL.y / 2.3;
-    float dens = lit * (0.35 + 0.65 * patch);
+    float dens = lit * (0.35 + 0.65 * patchN);
     float thrT = (0.62 + 0.06 * lvl) * 1.3 * dens;                // one grid step per beat
     float thrB = (0.35 + 0.05 * lvl) * 2.0 * bgD;
     float onT = step(cl.y, thrT);
@@ -132,7 +132,7 @@ void main() {
     float art = exp(-pow(min(ga.x, ga.y) * gpx / 2.0, 2.0));
     float via = exp(-pow(length(gf) * gpx / 2.4, 2.0));
     float grid = uL.z * (street * 0.9 + art * 1.4 + via * 1.6 * (0.6 + 0.4 * step(0.5, hash12(floor(g + 0.5)))));
-    float blockLit = step(hash12(floor(g) + 3.7), 0.35 + 0.45 * patch);
+    float blockLit = step(hash12(floor(g) + 3.7), 0.35 + 0.45 * patchN);
     // districts of the city beyond the word (top only): patchy, with dark gaps, never a lattice over everything
     float bgTown = uX.w * (1.0 - smoothstep(0.05, 0.3, sprawl)) * smoothstep(0.1, 0.45, fbm(S * 25.0 + 2.0, 3));
 
@@ -146,7 +146,7 @@ void main() {
 
     float gain = 1.0 + 0.55 * uB.x + 0.25 * uB.w;                // the night side pulses on the beat
     vec3 lights = vec3(0.0);
-    lights += sodium * (litS * 0.20 + lit * 0.10 * (0.5 + patch)) * wordOn;          // sprawl glow
+    lights += sodium * (litS * 0.20 + lit * 0.10 * (0.5 + patchN)) * wordOn;          // sprawl glow
     lights += (uHi * 3.2 * core + sodium * 1.2 * halo) * onT * bright * wordOn;       // word cities
     lights += uHi * 1.6 * exp(-dpx2 * dpx2 / 0.8) * onT2 * wordOn;                     // word towns
     lights += sodium * grid * lit * (0.5 + 0.5 * blockLit) * wordOn;                   // avenues
@@ -162,13 +162,13 @@ void main() {
 
     // limb scattering inside the disc (airglow on the night side, brighter toward the sun)
     float rim = pow(1.0 - V.z, 4.0);
-    col += uMid * rim * (0.35 + 0.5 * sat(lam + 0.25));
+    col += cPalMid * rim * (0.35 + 0.5 * sat(lam + 0.25));
   }
   // atmosphere outside the disc: a thin airglow line + soft blue falloff
   float hpx = (r - 1.0) * R;
   if (hpx > 0.0) {
     float thick = 6.0 + R * 0.012;
-    col += uMid * (0.55 * exp(-hpx / thick) + 0.35 * exp(-hpx * hpx / 6.0)) * (1.0 + 1.2 * uB.x);   // the airglow line strobes on the beat
+    col += cPalMid * (0.55 * exp(-hpx / thick) + 0.35 * exp(-hpx * hpx / 6.0)) * (1.0 + 1.2 * uB.x);   // the airglow line strobes on the beat
     col += uHi * 0.06 * exp(-hpx * hpx / 3.0);
   }
   fragColor = vec4(max(col, 0.0), 1.0);
@@ -208,7 +208,7 @@ export default class BlackMarble extends Scene {
       uX: { value: new THREE.Vector4() },
       uGround: { value: v3('ground') },
       uDeep: { value: v3('deep') },
-      uMid: { value: v3('mid') },
+      cPalMid: { value: v3('mid') },
       uHi: { value: v3('hi') },
       uSig: { value: v3('signal') },
     });

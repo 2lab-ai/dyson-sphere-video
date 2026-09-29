@@ -214,14 +214,14 @@ float disc(vec2 q, float R) {
     float gran = 1.0 - smoothstep(0.0, 0.4, n2.y - n2.x);
     float cellMid = smoothstep(0.1, 0.7, n1.x);             // cell interiors a touch darker
     float large = fbm(uv * 2.2 + 4.0, 4);
-    float active = smoothstep(0.18, 0.55, large);            // plage: bright active regions
+    float actv = smoothstep(0.18, 0.55, large);            // plage: bright active regions
     float fil = smoothstep(0.84, 0.97, ridged(uv * vec2(3.2, 5.0) + 17.0, 3)); // dark filaments
     float kick = uKickP;
     I = 0.5 + 0.08 * large
       + (0.14 + 0.3 * kick) * net
       + (0.07 + 0.14 * kick) * gran
       - 0.1 * cellMid
-      + 0.38 * active * (0.7 + 0.5 * net)
+      + 0.38 * actv * (0.7 + 0.5 * net)
       - 0.34 * fil;
     // limb: slight brightening in 304, then the edge falls off into the spicule fringe
     I += 0.12 * smoothstep(0.82, 0.995, r);

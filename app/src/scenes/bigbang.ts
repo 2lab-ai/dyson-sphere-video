@@ -26,7 +26,7 @@ export default class Bigbang extends ShaderScene {
 
   protected override glsl(): string {
     return /* glsl */ `
-uniform vec3 uGround, uDeep, uMid, uHi, uSig;
+uniform vec3 uGround, uDeep, cPalMid, uHi, uSig;
 uniform float uTemp;    // 0..1 temperature (per-beat steps)
 uniform float uStage;   // 0 white, 1 cells, 2 curls, 3 filament
 uniform float uCamD;    // 0 flat (one plane), 1 close (near + far planes), 2 deep (the far plane only)
@@ -58,14 +58,14 @@ float field(vec2 q, float seed, float amp, int oct) {
 // density 0..1 -> emission: black ground -> red fringe -> gold body -> white core (runs over 1 in the core)
 vec3 ramp(float h) {
   vec3 c = mix(uGround, uDeep * 0.4, smoothstep(0.04, 0.32, h));
-  c = mix(c, uMid, smoothstep(0.26, 0.62, h));
+  c = mix(c, cPalMid, smoothstep(0.26, 0.62, h));
   c = mix(c, uHi, smoothstep(0.62, 0.95, h));
   return c * (1.0 + 0.9 * smoothstep(0.85, 1.0, h));
 }
 
 // the colour of the plasma at temperature T (1 white-hot -> 0.4 red), for the flat field
 vec3 tempCol(float T) {
-  vec3 c = mix(uDeep, uMid, smoothstep(0.55, 0.8, T));
+  vec3 c = mix(uDeep, cPalMid, smoothstep(0.55, 0.8, T));
   c = mix(c, uHi, smoothstep(0.8, 0.97, T));
   return c * (0.75 + 0.5 * smoothstep(0.88, 1.0, T));
 }
@@ -102,7 +102,7 @@ vec3 plate(vec2 p) {
     // CLOSE / DEEP: layered depth, frontal. Far: finer plumes, dimmer, behind. Near: huge soft billows (few octaves:
     // they read out of focus), backlit, in front. Deep (filament): the near layer is gone, the far plane is the web.
     float hot = 0.3 + 0.7 * T + 0.14 * uBp;                                   // re-heat on each beat
-    vec3 edge = mix(uMid, uHi, 0.6);                                         // the backlit edge: gold-white
+    vec3 edge = mix(cPalMid, uHi, 0.6);                                         // the backlit edge: gold-white
     bool deep = uCamD > 1.5;
     vec2 F = deep ? layer(p, vec2(-3.1, 2.2), 2.6, 4.1, 0.3, 3) : layer(p, vec2(-3.1, 2.2), 1.9, 4.1, 0.3, 5);
     vec3 far = ramp(clamp(F.x * hot * 0.8, 0.0, 1.0)) + edge * F.y * 0.12 * hot;
@@ -125,7 +125,7 @@ vec3 plate(vec2 p) {
     const P = palette(this.ctx.params.look.palette);
     const v = (r: 'ground' | 'deep' | 'mid' | 'hi' | 'signal') => ({ value: new THREE.Vector3(...plin(P, r)) });
     return {
-      uGround: v('ground'), uDeep: v('deep'), uMid: v('mid'), uHi: v('hi'), uSig: v('signal'),
+      uGround: v('ground'), uDeep: v('deep'), cPalMid: v('mid'), uHi: v('hi'), uSig: v('signal'),
       uTemp: { value: 1 }, uStage: { value: 0 }, uCamD: { value: 0 }, uGrow: { value: 1 }, uFlowT: { value: 0 },
       uSt: { value: 0 }, uBp: { value: 0 }, uKp: { value: 0 }, uThin: { value: 0 },
     };
