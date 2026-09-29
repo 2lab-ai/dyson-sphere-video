@@ -9,6 +9,10 @@
 //            --samples auto picks the count per frame (4, 12, 36, 108 or 324, see Engine.render)
 //            video mode runs the edit gate first (scripts/edit-gate.ts) and refuses to render unless it passes;
 //            --force-no-gate skips it (loud warning; for private test renders only)
+//   --animatic (all modes): every plate renders with scenes/animatic.ts (the v3 proxy). Video: the gate runs with
+//            --tolerate-module-missing (only C.module-missing may fail), and the defaults become 720p (--height 720),
+//            30 fps, preset veryfast, out ../out/animatic-v3.mp4.
+//   --height N (video): scale the encoded video to N lines (16:9), e.g. 720 or 540.
 //   --scale N (all modes): render at N× the 1920x1080 layout (--scale 2 = true 3840x2160); stills are then saved
 //            full-res from the pixel buffer, videos are encoded at the physical size.
 // Uses the Vite dev server at --url (default http://localhost:5173); starts a private one if unreachable.
@@ -29,6 +33,8 @@ const SAMPLES = opt('samples', '1') === 'auto'
   : +opt('samples', '1')!;
 const hist = (h: Record<string, number>) => Object.entries(h).sort((a, b) => +a[0] - +b[0]).map(([k, v]) => `${k}:${v}`).join(' ');
 const ROOT = path.resolve(APP, '..');
+const ANIMATIC = flag('animatic');
+const OUT_H = +opt('height', ANIMATIC ? '720' : '0')!;
 
 async function reachable(url: string) {
   try { const r = await fetch(url, { signal: AbortSignal.timeout(1500) }); return r.ok; } catch { return false; }
@@ -56,7 +62,7 @@ async function openPage(url: string) {
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') logs.push(`[${m.type()}] ${m.text()}`); });
   page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
   const only = opt('only');
-  await page.goto(`${url}/?export=1${only ? `&only=${only}` : ''}${SCALE !== 1 ? `&scale=${SCALE}` : ''}`);
+  await page.goto(`${url}/?export=1${only ? `&only=${only}` : ''}${SCALE !== 1 ? `&scale=${SCALE}` : ''}${ANIMATIC ? '&animatic=1' : ''}`);
   await page.waitForFunction(() => (window as any).__pdoom?.ready || (window as any).__pdoom?.error, null, { timeout: 120000 });
   const err = await page.evaluate(() => (window as any).__pdoom.error);
   if (err) throw new Error(`app failed to boot:\n${err}\n${logs.join('\n')}`);
@@ -113,7 +119,8 @@ async function video(page: Page, from: number, to: number, fps: number, out: str
   // Frames are sRGB (toSRGB in the final pass): convert with the BT.709 matrix and tag the stream,
   // otherwise ffmpeg converts with BT.601 while players and YouTube decode untagged HD as BT.709.
   // scale tags the matrix and range; primaries and transfer need setparams (the -color_* output flags don't reach the stream).
-  args.push('-vf', 'vflip,scale=out_color_matrix=bt709,setparams=color_primaries=bt709:color_trc=bt709', '-c:v', 'libx264', '-preset', opt('preset', 'slow')!, '-crf', crf, '-pix_fmt', 'yuv420p', '-tune', 'grain', '-x264-params', opt('x264', 'aq-mode=3')!);
+  const size = OUT_H ? `${Math.round((OUT_H * 16) / 9 / 2) * 2}:${OUT_H}:flags=bicubic:` : '';
+  args.push('-vf', `vflip,scale=${size}out_color_matrix=bt709,setparams=color_primaries=bt709:color_trc=bt709`, '-c:v', 'libx264', '-preset', opt('preset', ANIMATIC ? 'veryfast' : 'slow')!, '-crf', crf, '-pix_fmt', 'yuv420p', '-tune', 'grain', '-x264-params', opt('x264', 'aq-mode=3')!);
   if (!flag('noaudio')) args.push('-c:a', 'aac', '-b:a', '320k', '-shortest');
   args.push('-movflags', '+faststart', out);
   const ff = Bun.spawn(args, { stdin: 'pipe', stdout: 'inherit', stderr: 'inherit' });
@@ -152,7 +159,8 @@ if (mode === 'video') {
     const bar = '!'.repeat(78);
     console.error(`${bar}\n!! --force-no-gate: rendering WITHOUT the edit gate. This video is not a release candidate.\n${bar}`);
   } else {
-    const g = Bun.spawnSync(['bun', path.join(APP, 'scripts/edit-gate.ts')], { cwd: APP, stdout: 'inherit', stderr: 'inherit' });
+    // the animatic renders before the plate modules exist: only C.module-missing may fail (nothing else)
+    const g = Bun.spawnSync(['bun', path.join(APP, 'scripts/edit-gate.ts'), ...(ANIMATIC ? ['--tolerate-module-missing'] : [])], { cwd: APP, stdout: 'inherit', stderr: 'inherit' });
     if (g.exitCode !== 0) {
       console.error('render: the edit gate failed (see above); refusing to render video. Fix the edit, or pass --force-no-gate for a private test render.');
       process.exit(1);
@@ -221,7 +229,7 @@ try {
     console.log(`frames ${r.n}  avg ${r.avg.toFixed(1)}ms  p50 ${r.p50.toFixed(1)}  p95 ${r.p95.toFixed(1)}  max ${r.max.toFixed(1)}  sub-frames ${hist(r.used)}`);
   } else if (mode === 'video') {
     const dur: number = await page.evaluate(() => (window as any).__pdoom.duration);
-    await video(page, +opt('from', '0')!, +opt('to', String(dur))!, +opt('fps', '60')!, path.resolve(opt('out', path.join(ROOT, 'out/dyson.mp4'))!));
+    await video(page, +opt('from', '0')!, +opt('to', String(dur))!, +opt('fps', ANIMATIC ? '30' : '60')!, path.resolve(opt('out', path.join(ROOT, ANIMATIC ? 'out/animatic-v3.mp4' : 'out/dyson.mp4'))!));
   }
   if (logs.length) console.error('BROWSER LOG:\n' + logs.slice(0, 40).join('\n'));
 } finally {

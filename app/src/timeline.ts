@@ -2,6 +2,8 @@
 // hard cuts (no overlaps). Each entry loads `scenes/<module>.ts` and receives the whole plate as ctx.params
 // (id, module, variant, lines, bars, light, event, start, end, anchor, accent?). A module that does not
 // exist yet fails to load and the engine shows its window as a solid red placeholder.
+// Animatic (?animatic=1, set by `scripts/render.ts --animatic`): every plate loads scenes/animatic.ts instead of its
+// module — the v3 real-length proxy for review before the plate modules are built. Nothing else changes.
 import type { TimelineEntry } from './engine/engine';
 import type { SceneClass } from './engine/scene';
 import type { Lyrics } from './engine/lyrics';
@@ -15,10 +17,11 @@ const scene = (name: string) => () => {
   return m ? m() : Promise.reject(new Error(`scene module not found: scenes/${name}.ts`));
 };
 
-export const PLATES: PlateInfo[] = (edit as { plates: PlateInfo[] }).plates;
+export const PLATES: PlateInfo[] = (edit as unknown as { plates: PlateInfo[] }).plates;
+const ANIMATIC = typeof location !== 'undefined' && new URLSearchParams(location.search).has('animatic');
 
 export function makeTimeline(_ly: Lyrics, _au: AudioData): TimelineEntry[] {
   const E = (id: string, file: string, start: number, end: number, extra: Partial<TimelineEntry> = {}): TimelineEntry =>
     ({ id, load: scene(file), start, end, ...extra });
-  return PLATES.map((p) => E(p.id, p.module, p.start, p.end, { params: { ...p } }));
+  return PLATES.map((p) => E(p.id, ANIMATIC ? 'animatic' : p.module, p.start, p.end, { params: { ...p } }));
 }

@@ -1,13 +1,19 @@
 {
+ "version": 3,
  "tiers": {
-  "T1": "verse: camera/post shake <= 6 px, flare <= 1.4x (object motion is choreography, not capped)",
+  "T1": "verse/outro: camera/post shake <= 6 px, flare <= 1.4x (object motion is choreography, not capped)",
   "T2": "pre-chorus/bridge: camera/post shake <= 14 px, flare <= 2x; downbeat scale punch <= 1.06x",
-  "T3": "drop/climax: every beat a BIG structural hit specific to the plate (the object itself moves/locks/breaks); full-frame polarity swaps / frame-covering flares only where a shot names them (drop entries)"
+  "T3": "drop/climax: every beat a BIG structural hit specific to the plate (the object itself moves/locks/breaks); full-frame flashes only where a shot names them, <= 3 large flashes/s on #38-#41"
  },
  "hit": "kick = frames 0-2 at full amplitude, decays over 6 frames (outExpo); snare (beats 2/4) = secondary element. Lyrics follow their word/syllable times; object hits follow beat times — never move a word to a beat",
+ "anchor": {
+  "x": 1187,
+  "y": 413
+ },
  "plates": [
   {
    "id": "p01-spark-write",
+   "n": 1,
    "module": "spark",
    "variant": "write",
    "start": 0.0,
@@ -17,43 +23,68 @@
     1
    ],
    "tier": "T1",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "light-trace",
+   "family": "E",
+   "palette": "bco",
+   "sequence": null,
    "accent": false,
    "beat": "the trail (object) snaps forward 24 px per beat; the point flares 1.4x on the kick; camera still",
-   "lyric": "line 0 is revealed stroke by stroke from the real Hangul glyph outlines (opentype path + dash offset) along the hairline; its strokes briefly form a street / window / circuit structure; line 1 gets dragged into speed streaks",
-   "exit": "whip-pan into the p03 trace",
-   "event": "line 0 is revealed stroke by stroke from the real Hangul glyph outlines (opentype path + dash offset) along the hairline; its strokes briefly form a street / window / circuit structure; line 1 gets dragged into speed streaks | shots: black; a point ignites at centre-left on beat 1 and draws one hairline across → the point starts writing line 0; its strokes build a small street-and-window structure → the structure swaps to a circuit pattern (hard cut) as the second word lands → tight tracking on the point; line 1 letters smear into speed streaks → whip: camera overtakes the point",
+   "lyric": "line 0 is revealed stroke by stroke from the real Hangul glyph outlines along the hairline; its strokes briefly form a street / window / circuit structure; line 1 gets dragged into speed streaks",
+   "subject": {
+    "kind": "point",
+    "x": 560,
+    "y": 540,
+    "s": 0.02
+   },
+   "lyr": {
+    "x": 960,
+    "y": 600,
+    "size": 150,
+    "mat": "beam",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "whip-pan into the X-ray",
+   "event": "a point of light writes the first words as a circuit trace on black",
    "shots": [
     {
      "t": 0.0,
      "anchor": "s",
+     "cam": "wide",
      "desc": "black; a point ignites at centre-left on beat 1 and draws one hairline across"
     },
     {
      "t": 2.235,
      "anchor": "L0",
+     "cam": "track",
      "desc": "the point starts writing line 0; its strokes build a small street-and-window structure"
     },
     {
      "t": 3.3,
      "anchor": "W0.1",
+     "cam": "macro",
      "desc": "the structure swaps to a circuit pattern (hard cut) as the second word lands"
     },
     {
      "t": 5.061,
      "anchor": "L1",
+     "cam": "close",
      "desc": "tight tracking on the point; line 1 letters smear into speed streaks"
     },
     {
      "t": 6.268,
      "anchor": "+10b",
+     "cam": "side",
      "desc": "whip: camera overtakes the point"
     }
    ]
   },
   {
-   "id": "p02-ecg-heart",
-   "module": "ecg",
+   "id": "p02-xray-heart",
+   "n": 2,
+   "module": "xray",
    "variant": "heart",
    "start": 6.96,
    "end": 12.095,
@@ -61,134 +92,228 @@
     2
    ],
    "tier": "T1",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "xray",
+   "family": "S",
+   "palette": "xray",
+   "sequence": null,
    "accent": false,
-   "beat": "each heart spike (on the kick) drags the markers and letters 40 px forward (object traction); camera follows with <= 6 px lag",
-   "lyric": "line 2 rides the trace; each spike tows the next letters into view (the heart leads us)",
-   "exit": "the trace pulls taut and snaps to a white line → match cut to bone paper",
-   "event": "line 2 rides the trace; each spike tows the next letters into view (the heart leads us) | shots: full-width oscilloscope, two small markers pulled along by the trace → 3/4 view: the trace as a tow rope, markers and letters dragged in parallax → tight on one heartbeat cycle with a reticle grid",
+   "beat": "each kick the radiograph re-exposes: the ribs/gears flash bone-white and decay; the gear train steps one tooth",
+   "lyric": "line 2 is the bone-white radiograph of letters inside the ribcage of gears, exposed word by word",
+   "subject": {
+    "kind": "ribs",
+    "x": 960,
+    "y": 520,
+    "s": 0.8
+   },
+   "lyr": {
+    "x": 960,
+    "y": 560,
+    "size": 120,
+    "mat": "radiograph",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "the lightbox switches off to black",
+   "event": "the machine heart X-rayed: ribs of gears, the letters as bone-white radiograph",
    "shots": [
     {
      "t": 6.96,
      "anchor": "s",
-     "desc": "full-width oscilloscope, two small markers pulled along by the trace"
+     "cam": "wide",
+     "desc": "a lightbox: the whole chest of the machine, ribs made of gears, heart a clockwork pump"
     },
     {
      "t": 9.28,
      "anchor": "W2.2",
-     "desc": "3/4 view: the trace as a tow rope, markers and letters dragged in parallax"
+     "cam": "close",
+     "desc": "the film slides: close on the heart pump, letters as bone inside it"
     },
     {
      "t": 10.929,
      "anchor": "+6b",
-     "desc": "tight on one heartbeat cycle with a reticle grid"
+     "cam": "side",
+     "desc": "lateral view (a second film): the gear train in profile, letters stacked like vertebrae"
     }
    ]
   },
   {
-   "id": "p03-screen-hidden",
-   "module": "screen",
-   "variant": "hidden",
+   "id": "p03-crt-wall",
+   "n": 3,
+   "module": "crt",
+   "variant": "wall",
    "start": 12.095,
    "end": 16.174,
    "lines": [
     3
    ],
    "tier": "T1",
-   "ground": "bone",
+   "ground": "dark",
+   "idiom": "crt-wall",
+   "family": "E",
+   "palette": "crt",
+   "sequence": null,
    "accent": false,
-   "beat": "a new nested window frame snaps in per beat (scale 0.8→1 in 4 frames)",
-   "lyric": "line 3 types into the innermost field, cursor block in signal",
-   "exit": "the core fills the frame orange",
-   "event": "line 3 types into the innermost field, cursor block in signal | shots: frontal UI, three nested windows → camera dollies through the window stack; windows slide aside → the signal core (the future) is revealed and fills a third of frame",
+   "beat": "every beat one tube rolls its vertical hold (a bar snaps), the wall's brightness pulses on the kick",
+   "lyric": "line 3 scrolls across the tubes, one syllable per tube; one tube stays dark, hiding the future",
+   "subject": {
+    "kind": "tvgrid",
+    "x": 960,
+    "y": 540,
+    "s": 0.9,
+    "cols": 6,
+    "rows": 4
+   },
+   "lyr": {
+    "x": 960,
+    "y": 560,
+    "size": 110,
+    "mat": "scan",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "the tubes collapse to a dot one by one",
+   "event": "a wall of CRT TVs (Paik); the line scrolls across the tubes and one tube hides the future",
    "shots": [
     {
      "t": 12.095,
      "anchor": "s",
-     "desc": "frontal UI, three nested windows"
+     "cam": "wide",
+     "desc": "a wall of 24 CRT TVs (Paik), the line scrolling across them"
     },
     {
      "t": 12.98,
      "anchor": "W3.2",
-     "desc": "camera dollies through the window stack; windows slide aside"
+     "cam": "close",
+     "desc": "close on 4 tubes: scanlines, the scrolling syllables"
     },
     {
      "t": 15.591,
      "anchor": "+6b",
-     "desc": "the signal core (the future) is revealed and fills a third of frame"
+     "cam": "macro",
+     "desc": "the one dark tube: a warm dot (the hidden future) inside its glass"
     }
    ]
   },
   {
-   "id": "p04-press-dream",
+   "id": "p04-press-riso",
+   "n": 4,
    "module": "press",
-   "variant": "dream",
+   "variant": "riso",
    "start": 16.174,
    "end": 20.835,
    "lines": [
     4
    ],
    "tier": "T1",
-   "ground": "bone",
+   "ground": "light",
+   "idiom": "risograph",
+   "family": "P",
+   "palette": "riso",
+   "sequence": null,
    "accent": false,
-   "beat": "platen stamp per beat: ink density +30%, paper jolts 6 px down",
-   "lyric": "line 4 printed huge in ink; a signal second pass slides out of register until the words double",
-   "exit": "the paper slides up out of frame",
-   "event": "line 4 printed huge in ink; a signal second pass slides out of register until the words double | shots: the full poster → crop on the misregistered word, halftone visible → raking side light: the two passes lift off the paper as layers",
+   "beat": "per beat the pink pass slips 6 px further out of register; the drum stamp flashes the ink density",
+   "lyric": "line 4 printed huge in riso blue, a fluorescent pink pass drifting out of register until the words double",
+   "subject": {
+    "kind": "poster",
+    "x": 900,
+    "y": 520,
+    "s": 0.8
+   },
+   "lyr": {
+    "x": 900,
+    "y": 560,
+    "size": 190,
+    "mat": "print",
+    "rot": -0.05,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "the sheet is pulled out of frame",
+   "event": "the dream printed in fluorescent pink and blue riso that drifts out of register",
    "shots": [
     {
      "t": 16.174,
      "anchor": "s",
-     "desc": "the full poster"
+     "cam": "wide",
+     "desc": "the full riso poster, blue and pink passes nearly aligned"
     },
     {
      "t": 18.12,
      "anchor": "W4.2",
-     "desc": "crop on the misregistered word, halftone visible"
+     "cam": "macro",
+     "desc": "crop on the misregistered word: grain and dot noise of the drum"
     },
     {
      "t": 19.67,
      "anchor": "+6b",
-     "desc": "raking side light: the two passes lift off the paper as layers"
+     "cam": "tilt",
+     "desc": "the sheet tilted on the tray, the passes clearly apart"
     }
    ]
   },
   {
-   "id": "p05-wave-tide",
+   "id": "p05-wave-ocean",
+   "n": 5,
    "module": "wave",
-   "variant": "tide",
+   "variant": "ocean",
    "start": 20.835,
    "end": 24.94,
    "lines": [
     5
    ],
    "tier": "T1",
-   "ground": "bone",
+   "ground": "dark",
+   "idiom": "fluid-cosmos",
+   "family": "M",
+   "palette": "ocean",
+   "sequence": null,
    "accent": false,
-   "beat": "the crest impacts on each beat: its silhouette jumps forward and throws a line of dots",
-   "lyric": "line 5 sits on the crest and is carried left; letters bob with the wave height",
-   "exit": "the wave swallows the frame to ink",
-   "event": "line 5 sits on the crest and is carried left; letters bob with the wave height | shots: side view: a halftone-dot wave rolling in silently from the right edge → low angle inside the curl, dots huge → top view: the wave front as a line of dot rows",
+   "beat": "the crest surges forward on each beat, curls of amber light break off it on the kick",
+   "lyric": "line 5 rides the crest of an ink-in-water wave, letters carried left and diffusing at their edges",
+   "subject": {
+    "kind": "wave",
+    "x": 960,
+    "y": 620,
+    "s": 0.5
+   },
+   "lyr": {
+    "x": 1100,
+    "y": 470,
+    "size": 120,
+    "mat": "ink",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "the wave covers the frame in teal",
+   "event": "the high-tech tide as an ink-in-water ocean: a side-on wave flowing left, amber light in the teal",
    "shots": [
     {
      "t": 20.835,
      "anchor": "s",
-     "desc": "side view: a halftone-dot wave rolling in silently from the right edge"
+     "cam": "side",
+     "desc": "side-on: a teal ink wave rolling in from the right, flowing left"
     },
     {
      "t": 21.9,
      "anchor": "W5.2",
-     "desc": "low angle inside the curl, dots huge"
+     "cam": "low",
+     "desc": "low angle into the curl, amber light threads in the teal"
     },
     {
      "t": 24.331,
      "anchor": "+6b",
-     "desc": "top view: the wave front as a line of dot rows"
+     "cam": "close",
+     "desc": "close on the crest: the letters diffusing like ink"
     }
    ]
   },
   {
    "id": "p06-sign-neon",
+   "n": 6,
    "module": "sign",
    "variant": "neon",
    "start": 24.94,
@@ -197,140 +322,233 @@
     6
    ],
    "tier": "T1",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "neon",
+   "family": "E",
+   "palette": "neon",
+   "sequence": null,
    "accent": true,
    "beat": "the next tube stroke flickers on per beat (2 off-frames then on), tube width 2→8 px on ignition",
    "lyric": "line 6 as hand-bent neon tube lettering switching on stroke by stroke",
+   "subject": {
+    "kind": "tubes",
+    "x": 960,
+    "y": 520,
+    "s": 0.6
+   },
+   "lyr": {
+    "x": 960,
+    "y": 540,
+    "size": 150,
+    "mat": "tube",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
    "exit": "all tubes cut out on the downbeat",
-   "event": "line 6 as hand-bent neon tube lettering switching on stroke by stroke | shots: the wall frontal, tubes dark → tight on the tubes as the next words ignite, electrode buzz → wide: the glow floods and looms over the wall",
+   "event": "neon tubes switching on stroke by stroke over brick (accent plate)",
    "shots": [
     {
      "t": 24.94,
      "anchor": "s",
+     "cam": "wide",
      "desc": "the wall frontal, tubes dark"
     },
     {
      "t": 26.353,
      "anchor": "W6.2",
+     "cam": "close",
      "desc": "tight on the tubes as the next words ignite, electrode buzz"
     },
     {
      "t": 28.993,
      "anchor": "+6b",
+     "cam": "flat",
      "desc": "wide: the glow floods and looms over the wall"
     }
    ]
   },
   {
-   "id": "p07-gauge-countdown",
+   "id": "p07-gauge-bass",
+   "n": 7,
    "module": "gauge",
-   "variant": "countdown",
+   "variant": "bass",
    "start": 29.534,
    "end": 34.237,
    "lines": [
     7
    ],
    "tier": "T1",
-   "ground": "ink",
+   "ground": "light",
+   "idiom": "saul-bass",
+   "family": "P",
+   "palette": "bass",
+   "sequence": null,
    "accent": false,
-   "beat": "the needle tries to rewind on each kick and fails: sprocket slips back one tooth with a 6° overshoot",
-   "lyric": "line 7 on the dial face; each word lands as the rewind fails",
-   "exit": "the needle hits the stop on the downbeat",
-   "event": "line 7 on the dial face; each word lands as the rewind fails | shots: full dial with numeral wheel → macro on the sprocket and pawl → side view: the needle straining against the stop",
+   "beat": "the paper hand tries to rewind on each kick and fails: it jerks back one notch and snaps forward",
+   "lyric": "line 7 cut out of paper along the clock rim; each word lands as the rewind fails",
+   "subject": {
+    "kind": "bassclock",
+    "x": 820,
+    "y": 540,
+    "s": 0.75
+   },
+   "lyr": {
+    "x": 1250,
+    "y": 820,
+    "size": 110,
+    "mat": "cut",
+    "rot": -0.08,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "the paper clock tears away on the downbeat",
+   "event": "a Saul Bass cut-paper clock on a mustard ground that cannot be rewound",
    "shots": [
     {
      "t": 29.534,
      "anchor": "s",
-     "desc": "full dial with numeral wheel"
+     "cam": "wide",
+     "desc": "a cut-paper clock on mustard, jagged hands, the line along the rim"
     },
     {
      "t": 30.54,
      "anchor": "W7.2",
-     "desc": "macro on the sprocket and pawl"
+     "cam": "close",
+     "desc": "close on the hands straining against a paper stop"
     },
     {
      "t": 33.072,
      "anchor": "+6b",
-     "desc": "side view: the needle straining against the stop"
+     "cam": "tilt",
+     "desc": "the clock face tilts; a black paper arrow pins the hands"
     }
    ]
   },
   {
-   "id": "p08-press-squeeze",
-   "module": "press",
-   "variant": "squeeze",
+   "id": "p08-lightpaint-time",
+   "n": 8,
+   "module": "lightpaint",
+   "variant": "time",
    "start": 34.237,
    "end": 37.56,
    "lines": [
     8
    ],
    "tier": "T2",
-   "ground": "bone",
+   "ground": "dark",
+   "idiom": "light-painting",
+   "family": "M",
+   "palette": "lightpaint",
+   "sequence": null,
    "accent": false,
-   "beat": "the roller never stops: each beat it prints the line again, offset 14 px; the stop-latch bounces off on the downbeat",
-   "lyric": "line 8 printed by an unstoppable press roller, overprinted per beat; the paper runs faster each bar",
-   "exit": "the paper runs out of frame",
-   "event": "line 8 printed by an unstoppable press roller, overprinted per beat; the paper runs faster each bar | shots: wide: roller press and paper web → top view on the web, overprints stacking → macro: the stop latch snapping back",
+   "beat": "each beat a new light stroke is added and the oldest one fades out of the exposure",
+   "lyric": "line 8 is written by a light pen in long exposure; the trail stays as the line",
+   "subject": {
+    "kind": "trails",
+    "x": 960,
+    "y": 540,
+    "s": 0.8
+   },
+   "lyr": {
+    "x": 960,
+    "y": 540,
+    "size": 140,
+    "mat": "beam",
+    "rot": 0.04,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "the shutter closes to black",
+   "event": "time as long-exposure light-painting trails (Gjon Mili) writing the line",
    "shots": [
     {
      "t": 34.237,
      "anchor": "s",
-     "desc": "wide: roller press and paper web"
+     "cam": "wide",
+     "desc": "black studio, a figure's light pen draws the first trail"
     },
     {
      "t": 34.98,
      "anchor": "W8.2",
-     "desc": "top view on the web, overprints stacking"
+     "cam": "track",
+     "desc": "tracking along the trail as the pen writes the line"
     },
     {
      "t": 36.568,
      "anchor": "+4b",
-     "desc": "macro: the stop latch snapping back"
+     "cam": "flat",
+     "desc": "the full exposure: all trails at once, the figure a blur"
     }
    ]
   },
   {
-   "id": "p09-spark-race",
-   "module": "spark",
-   "variant": "race",
+   "id": "p09-led-ticker",
+   "n": 9,
+   "module": "led",
+   "variant": "ticker",
    "start": 37.56,
    "end": 43.56,
    "lines": [
     9
    ],
    "tier": "T2",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "led-wall",
+   "family": "E",
+   "palette": "led",
+   "sequence": null,
    "accent": false,
-   "beat": "the point passes one year tick exactly on each beat (tick flashes, 14 px jump)",
-   "lyric": "line 9 is drawn as the point overtakes the ticks; every word lands at its own word time (the Latin word at its start, not moved to a beat)",
-   "exit": "the point leaves the frame",
-   "event": "line 9 is drawn as the point overtakes the ticks; every word lands at its own word time (the Latin word at its start, not moved to a beat) | shots: side tracking on a timeline ruler → ahead of the point: it rushes at the camera → overhead: the ruler as a vanishing strip → the point exits frame right, ticks still flashing",
+   "beat": "the ticker jumps one LED column per beat; the year counter flips on each kick",
+   "lyric": "line 9 scrolls on the stadium LED ribbon; AGI overtakes the scrolling years",
+   "subject": {
+    "kind": "ticker",
+    "x": 960,
+    "y": 560,
+    "s": 0.35
+   },
+   "lyr": {
+    "x": 960,
+    "y": 575,
+    "size": 130,
+    "mat": "led",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "the ribbon goes dark column by column",
+   "event": "a stadium LED ticker; AGI overtakes the scrolling years",
    "shots": [
     {
      "t": 37.56,
      "anchor": "s",
-     "desc": "side tracking on a timeline ruler"
+     "cam": "wide",
+     "desc": "a curved stadium LED ribbon, years scrolling"
     },
     {
      "t": 39.58,
      "anchor": "W9.2",
-     "desc": "ahead of the point: it rushes at the camera"
+     "cam": "low",
+     "desc": "low angle under the ribbon, the dots huge"
     },
     {
      "t": 41.72,
      "anchor": "W9.4",
-     "desc": "overhead: the ruler as a vanishing strip"
+     "cam": "side",
+     "desc": "down the length of the ribbon, the letters racing past the years"
     },
     {
      "t": 42.978,
      "anchor": "+9b",
-     "desc": "the point exits frame right, ticks still flashing"
+     "cam": "close",
+     "desc": "close on the LEDs: the counter overtaken"
     }
    ]
   },
   {
-   "id": "p10-blueprint-room",
-   "module": "blueprint",
+   "id": "p10-lidar-room",
+   "n": 10,
+   "module": "lidar",
    "variant": "room",
    "start": 43.56,
    "end": 51.135,
@@ -338,37 +556,61 @@
     10
    ],
    "tier": "T2",
-   "ground": "bone",
+   "ground": "dark",
+   "idiom": "lidar",
+   "family": "S",
+   "palette": "lidar",
+   "sequence": null,
    "accent": false,
-   "beat": "a new wall segment snaps on per beat (line weight 1→3 px pulse)",
-   "lyric": "line 10 is the dimension label along the wall the two points draw",
-   "exit": "the door shuts on the downbeat",
-   "event": "line 10 is the dimension label along the wall the two points draw | shots: elevation: two points start drawing walls → isometric: floor and door appear → plan view: the closed room → section cut through the room, the two points inside",
+   "beat": "the scanner's sweep line passes once per beat, leaving a fresh shell of returns",
+   "lyric": "line 10 appears as point returns on the wall the sweep reveals",
+   "subject": {
+    "kind": "scan",
+    "x": 960,
+    "y": 560,
+    "s": 0.8
+   },
+   "lyr": {
+    "x": 960,
+    "y": 420,
+    "size": 110,
+    "mat": "lidar",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "the scanner stops; the points fade far to near",
+   "event": "a LiDAR sweep scans the room you and I made; two figures appear as point returns",
    "shots": [
     {
      "t": 43.56,
      "anchor": "s",
-     "desc": "elevation: two points start drawing walls"
+     "cam": "wide",
+     "desc": "a black room: a sweep line starts revealing the walls as points"
     },
     {
      "t": 44.68,
      "anchor": "W10.2",
-     "desc": "isometric: floor and door appear"
+     "cam": "top",
+     "desc": "overhead: the floor plan fills in as returns"
     },
     {
      "t": 47.72,
      "anchor": "W10.4",
-     "desc": "plan view: the closed room"
+     "cam": "side",
+     "desc": "side angle: two figures appear as point clouds"
     },
     {
      "t": 50.553,
      "anchor": "+12b",
-     "desc": "section cut through the room, the two points inside"
+     "cam": "close",
+     "desc": "close on the two figures, near points orange, far points blue"
     }
    ]
   },
   {
    "id": "p11-lens-gaze",
+   "n": 11,
    "module": "lens",
    "variant": "gaze",
    "start": 51.135,
@@ -378,238 +620,421 @@
     12
    ],
    "tier": "T2",
-   "ground": "ink",
+   "ground": "light",
+   "idiom": "aperture",
+   "family": "M",
+   "palette": "film",
+   "sequence": null,
    "accent": false,
    "beat": "aperture blades step 1/12 turn per beat on both irises",
-   "lyric": "line 11 is inscribed around the irises; line 12 is readable ONLY in the narrow zone where the two eyes' light overlaps, with the closed room's wall between them",
+   "lyric": "line 11 is inscribed around the irises; line 12 is readable ONLY in the zone where the two eyes' light overlaps",
+   "subject": {
+    "kind": "iris2",
+    "x": 960,
+    "y": 540,
+    "s": 0.45
+   },
+   "lyr": {
+    "x": 960,
+    "y": 820,
+    "size": 100,
+    "mat": "etch",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
    "exit": "both apertures close",
-   "event": "line 11 is inscribed around the irises; line 12 is readable ONLY in the narrow zone where the two eyes' light overlaps, with the closed room's wall between them | shots: two-shot: two irises facing, the room wall between; line 11 starts on the left ring → tight left iris, line 11 on its ring → the overlap zone between the eyes, line 12 appears in it → tight right iris, the overlap zone with line 12 still in frame",
+   "event": "two camera irises across a wall, shot on bright overexposed film stock",
    "shots": [
     {
      "t": 51.135,
      "anchor": "s",
-     "desc": "two-shot: two irises facing, the room wall between; line 11 starts on the left ring"
+     "cam": "wide",
+     "desc": "two-shot: two irises facing across a wall, overexposed film; line 11 starts on the left ring"
     },
     {
      "t": 52.78,
      "anchor": "W11.2",
+     "cam": "close",
      "desc": "tight left iris, line 11 on its ring"
     },
     {
      "t": 54.52,
      "anchor": "L12",
+     "cam": "flat",
      "desc": "the overlap zone between the eyes, line 12 appears in it"
     },
     {
      "t": 55.58,
      "anchor": "W12.1",
+     "cam": "macro",
      "desc": "tight right iris, the overlap zone with line 12 still in frame"
     }
    ]
   },
   {
-   "id": "p12-ecg-twin",
+   "id": "p12-ecg-xy",
+   "n": 12,
    "module": "ecg",
-   "variant": "twin",
+   "variant": "xy",
    "start": 57.545,
    "end": 65.12,
    "lines": [
     13
    ],
    "tier": "T2",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "oscilloscope-xy",
+   "family": "E",
+   "palette": "scope",
+   "sequence": null,
    "accent": false,
-   "beat": "both traces spike on the kick; when the right trace drops out the left one's amplitude dies, and returns with it",
-   "lyric": "line 13 rides between the two traces; they sync their beat (never merge); a thin connecting line forms on the last word",
-   "exit": "the connecting line flares into the drop",
-   "event": "line 13 rides between the two traces; they sync their beat (never merge); a thin connecting line forms on the last word | shots: machine chassis wide, two different pulses apart → tight: the right trace falters, the left dies with it → they sync beat for beat, still two → the thin connecting line pulls taut — it becomes the drop's first orbit",
+   "beat": "both Lissajous figures jump a phase step on each kick; the beam brightens for 3 frames",
+   "lyric": "line 13 is drawn by the beam between the two figures (vector strokes), sung syllables at full phosphor",
+   "subject": {
+    "kind": "lissajous",
+    "x": 960,
+    "y": 500,
+    "s": 0.6
+   },
+   "lyr": {
+    "x": 960,
+    "y": 860,
+    "size": 110,
+    "mat": "phosphor",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "the beam collapses to a point (the singularity before the drop)",
+   "event": "two XY-oscilloscope Lissajous figures that sync, green phosphor",
    "shots": [
     {
      "t": 57.545,
      "anchor": "s",
-     "desc": "machine chassis wide, two different pulses apart"
+     "cam": "wide",
+     "desc": "a scope screen: two different Lissajous figures, green phosphor"
     },
     {
      "t": 58.24,
      "anchor": "W13.2",
-     "desc": "tight: the right trace falters, the left dies with it"
+     "cam": "close",
+     "desc": "one figure falters, the other dims with it"
     },
     {
      "t": 60.4,
      "anchor": "W13.4",
-     "desc": "they sync beat for beat, still two"
+     "cam": "macro",
+     "desc": "the figures lock into the same ratio: synced"
     },
     {
      "t": 64.537,
      "anchor": "+12b",
-     "desc": "the thin connecting line pulls taut — it becomes the drop's first orbit"
+     "cam": "flat",
+     "desc": "the whole scope bezel; the beam collapses to one dot before the drop"
     }
    ]
   },
   {
-   "id": "p13-orbit-launch",
-   "module": "orbit",
-   "variant": "launch",
+   "id": "p13-cosmos-bigbang",
+   "n": 13,
+   "module": "cosmos",
+   "variant": "bigbang",
    "start": 65.12,
-   "end": 72.112,
+   "end": 69.781,
    "lines": [],
    "tier": "T3",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "fluid-cosmos",
+   "family": "M",
+   "palette": "cosmos-gold",
+   "sequence": null,
    "accent": false,
-   "beat": "each beat launches a panel volley that snaps into orbit; on each downbeat a full-frame polarity swap for one beat (drop-1 entry signature)",
-   "lyric": "none (drop)",
-   "exit": "a giant disc of panels occludes the star (top view)",
-   "event": "first beat: the star's huge silhouette revealed | shots: first beat: the star's huge silhouette revealed → sparse orbits, 3/4 view → a dense collector plane fills the lower frame",
+   "beat": "per beat the whole frame's temperature steps down one notch (white → gold → red) and every curl grows (space expanding everywhere at once, no centre)",
+   "lyric": "none",
+   "subject": {
+    "kind": "flood",
+    "x": 960,
+    "y": 540,
+    "s": 1.0
+   },
+   "lyr": null,
+   "exit": "the curls thin out into filaments",
+   "event": "Big Bang: the drop hits and the whole frame is white-hot at once (space itself expands everywhere, no centre); the plasma cools into gold ink-in-water curls",
    "shots": [
     {
      "t": 65.12,
      "anchor": "s",
-     "desc": "first beat: the star's huge silhouette revealed"
+     "cam": "flat",
+     "desc": "the drop hits: the WHOLE frame is white-hot at once, uniform, no centre, no edge"
     },
     {
      "t": 67.451,
      "anchor": "+1B",
-     "desc": "sparse orbits, 3/4 view"
-    },
-    {
-     "t": 69.781,
-     "anchor": "+2B",
-     "desc": "a dense collector plane fills the lower frame"
+     "cam": "close",
+     "desc": "it cools into gold ink-in-water curls filling the frame; every curl drifts apart from every other"
     }
    ]
   },
   {
-   "id": "p14-blueprint-orbits",
-   "module": "blueprint",
-   "variant": "orbits",
-   "start": 72.112,
+   "id": "p14-cosmos-web",
+   "n": 14,
+   "module": "cosmos",
+   "variant": "web",
+   "start": 69.781,
+   "end": 74.443,
+   "lines": [],
+   "tier": "T3",
+   "ground": "dark",
+   "idiom": "powers-of-ten",
+   "family": "A",
+   "palette": "web",
+   "sequence": null,
+   "accent": false,
+   "beat": "each beat the spacing between the nodes grows one step while every node keeps its size (metric expansion, not a zoom)",
+   "lyric": "none",
+   "subject": {
+    "kind": "lattice",
+    "x": 960,
+    "y": 540,
+    "s": 1.0
+   },
+   "lyr": null,
+   "exit": "one node brightens (a nebula)",
+   "event": "expansion: the cosmic web grows; the distances between structures grow per beat (metric expansion) while the structures keep their size, a power of ten per bar",
+   "shots": [
+    {
+     "t": 69.781,
+     "anchor": "s",
+     "cam": "wide",
+     "desc": "the cosmic web: nodes and filaments; the gaps between them grow per beat"
+    },
+    {
+     "t": 72.112,
+     "anchor": "+1B",
+     "cam": "tilt",
+     "desc": "re-framed at the next power of ten: clusters of galaxies inside the filaments, still separating"
+    }
+   ]
+  },
+  {
+   "id": "p15-cosmos-sun",
+   "n": 15,
+   "module": "cosmos",
+   "variant": "sun",
+   "start": 74.443,
    "end": 79.105,
    "lines": [],
    "tier": "T3",
-   "ground": "bone",
+   "ground": "dark",
+   "idiom": "sdo-solar",
+   "family": "S",
+   "palette": "sdo",
+   "sequence": null,
    "accent": false,
-   "beat": "ink lines draw in per beat (8 frames each); downbeat stamp",
+   "beat": "granulation pulses on the kick; a prominence arcs out on each downbeat",
    "lyric": "none",
-   "exit": "the sheet flips to ink",
-   "event": "plan view of the orbits | shots: plan view of the orbits → elevation sheet → detail callout of one panel",
+   "subject": {
+    "kind": "sun",
+    "x": 1187,
+    "y": 413,
+    "s": 0.62
+   },
+   "lyr": null,
+   "exit": "the Sun's limb flares",
+   "event": "the Sun ignites: a nebula collapses into the Sun in SDO false colour, granulation pulsing on the kick",
    "shots": [
     {
-     "t": 72.112,
-     "anchor": "s",
-     "desc": "plan view of the orbits"
-    },
-    {
      "t": 74.443,
-     "anchor": "+1B",
-     "desc": "elevation sheet"
+     "anchor": "s",
+     "cam": "wide",
+     "desc": "a nebula collapses to a point at the anchor"
     },
     {
      "t": 76.774,
-     "anchor": "+2B",
-     "desc": "detail callout of one panel"
+     "anchor": "+1B",
+     "cam": "close",
+     "desc": "the Sun ignites, SDO 304 false colour, granulation boiling on the kick"
     }
    ]
   },
   {
-   "id": "p15-orbit-ring",
-   "module": "orbit",
-   "variant": "ring",
+   "id": "p16-cosmos-impact",
+   "n": 16,
+   "module": "cosmos",
+   "variant": "impact",
    "start": 79.105,
-   "end": 86.097,
+   "end": 83.766,
    "lines": [],
    "tier": "T3",
-   "ground": "ink",
+   "ground": "light",
+   "idiom": "claymation",
+   "family": "M",
+   "palette": "clay",
+   "sequence": null,
    "accent": false,
-   "beat": "panel flip + star flare per beat",
+   "beat": "the clay planets move stepped at 12 fps; each beat one clay lump accretes onto the proto-Earth",
    "lyric": "none",
-   "exit": "the star flare to white",
-   "event": "through the gaps between rings | shots: through the gaps between rings → behind the star: panel silhouettes cut against the overexposed star (one white frame, then the bar in NEGATIVE as an added effect) → extreme wide: rings closed",
+   "subject": {
+    "kind": "planets",
+    "x": 900,
+    "y": 560,
+    "s": 0.45
+   },
+   "lyr": null,
+   "exit": "debris spreads into a ring",
+   "event": "Earth accretes; Theia strikes: molten clay planets, stepped 12 fps, the impact on the downbeat",
    "shots": [
     {
      "t": 79.105,
      "anchor": "s",
-     "desc": "through the gaps between rings"
+     "cam": "wide",
+     "desc": "a clay proto-Earth accreting lumps; a smaller clay planet (Theia) approaches"
     },
     {
      "t": 81.435,
      "anchor": "+1B",
-     "desc": "behind the star: panel silhouettes cut against the overexposed star (one white frame, then the bar in NEGATIVE as an added effect)"
-    },
-    {
-     "t": 83.766,
-     "anchor": "+2B",
-     "desc": "extreme wide: rings closed"
+     "cam": "close",
+     "desc": "the impact on the downbeat: clay splashes, a ring of debris flies out"
     }
    ]
   },
   {
-   "id": "p16-press-title",
-   "module": "press",
-   "variant": "title",
-   "start": 86.097,
-   "end": 93.089,
+   "id": "p17-cosmos-moon",
+   "n": 17,
+   "module": "cosmos",
+   "variant": "moon",
+   "start": 83.766,
+   "end": 86.097,
    "lines": [],
    "tier": "T3",
-   "ground": "bone",
+   "ground": "light",
+   "idiom": "ink-wash",
+   "family": "H",
+   "palette": "sumuk",
+   "sequence": null,
    "accent": false,
-   "beat": "the title stamps per beat, its width axis stepping 62→125 and weight 300→900 per kick",
-   "lyric": "none (Latin title DYSON SPHERE)",
-   "exit": "through the holes into the shell (p-shell-partial)",
-   "event": "letters stamped one by one | shots: letters stamped one by one → a signal circle stamped behind → the letter counters turn into panel holes",
+   "beat": "each beat one ink stroke of the ring gathers into the moon disc",
+   "lyric": "none",
+   "subject": {
+    "kind": "moon",
+    "x": 1187,
+    "y": 413,
+    "s": 0.4
+   },
+   "lyr": null,
+   "exit": "the moon becomes the pop-up book's sun",
+   "event": "the Moon forms: the debris ring gathers into a full moon in Korean ink wash (sumuk)",
+   "shots": [
+    {
+     "t": 83.766,
+     "anchor": "s",
+     "cam": "wide",
+     "desc": "ink wash on grey hanji: the debris ring gathers into a full moon, seal stamp on the last beat"
+    }
+   ]
+  },
+  {
+   "id": "p18-popup-life-sea",
+   "n": 18,
+   "module": "popup",
+   "variant": "life-sea",
+   "start": 86.097,
+   "end": 90.758,
+   "lines": [],
+   "tier": "T3",
+   "ground": "light",
+   "idiom": "pop-up",
+   "family": "P",
+   "palette": "popup-life",
+   "sequence": "popup-life",
+   "accent": false,
+   "beat": "per beat one paper piece hinges up: the cell divides (1→2→4→8), then fish rise",
+   "lyric": "none",
+   "subject": {
+    "kind": "card",
+    "x": 960,
+    "y": 600,
+    "s": 0.7,
+    "scene": "sea"
+   },
+   "lyr": null,
+   "exit": "page turn (hard boundary)",
+   "event": "life, pop-up book 1: the page opens on a primordial sea, a cell divides per beat, fish rise",
    "shots": [
     {
      "t": 86.097,
      "anchor": "s",
-     "desc": "letters stamped one by one"
+     "cam": "wide",
+     "desc": "the natural-history book opens (hard page-turn): a primordial paper sea, one cell"
     },
     {
      "t": 88.428,
      "anchor": "+1B",
-     "desc": "a signal circle stamped behind"
-    },
-    {
-     "t": 90.758,
-     "anchor": "+2B",
-     "desc": "the letter counters turn into panel holes"
+     "cam": "low",
+     "desc": "low angle across the paper waves: the cells divide, fish rise from the fold"
     }
    ]
   },
   {
-   "id": "p17-shell-partial",
-   "module": "shell",
-   "variant": "partial",
-   "start": 93.089,
+   "id": "p19-popup-life-land",
+   "n": 19,
+   "module": "popup",
+   "variant": "life-land",
+   "start": 90.758,
    "end": 98.333,
    "lines": [],
    "tier": "T3",
-   "ground": "ink",
+   "ground": "light",
+   "idiom": "pop-up",
+   "family": "P",
+   "palette": "popup-life",
+   "sequence": "popup-life",
    "accent": false,
-   "beat": "per beat light rays blast out of a different gap (rays sweep 30°); downbeat: a panel clamps shut with a camera jolt",
+   "beat": "per beat a new paper creature hinges up and takes one step, each with its own gait",
    "lyric": "none",
-   "exit": "black",
-   "event": "half-built shell, light spilling through gaps | shots: half-built shell, light spilling through gaps → inside looking out through a gap → a panel slams shut toward camera",
+   "subject": {
+    "kind": "card",
+    "x": 960,
+    "y": 600,
+    "s": 0.7,
+    "scene": "land"
+   },
+   "lyr": null,
+   "exit": "the book closes on the bridge downbeat",
+   "event": "life, pop-up book 2: onto land, into the forest; gait changes across several lineages (crawl, knuckle-walk, climb, upright hominins); a human appears last",
    "shots": [
     {
-     "t": 93.089,
+     "t": 90.758,
      "anchor": "s",
-     "desc": "half-built shell, light spilling through gaps"
+     "cam": "wide",
+     "desc": "page 2: the shore — a tetrapod crawls out of the paper sea"
+    },
+    {
+     "t": 93.089,
+     "anchor": "+1B",
+     "cam": "side",
+     "desc": "the forest pops up: several lineages, several gaits (knuckle-walking, climbing)"
     },
     {
      "t": 95.42,
-     "anchor": "+1B",
-     "desc": "inside looking out through a gap"
+     "anchor": "+2B",
+     "cam": "track",
+     "desc": "tracking along the fold: several upright hominins walk side by side, each different"
     },
     {
      "t": 97.751,
-     "anchor": "+2B",
-     "desc": "a panel slams shut toward camera"
+     "anchor": "+3B",
+     "cam": "close",
+     "desc": "a human appears last, at the end of the line (not one ape standing up)"
     }
    ]
   },
   {
-   "id": "p18-split-torn",
+   "id": "p20-split-ascii",
+   "n": 20,
    "module": "split",
-   "variant": "torn",
+   "variant": "ascii",
    "start": 98.333,
    "end": 106.491,
    "lines": [
@@ -617,37 +1042,61 @@
     15
    ],
    "tier": "T2",
-   "ground": "bone",
+   "ground": "dark",
+   "idiom": "ascii-raster",
+   "family": "E",
+   "palette": "ascii",
+   "sequence": null,
    "accent": false,
-   "beat": "the seam widens a step per beat but holds; letters wedge into it",
-   "lyric": "lines 14–15 cross the seam between two paper layers (virtual printed grid / real fibrous paper); letters wedge in, nothing tears yet",
-   "exit": "held tension (the collapse is p-engrave's first shot)",
-   "event": "lines 14–15 cross the seam between two paper layers (virtual printed grid / real fibrous paper); letters wedge in, nothing tears yet | shots: frontal: two layers, one seam → raking light on the seam, fibres straining → the seam gapes, letters jammed in it → top-down: the last connecting fibres",
+   "beat": "the tear widens a step per beat; the ASCII side re-rasters one density step on the kick",
+   "lyric": "lines 14–15 cross the tear: on the left they are an ASCII Hangul raster, on the right lit and solid",
+   "subject": {
+    "kind": "ascii",
+    "x": 960,
+    "y": 540,
+    "s": 1.0
+   },
+   "lyr": {
+    "x": 960,
+    "y": 540,
+    "size": 130,
+    "mat": "ascii",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "the raster side swallows the frame",
+   "event": "virtual vs real: the frame is torn, one side an ASCII Hangul raster, the other lit",
    "shots": [
     {
      "t": 98.333,
      "anchor": "s",
-     "desc": "frontal: two layers, one seam"
+     "cam": "wide",
+     "desc": "the frame torn vertically: left an amber ASCII raster, right a lit room"
     },
     {
      "t": 99.831,
      "anchor": "L15",
-     "desc": "raking light on the seam, fibres straining"
+     "cam": "close",
+     "desc": "close on the tear, glyph cells vs light"
     },
     {
      "t": 102.024,
      "anchor": "W15.2",
-     "desc": "the seam gapes, letters jammed in it"
+     "cam": "tilt",
+     "desc": "the tear gapes, letters half glyph, half solid"
     },
     {
      "t": 104.16,
      "anchor": "+10b",
-     "desc": "top-down: the last connecting fibres"
+     "cam": "macro",
+     "desc": "macro on the last cells flipping"
     }
    ]
   },
   {
-   "id": "p19-engrave-hand",
+   "id": "p21-engrave-hand",
+   "n": 21,
    "module": "engrave",
    "variant": "hand",
    "start": 106.491,
@@ -657,42 +1106,67 @@
     17
    ],
    "tier": "T2",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "engraving",
+   "family": "H",
+   "palette": "engrave",
+   "sequence": null,
    "accent": false,
    "beat": "hatch lines flash per beat; the hand advances 14 px per beat",
    "lyric": "line 16 = the last fibres give way (collapse on its first syllable); line 17: an engraved steel hand sweeps and scoops the letters",
+   "subject": {
+    "kind": "hand",
+    "x": 1000,
+    "y": 560,
+    "s": 0.7
+   },
+   "lyr": {
+    "x": 760,
+    "y": 460,
+    "size": 120,
+    "mat": "etch",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
    "exit": "the fist closes",
-   "event": "line 16 = the last fibres give way (collapse on its first syllable); line 17: an engraved steel hand sweeps and scoops the letters | shots: held tension: the last fibres of the seam from p-split still straining → the last fibre snaps on the first syllable — collapse → wide: the engraved steel hand enters and sweeps → close: fingers closing on the letters → letters falling through the fingers",
+   "event": "the steel hand in hatch engraving, reversed out of Prussian blue",
    "shots": [
     {
      "t": 106.491,
      "anchor": "s",
-     "desc": "held tension: the last fibres of the seam from p-split still straining"
+     "cam": "close",
+     "desc": "held tension: the last fibres of the tear still straining"
     },
     {
      "t": 107.032,
      "anchor": "L16",
+     "cam": "macro",
      "desc": "the last fibre snaps on the first syllable — collapse"
     },
     {
      "t": 108.6,
      "anchor": "L17",
-     "desc": "wide: the engraved steel hand enters and sweeps"
+     "cam": "wide",
+     "desc": "wide: the engraved steel hand enters and sweeps, Prussian blue plate"
     },
     {
      "t": 110.617,
      "anchor": "W17.3",
+     "cam": "close",
      "desc": "close: fingers closing on the letters"
     },
     {
      "t": 111.7,
      "anchor": "W17.4",
+     "cam": "low",
      "desc": "letters falling through the fingers"
     }
    ]
   },
   {
-   "id": "p20-lens-ai",
+   "id": "p22-lens-ai",
+   "n": 22,
    "module": "lens",
    "variant": "ai",
    "start": 113.107,
@@ -702,62 +1176,107 @@
     19
    ],
    "tier": "T1",
-   "ground": "ink",
+   "ground": "light",
+   "idiom": "aperture",
+   "family": "M",
+   "palette": "chrome-eye",
+   "sequence": null,
    "accent": false,
    "beat": "blades step per beat",
-   "lyric": "the aperture swallows line 18; the stolen words reappear INSIDE the pupil (evidence) together with line 19",
-   "exit": "a glint in the pupil flares",
-   "event": "the aperture swallows line 18; the stolen words reappear INSIDE the pupil (evidence) together with line 19 | shots: the AI eye full frame, words sucked into the aperture → pupil macro: the stolen words float inside, line 19 reflected",
+   "lyric": "the aperture swallows line 18; the stolen words reappear INSIDE the pupil together with line 19",
+   "subject": {
+    "kind": "iris",
+    "x": 960,
+    "y": 540,
+    "s": 0.55
+   },
+   "lyr": {
+    "x": 960,
+    "y": 540,
+    "size": 110,
+    "mat": "etch",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "a glint in the pupil",
+   "event": "the machine eye (a chrome iris on a white cyclorama) swallows the words",
    "shots": [
     {
      "t": 113.107,
      "anchor": "s",
-     "desc": "the AI eye full frame, words sucked into the aperture"
+     "cam": "wide",
+     "desc": "the chrome machine eye full frame on a white cyc, words sucked into the aperture"
     },
     {
      "t": 114.178,
      "anchor": "L19",
+     "cam": "macro",
      "desc": "pupil macro: the stolen words float inside, line 19 reflected"
     }
    ]
   },
   {
-   "id": "p21-spark-glint",
-   "module": "spark",
-   "variant": "glint",
+   "id": "p23-blackmarble-future",
+   "n": 23,
+   "module": "blackmarble",
+   "variant": "future",
    "start": 117.487,
    "end": 120.66,
    "lines": [
     20
    ],
    "tier": "T1",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "black-marble",
+   "family": "S",
+   "palette": "blackmarble",
+   "sequence": null,
    "accent": false,
-   "beat": "star radius 3→9 px on the kick, back within 4 frames",
-   "lyric": "inside the pupil's reflection, points assemble a model of a future city while spelling line 20",
-   "exit": "the grid becomes p-screen-choice's button grid",
-   "event": "inside the pupil's reflection, points assemble a model of a future city while spelling line 20 | shots: constellation of points inside the reflection → the points stand up as a small future city model → the model flattens into a grid of buttons",
+   "beat": "city lights twinkle up one grid step per beat; the terminator line advances on the kick",
+   "lyric": "line 20 is spelled by the night lights of cities on the dark Earth",
+   "subject": {
+    "kind": "globe",
+    "x": 960,
+    "y": 900,
+    "s": 1.2
+   },
+   "lyr": {
+    "x": 960,
+    "y": 640,
+    "size": 120,
+    "mat": "lights",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "the lights switch off in a wave",
+   "event": "the future seen from orbit: Earth's night lights spell the line (Black Marble)",
    "shots": [
     {
      "t": 117.487,
      "anchor": "s",
-     "desc": "constellation of points inside the reflection"
+     "cam": "wide",
+     "desc": "Earth at night from orbit, the limb glowing, cities as lights"
     },
     {
      "t": 118.88,
      "anchor": "W20.1",
-     "desc": "the points stand up as a small future city model"
+     "cam": "close",
+     "desc": "closer: the lights spell the line across a continent"
     },
     {
      "t": 119.893,
      "anchor": "+4b",
-     "desc": "the model flattens into a grid of buttons"
+     "cam": "top",
+     "desc": "straight down: the grid of lights, like a circuit"
     }
    ]
   },
   {
-   "id": "p22-screen-choice",
-   "module": "screen",
+   "id": "p24-flipdisc-choice",
+   "n": 24,
+   "module": "flipdisc",
    "variant": "choice",
    "start": 120.66,
    "end": 125.26,
@@ -766,61 +1285,108 @@
     22
    ],
    "tier": "T1",
-   "ground": "bone",
+   "ground": "dark",
+   "idiom": "flip-disc",
+   "family": "E",
+   "palette": "flipdisc",
+   "sequence": null,
    "accent": false,
-   "beat": "the timer ring loses one segment per beat (snap)",
-   "lyric": "lines 21–22 are the dialog text; options grey out one by one as the words are sung",
-   "exit": "the dialog auto-closes",
-   "event": "lines 21–22 are the dialog text; options grey out one by one as the words are sung | shots: the dialog with option buttons → cursor close-up hovering, unable to click → the timer ring fills the frame",
+   "beat": "one row of discs flips per beat with a mechanical clack (a flash of yellow)",
+   "lyric": "lines 21–22 are flipped in yellow discs on the departure board; the choices flip away row by row",
+   "subject": {
+    "kind": "discs",
+    "x": 960,
+    "y": 540,
+    "s": 0.9,
+    "cols": 32,
+    "rows": 12
+   },
+   "lyr": {
+    "x": 960,
+    "y": 540,
+    "size": 120,
+    "mat": "disc",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "the board goes black",
+   "event": "a flip-disc departure board; the choices flip away",
    "shots": [
     {
      "t": 120.66,
      "anchor": "s",
-     "desc": "the dialog with option buttons"
+     "cam": "wide",
+     "desc": "a departure board of flip discs, destinations as choices"
     },
     {
      "t": 122.44,
      "anchor": "L22",
-     "desc": "cursor close-up hovering, unable to click"
+     "cam": "close",
+     "desc": "close on the discs flipping, yellow to black"
     },
     {
      "t": 124.16,
      "anchor": "W22.2",
-     "desc": "the timer ring fills the frame"
+     "cam": "side",
+     "desc": "down the length of the board: rows cleared"
     }
    ]
   },
   {
-   "id": "p23-gauge-exp",
-   "module": "gauge",
-   "variant": "exp",
+   "id": "p25-jamo-ahn",
+   "n": 25,
+   "module": "jamo",
+   "variant": "ahn",
    "start": 125.26,
    "end": 127.571,
    "lines": [
     23
    ],
-   "tier": "T2",
-   "ground": "ink",
+   "tier": "T1",
+   "ground": "light",
+   "idiom": "ahn-jamo",
+   "family": "H",
+   "palette": "ahn",
+   "sequence": null,
    "accent": false,
-   "beat": "needle +6° overshoot per kick past the red line, settles in 2 frames",
-   "lyric": "line 23 along the exponential curve on the dial",
-   "exit": "the needle snaps off",
-   "event": "line 23 along the exponential curve on the dial | shots: the dial with an exponential scale → needle macro, pinned",
+   "beat": "per beat the jamo fly further apart (faster each beat); on the downbeat they snap back together",
+   "lyric": "line 23 in Ahn Sang-soo-style deconstructed jamo, black/red/blue on white, the film's only Korean-letterform plate",
+   "subject": {
+    "kind": "jamo",
+    "x": 960,
+    "y": 540,
+    "s": 0.7
+   },
+   "lyr": {
+    "x": 960,
+    "y": 560,
+    "size": 220,
+    "mat": "jamo",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "they reassemble on the downbeat (the cut)",
+   "event": "Ahn Sang-soo jamo: the letters break apart as change accelerates and reassemble on the downbeat",
    "shots": [
     {
      "t": 125.26,
      "anchor": "s",
-     "desc": "the dial with an exponential scale"
+     "cam": "wide",
+     "desc": "the line assembled in geometric jamo on white"
     },
     {
      "t": 126.885,
      "anchor": "+2b",
-     "desc": "needle macro, pinned"
+     "cam": "close",
+     "desc": "the jamo break apart, circles and bars flying"
     }
    ]
   },
   {
-   "id": "p24-orbit-capture",
+   "id": "p26-orbit-capture",
+   "n": 26,
    "module": "orbit",
    "variant": "capture",
    "start": 127.571,
@@ -829,61 +1395,106 @@
     24
    ],
    "tier": "T2",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "3d-lit",
+   "family": "M",
+   "palette": "steel",
+   "sequence": null,
    "accent": false,
    "beat": "rings clang shut: whole frame 2 px horizontal jolt, 1 frame hold",
    "lyric": "line 24 inside the closing cage",
+   "subject": {
+    "kind": "rings",
+    "x": 960,
+    "y": 540,
+    "s": 0.8
+   },
+   "lyr": {
+    "x": 960,
+    "y": 560,
+    "size": 120,
+    "mat": "beam",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
    "exit": "the cage spins to a blur",
-   "event": "line 24 inside the closing cage | shots: outside: rings closing → inside the cage, the Latin words pressed to the bars",
+   "event": "the cage closes: 3D rings around the words",
    "shots": [
     {
      "t": 127.571,
      "anchor": "s",
-     "desc": "outside: rings closing"
+     "cam": "wide",
+     "desc": "outside: 3D steel rings closing"
     },
     {
      "t": 128.3,
      "anchor": "W24.2",
+     "cam": "inside",
      "desc": "inside the cage, the Latin words pressed to the bars"
     }
    ]
   },
   {
-   "id": "p25-press-erase",
-   "module": "press",
-   "variant": "erase",
+   "id": "p27-colorfield-freedom",
+   "n": 27,
+   "module": "colorfield",
+   "variant": "freedom",
    "start": 130.04,
    "end": 135.626,
    "lines": [
     25
    ],
    "tier": "T2",
-   "ground": "bone",
+   "ground": "light",
+   "idiom": "ganzfeld",
+   "family": "A",
+   "palette": "dawn",
+   "sequence": null,
    "accent": false,
-   "beat": "a scraper stroke per beat",
-   "lyric": "line 25 stamped, each word scraped away after it is sung",
-   "exit": "blank page",
-   "event": "line 25 stamped, each word scraped away after it is sung | shots: the stamped poster → scraper close-up → empty paper with a ghost impression",
+   "beat": "the field breathes on the beat: the aperture's edge softens 4% and the dawn stop brightens",
+   "lyric": "line 25 dissolves into the colour field: each word fades into the light after it is sung",
+   "subject": {
+    "kind": "field",
+    "x": 960,
+    "y": 540,
+    "s": 1.0
+   },
+   "lyr": {
+    "x": 960,
+    "y": 540,
+    "size": 140,
+    "mat": "haze",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "the field turns to page white",
+   "event": "the voice of freedom dissolves into a Turrell dawn colour field",
    "shots": [
     {
      "t": 130.04,
      "anchor": "s",
-     "desc": "the stamped poster"
+     "cam": "wide",
+     "desc": "a Turrell aperture in a wall, dawn light inside"
     },
     {
      "t": 132.96,
      "anchor": "W25.2",
-     "desc": "scraper close-up"
+     "cam": "push",
+     "desc": "pushing into the aperture, its edge vanishing"
     },
     {
      "t": 135.043,
      "anchor": "+8b",
-     "desc": "empty paper with a ghost impression"
+     "cam": "flat",
+     "desc": "Ganzfeld: no edges left, only dawn"
     }
    ]
   },
   {
-   "id": "p26-popup-city",
+   "id": "p28-popup-city",
+   "n": 28,
    "module": "popup",
    "variant": "city",
    "start": 135.626,
@@ -893,32 +1504,56 @@
     27
    ],
    "tier": "T2",
-   "ground": "bone",
+   "ground": "light",
+   "idiom": "pop-up",
+   "family": "P",
+   "palette": "popup-city",
+   "sequence": null,
    "accent": false,
    "beat": "one paper building hinges up per beat (rotation -(1-f)·π/2, easeBack), >= 8 buildings; white cut edges, cast shadows",
-   "lyric": "line 26 printed on the page floor as the buildings squeeze the passage; line 27 on a street sign; the paper panel carrying the currently sung words turns toward the camera",
+   "lyric": "line 26 printed on the page floor as the buildings squeeze the passage; line 27 on a street sign",
+   "subject": {
+    "kind": "card",
+    "x": 960,
+    "y": 600,
+    "s": 0.7,
+    "scene": "city"
+   },
+   "lyr": {
+    "x": 960,
+    "y": 900,
+    "size": 90,
+    "mat": "paper",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
    "exit": "the book slams shut on the downbeat → one black frame",
-   "event": "line 26 printed on the page floor as the buildings squeeze the passage; line 27 on a street sign; the paper panel carrying the currently sung words turns toward the camera | shots: the book three-quarter view, spread opening, fold line visible → low angle between cramped buildings; window cut-outs light a path → overhead as the last tower rises",
+   "event": "pop-up book 3: a paper city hinges up building by building, the line printed on the page",
    "shots": [
     {
      "t": 135.626,
      "anchor": "s",
+     "cam": "wide",
      "desc": "the book three-quarter view, spread opening, fold line visible"
     },
     {
      "t": 138.669,
      "anchor": "L27",
+     "cam": "low",
      "desc": "low angle between cramped buildings; window cut-outs light a path"
     },
     {
      "t": 140.287,
      "anchor": "+8b",
+     "cam": "top",
      "desc": "overhead as the last tower rises"
     }
    ]
   },
   {
-   "id": "p27-spark-merge",
+   "id": "p29-spark-merge",
+   "n": 29,
    "module": "spark",
    "variant": "merge",
    "start": 141.235,
@@ -927,71 +1562,118 @@
     28
    ],
    "tier": "T3",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "light-trace",
+   "family": "E",
+   "palette": "bco",
+   "sequence": null,
    "accent": false,
-   "beat": "all marks jump one grid step closer per beat; downbeat = a full-frame signal flare (NOT a polarity swap — contrast with the other T3 plates)",
-   "lyric": "line 28 printed on a grid: marks of different rhythm/length/tilt lose their differences, are forced into a uniform grid, then compressed into one point",
+   "beat": "all marks jump one grid step closer per beat; downbeat = a full-frame signal flare",
+   "lyric": "line 28 printed on a grid: marks of different rhythm/length/tilt are forced into a uniform grid, then compressed into one point",
+   "subject": {
+    "kind": "marks",
+    "x": 960,
+    "y": 540,
+    "s": 0.7
+   },
+   "lyr": {
+    "x": 960,
+    "y": 820,
+    "size": 110,
+    "mat": "beam",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
    "exit": "the point flares",
-   "event": "line 28 printed on a grid: marks of different rhythm/length/tilt lose their differences, are forced into a uniform grid, then compressed into one point | shots: many different marks → they snap into a uniform grid (the line printed on it) → the grid compresses → one point",
+   "event": "different marks are forced into one grid and merge into one point",
    "shots": [
     {
      "t": 141.235,
      "anchor": "s",
+     "cam": "wide",
      "desc": "many different marks"
     },
     {
      "t": 143.201,
      "anchor": "+3b",
+     "cam": "flat",
      "desc": "they snap into a uniform grid (the line printed on it)"
     },
     {
      "t": 143.64,
      "anchor": "W28.3",
+     "cam": "close",
      "desc": "the grid compresses"
     },
     {
      "t": 144.949,
      "anchor": "+6b",
+     "cam": "macro",
      "desc": "one point"
     }
    ]
   },
   {
-   "id": "p28-ecg-square",
+   "id": "p30-ecg-ridge",
+   "n": 30,
    "module": "ecg",
-   "variant": "square",
+   "variant": "ridge",
    "start": 145.3,
    "end": 150.776,
    "lines": [
     29
    ],
    "tier": "T3",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "pulsar-ridge",
+   "family": "S",
+   "palette": "ridge",
+   "sequence": null,
    "accent": false,
-   "beat": "each kick the trace lays one raster line down the screen",
-   "lyric": "line 29 rides the scanlines",
-   "exit": "the clock stops",
-   "event": "line 29 rides the scanlines | shots: bar 1: the living irregular sine hardens into a square wave → the trace becomes a raster covering the screen line by line → flip to bone graph paper: the heartbeat as a regulated spec drawing",
+   "beat": "each kick a new ridgeline enters at the bottom and the stack shifts up one row",
+   "lyric": "line 29 rides the top ridge; the peaks flatten into identical machine pulses as it is sung",
+   "subject": {
+    "kind": "ridges",
+    "x": 960,
+    "y": 560,
+    "s": 0.8
+   },
+   "lyr": {
+    "x": 960,
+    "y": 200,
+    "size": 110,
+    "mat": "beam",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "the lines go flat",
+   "event": "heartbeats flatten into machine regularity: Unknown Pleasures ridgelines",
    "shots": [
     {
      "t": 145.3,
      "anchor": "s",
-     "desc": "bar 1: the living irregular sine hardens into a square wave"
+     "cam": "wide",
+     "desc": "stacked pulsar ridgelines, white on black, each peak different"
     },
     {
      "t": 147.28,
      "anchor": "+3b",
-     "desc": "the trace becomes a raster covering the screen line by line"
+     "cam": "tilt",
+     "desc": "oblique over the stack, the peaks becoming identical"
     },
     {
      "t": 149.403,
      "anchor": "W29.4",
-     "desc": "flip to bone graph paper: the heartbeat as a regulated spec drawing"
+     "cam": "top",
+     "desc": "flat from above: perfectly regular lines, the heartbeat gone"
     }
    ]
   },
   {
-   "id": "p29-void-descent",
+   "id": "p31-void-descent",
+   "n": 31,
    "module": "void",
    "variant": "descent",
    "start": 150.776,
@@ -1000,397 +1682,668 @@
     30
    ],
    "tier": "T3",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "void",
+   "family": "A",
+   "palette": "bco",
+   "sequence": null,
    "accent": false,
    "beat": "one memory stepping-stone appears per beat, the previous one erases",
-   "lyric": "line 30 engraved on the stepping stones across a black void; stones carry earlier motifs (two points, the room's door, a paper building)",
+   "lyric": "line 30 engraved on the stepping stones across a black void",
+   "subject": {
+    "kind": "stones",
+    "x": 960,
+    "y": 640,
+    "s": 0.3
+   },
+   "lyr": {
+    "x": 960,
+    "y": 700,
+    "size": 100,
+    "mat": "carve",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
    "exit": "the last stone drops away",
-   "event": "line 30 engraved on the stepping stones across a black void; stones carry earlier motifs (two points, the room's door, a paper building) | shots: side view: stones across the void → over-the-shoulder along the path → top view: the path erasing behind",
+   "event": "stepping stones across the abyss, one per beat",
    "shots": [
     {
      "t": 150.776,
      "anchor": "s",
+     "cam": "side",
      "desc": "side view: stones across the void"
     },
     {
      "t": 152.524,
      "anchor": "+3b",
+     "cam": "over",
      "desc": "over-the-shoulder along the path"
     },
     {
      "t": 154.272,
      "anchor": "+6b",
+     "cam": "top",
      "desc": "top view: the path erasing behind"
     }
    ]
   },
   {
-   "id": "p30-shell-seal",
-   "module": "shell",
-   "variant": "seal",
+   "id": "p32-sodium-sun",
+   "n": 32,
+   "module": "sodium",
+   "variant": "sun",
    "start": 155.348,
    "end": 163.595,
    "lines": [
     31
    ],
    "tier": "T3",
-   "ground": "ink",
+   "ground": "light",
+   "idiom": "sodium-sun",
+   "family": "A",
+   "palette": "sodium",
+   "sequence": null,
    "accent": false,
-   "beat": "a lock pin drives in per kick with a shock ring across the neighbouring panels",
-   "lyric": "line 31 etched on the last panels; the letters of the 'could not hold' words slip out through the last gap",
-   "exit": "seal → black",
-   "event": "line 31 etched on the last panels; the letters of the 'could not hold' words slip out through the last gap | shots: panels close like fingers around the point of light, light bursts through the gaps → the last panel is etched syllable by syllable → the point escapes through the last gap before it closes → close on the gap: the lock pins drive in one per kick → outside: perfectly sealed; inside (cutaway): empty",
+   "beat": "per kick the haze pulses brighter; one silhouette raises an arm on each beat",
+   "lyric": "line 31 etched into the sodium disc; the last words slip out through its rim",
+   "subject": {
+    "kind": "sodium",
+    "x": 1187,
+    "y": 413,
+    "s": 0.5
+   },
+   "lyr": {
+    "x": 1187,
+    "y": 433,
+    "size": 70,
+    "mat": "etch",
+    "rot": 0.0,
+    "align": "center",
+    "vertical": false
+   },
+   "exit": "the sun dims to an ember → firelight",
+   "event": "the Weather Project sodium sun in an amber haze; silhouettes reach for it; the line etched in the disc",
    "shots": [
     {
      "t": 155.348,
      "anchor": "s",
-     "desc": "panels close like fingers around the point of light, light bursts through the gaps"
+     "cam": "wide",
+     "desc": "the hall in amber haze, a huge mono-frequency sun, silhouettes on the floor"
     },
     {
      "t": 157.186,
      "anchor": "+3b",
-     "desc": "the last panel is etched syllable by syllable"
+     "cam": "low",
+     "desc": "low from the floor, silhouettes reaching up"
     },
     {
      "t": 158.28,
      "anchor": "W31.3",
-     "desc": "the point escapes through the last gap before it closes"
+     "cam": "close",
+     "desc": "close on the disc: the etched line"
     },
     {
      "t": 160.099,
      "anchor": "+8b",
-     "desc": "close on the gap: the lock pins drive in one per kick"
+     "cam": "up",
+     "desc": "looking straight up at the mirrored ceiling, the crowd reflected"
     },
     {
      "t": 162.43,
      "anchor": "+12b",
-     "desc": "outside: perfectly sealed; inside (cutaway): empty"
+     "cam": "flat",
+     "desc": "wide: the sun alone in the haze"
     }
    ]
   },
   {
-   "id": "p31-blueprint-stamp",
-   "module": "blueprint",
-   "variant": "stamp",
+   "id": "p33-cave-fire",
+   "n": 33,
+   "module": "cave",
+   "variant": "fire",
    "start": 163.595,
-   "end": 165.343,
+   "end": 167.674,
    "lines": [],
    "tier": "T3",
-   "ground": "bone",
+   "ground": "dark",
+   "idiom": "cave-ochre",
+   "family": "H",
+   "palette": "cave",
+   "sequence": null,
    "accent": false,
-   "beat": "beat 1: the stamp lands (paper drops 6 px, ink splatter radius 80 px); following beats: an inspection line sweeps across the empty interior cutaway, ticking",
-   "lyric": "none (SEALED stamp)",
-   "exit": "drop 2 blast",
-   "event": "cutaway drawing of the sphere with an EMPTY interior; SEALED stamp slams on it | shots: cutaway drawing of the sphere with an EMPTY interior; SEALED stamp slams on it",
+   "beat": "firelight flares on the beat; a handprint is stamped in ochre on each kick",
+   "lyric": "none (the first sounds are sparks rising from the fire)",
+   "subject": {
+    "kind": "cave",
+    "x": 960,
+    "y": 560,
+    "s": 0.8
+   },
+   "lyr": null,
+   "exit": "a spark lands on wet clay",
+   "event": "fire and speech: a cave wall, ochre handprints, firelight on the beat, the first sounds as sparks",
    "shots": [
     {
      "t": 163.595,
      "anchor": "s",
-     "desc": "cutaway drawing of the sphere with an EMPTY interior; SEALED stamp slams on it"
+     "cam": "wide",
+     "desc": "a cave wall in firelight, ochre handprints appearing"
+    },
+    {
+     "t": 165.343,
+     "anchor": "D1",
+     "cam": "close",
+     "desc": "drop 2: close on a handprint, sparks (the first sounds) fly up"
     }
    ]
   },
   {
-   "id": "p32-press-burst",
-   "module": "press",
-   "variant": "burst",
-   "start": 165.343,
+   "id": "p34-clay-tablet",
+   "n": 34,
+   "module": "clay",
+   "variant": "tablet",
+   "start": 167.674,
    "end": 172.336,
    "lines": [],
    "tier": "T3",
-   "ground": "bone",
+   "ground": "mid",
+   "idiom": "clay-tablet",
+   "family": "M",
+   "palette": "tablet",
+   "sequence": null,
    "accent": false,
-   "beat": "type slabs crash into depth per beat; on each downbeat a full-frame polarity swap for one beat (drop-2 entry signature)",
+   "beat": "one cuneiform wedge is pressed per beat, the stylus hit flicks the raking light",
    "lyric": "none",
-   "exit": "the raster lines become the demo's copper bars",
-   "event": "the printing plate shatters | shots: the printing plate shatters → type flies in depth → type aligns into raster lines",
+   "subject": {
+    "kind": "tablet",
+    "x": 960,
+    "y": 560,
+    "s": 0.7
+   },
+   "lyr": null,
+   "exit": "the tablet's light turns to a window's light",
+   "event": "writing: cuneiform wedges pressed into a clay tablet under raking light",
    "shots": [
     {
-     "t": 165.343,
-     "anchor": "s",
-     "desc": "the printing plate shatters"
-    },
-    {
      "t": 167.674,
-     "anchor": "+1B",
-     "desc": "type flies in depth"
+     "anchor": "s",
+     "cam": "wide",
+     "desc": "a clay tablet under raking light, a stylus pressing wedges"
     },
     {
      "t": 170.005,
-     "anchor": "+2B",
-     "desc": "type aligns into raster lines"
+     "anchor": "+1B",
+     "cam": "macro",
+     "desc": "macro: the wedges' shadows, rows of cuneiform"
     }
    ]
   },
   {
-   "id": "p33-demo-scene",
-   "module": "demo",
-   "variant": "scene",
+   "id": "p35-glass-rose",
+   "n": 35,
+   "module": "glass",
+   "variant": "rose",
    "start": 172.336,
-   "end": 179.328,
+   "end": 176.997,
    "lines": [],
    "tier": "T3",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "stained-glass",
+   "family": "H",
+   "palette": "glass",
+   "sequence": null,
    "accent": false,
-   "beat": "bar 1: raster bars jump 14 px + scroller bounces per beat; bar 2: the rotozoom's phase/scale snaps a step per beat; bar 3: one vector ball lands on its sphere position per beat; downbeat hard cut between effects",
-   "lyric": "none (sine scroller text: DYSON SPHERE · SENTIENT ARCHITECT · greetings)",
-   "exit": "the vector sphere becomes the exploded drawing",
-   "event": "copper raster bars + sine scroller (low-res, ordered dither signal<->bone) | shots: copper raster bars + sine scroller (low-res, ordered dither signal<->bone) → rotozoomer of the hex-panel texture → vector balls assembling the sphere",
+   "beat": "one ring of panes lights per beat, from the centre outward",
+   "lyric": "none",
+   "subject": {
+    "kind": "rose",
+    "x": 960,
+    "y": 540,
+    "s": 0.85
+   },
+   "lyr": null,
+   "exit": "the light through the rose turns to heat",
+   "event": "religion: a stained-glass rose window lights up pane by pane",
    "shots": [
     {
      "t": 172.336,
      "anchor": "s",
-     "desc": "copper raster bars + sine scroller (low-res, ordered dither signal<->bone)"
+     "cam": "wide",
+     "desc": "a dark rose window, panes lighting from the centre"
     },
     {
      "t": 174.666,
      "anchor": "+1B",
-     "desc": "rotozoomer of the hex-panel texture"
-    },
-    {
-     "t": 176.997,
-     "anchor": "+2B",
-     "desc": "vector balls assembling the sphere"
+     "cam": "up",
+     "desc": "looking up at the window, the whole rose ablaze"
     }
    ]
   },
   {
-   "id": "p34-blueprint-exploded",
-   "module": "blueprint",
-   "variant": "exploded",
-   "start": 179.328,
+   "id": "p36-thermal-steam",
+   "n": 37,
+   "module": "thermal",
+   "variant": "steam",
+   "start": 176.997,
+   "end": 181.659,
+   "lines": [],
+   "tier": "T3",
+   "ground": "dark",
+   "idiom": "thermal",
+   "family": "S",
+   "palette": "thermal",
+   "sequence": null,
+   "accent": false,
+   "beat": "pistons flare white-hot on the beat; gears glow one step hotter per bar",
+   "lyric": "none",
+   "subject": {
+    "kind": "thermal",
+    "x": 960,
+    "y": 560,
+    "s": 0.7
+   },
+   "lyr": null,
+   "exit": "the loco's heat blooms white",
+   "event": "machines and steam in a thermal camera: clockwork gears and linkages drive pistons, then a locomotive; pistons flare on the beat",
+   "shots": [
+    {
+     "t": 176.997,
+     "anchor": "s",
+     "cam": "close",
+     "desc": "thermal camera: clockwork gears and linkages turning, heat in the teeth"
+    },
+    {
+     "t": 179.328,
+     "anchor": "+1B",
+     "cam": "side",
+     "desc": "the linkages drive pistons, then a locomotive thunders through (one idiom, the subject changes)"
+    }
+   ]
+  },
+  {
+   "id": "p37-dither-bomb",
+   "n": 38,
+   "module": "dither",
+   "variant": "bomb",
+   "start": 181.659,
    "end": 186.32,
    "lines": [],
    "tier": "T3",
-   "ground": "bone",
+   "ground": "light",
+   "idiom": "1bit-dither",
+   "family": "P",
+   "palette": "dither",
+   "sequence": null,
    "accent": false,
-   "beat": "one part unlatches per beat; dimension lines restamp with the wrong numbers per kick",
+   "beat": "silence (no pulse) for 1 bar; whiteout on the downbeat; then the cloud rises one dither band per beat",
    "lyric": "none",
-   "exit": "the sheet folds away",
-   "event": "assembled drawing | shots: assembled drawing → exploded view → detail: a latch drawing",
+   "subject": {
+    "kind": "mushroom",
+    "x": 960,
+    "y": 620,
+    "s": 0.8
+   },
+   "lyr": null,
+   "exit": "the cloud's pixels become ENIAC lamps",
+   "event": "the atomic bomb: silence, whiteout on the downbeat, a 1-bit dithered mushroom cloud (Obra Dinn)",
    "shots": [
     {
-     "t": 179.328,
-     "anchor": "s",
-     "desc": "assembled drawing"
-    },
-    {
      "t": 181.659,
-     "anchor": "+1B",
-     "desc": "exploded view"
+     "anchor": "s",
+     "cam": "flat",
+     "desc": "a 1-bit desert and a test tower; silence"
     },
     {
      "t": 183.989,
-     "anchor": "+2B",
-     "desc": "detail: a latch drawing"
+     "anchor": "+1B",
+     "cam": "wide",
+     "desc": "WHITEOUT on the downbeat, then a 1-bit dithered mushroom cloud rises"
+    },
+    {
+     "t": 185.155,
+     "anchor": "+6b",
+     "cam": "low",
+     "desc": "low: the cloud's column towering"
     }
    ]
   },
   {
-   "id": "p35-shell-whole",
-   "module": "shell",
-   "variant": "whole",
+   "id": "p38-demo-boot",
+   "n": 39,
+   "module": "demo",
+   "variant": "boot",
    "start": 186.32,
-   "end": 193.313,
+   "end": 190.982,
    "lines": [],
    "tier": "T3",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "demoscene",
+   "family": "E",
+   "palette": "demo-boot",
+   "sequence": "demo",
    "accent": false,
-   "beat": "a panel lock motion per beat (silhouette changes) with a 1-frame camera jolt",
+   "beat": "panel lamps blink in a binary count per beat; bar 2: the raster bar jumps 14 px per beat",
    "lyric": "none",
-   "exit": "the equator seam glows",
-   "event": "exterior: the complete sphere | shots: exterior: the complete sphere → equator cutaway: seam section → the empty interior where the point was",
+   "subject": {
+    "kind": "boot",
+    "x": 960,
+    "y": 540,
+    "s": 0.8
+   },
+   "lyr": null,
+   "exit": "boot → network (hard boundary)",
+   "event": "first computer (8-bit 1): ENIAC panel lamps, a PET/C64 boot screen, the first raster bars",
    "shots": [
     {
      "t": 186.32,
      "anchor": "s",
-     "desc": "exterior: the complete sphere"
+     "cam": "wide",
+     "desc": "ENIAC panels: rows of lamps counting"
     },
     {
      "t": 188.651,
      "anchor": "+1B",
-     "desc": "equator cutaway: seam section"
-    },
-    {
-     "t": 190.982,
-     "anchor": "+2B",
-     "desc": "the empty interior where the point was"
+     "cam": "close",
+     "desc": "hard cut: a PET/C64 boot screen, blinking cursor, then the first raster bars"
     }
    ]
   },
   {
-   "id": "p36-sign-ring",
-   "module": "sign",
-   "variant": "ring",
-   "start": 193.313,
+   "id": "p39-demo-internet",
+   "n": 40,
+   "module": "demo",
+   "variant": "internet",
+   "start": 190.982,
    "end": 197.974,
    "lines": [],
    "tier": "T3",
-   "ground": "ink",
-   "accent": true,
-   "beat": "bar 1: one quarter of the neon ring ignites per kick (tube 2→8 px); bar 2: the four cut sections of the shell open one per beat",
-   "lyric": "none",
-   "exit": "the ring dies",
-   "event": "contact points lock along the equator | shots: contact points lock along the equator → the ring cuts the shell open, exposing the interior",
+   "ground": "dark",
+   "idiom": "demoscene",
+   "family": "E",
+   "palette": "demo-net",
+   "sequence": "demo",
+   "accent": false,
+   "beat": "copper bars bounce per beat; one network node lights per kick",
+   "lyric": "none (the sine scroller carries jamo, not lyric lines)",
+   "subject": {
+    "kind": "copper",
+    "x": 960,
+    "y": 540,
+    "s": 0.9
+   },
+   "lyr": null,
+   "exit": "the nodes flood into data",
+   "event": "internet (8-bit 2): modem handshake, copper bars, a sine scroller of jamo, the network lights node by node",
    "shots": [
     {
-     "t": 193.313,
+     "t": 190.982,
      "anchor": "s",
-     "desc": "contact points lock along the equator"
+     "cam": "flat",
+     "desc": "modem handshake: a scrolling carrier waveform"
+    },
+    {
+     "t": 193.313,
+     "anchor": "+1B",
+     "cam": "wide",
+     "desc": "copper bars + a sine scroller of jamo"
     },
     {
      "t": 195.643,
-     "anchor": "+1B",
-     "desc": "the ring cuts the shell open, exposing the interior"
+     "anchor": "+2B",
+     "cam": "top",
+     "desc": "the network lights up node by node"
     }
    ]
   },
   {
-   "id": "p37-lens-star",
-   "module": "lens",
-   "variant": "star",
+   "id": "p40-demo-ai",
+   "n": 41,
+   "module": "demo",
+   "variant": "ai",
    "start": 197.974,
    "end": 202.636,
    "lines": [],
    "tier": "T3",
-   "ground": "ink",
+   "ground": "light",
+   "idiom": "demoscene",
+   "family": "E",
+   "palette": "demo-ai",
+   "sequence": "demo",
    "accent": false,
-   "beat": "beats 1–2: latch preload clicks; beats 3–8: the six blades close one per beat; aperture 0 on the last beat",
+   "beat": "the data flood shifts one block per beat (large flashes <= 3/s); it condenses a step per bar",
    "lyric": "none",
-   "exit": "the last ray is cut",
-   "event": "the star's observation face | shots: the star's observation face → aperture side view, blades closing",
+   "subject": {
+    "kind": "face",
+    "x": 1187,
+    "y": 413,
+    "s": 0.7
+   },
+   "lyr": null,
+   "exit": "match cut: the eye becomes the Sun",
+   "event": "AI (8-bit 3): an Ikeda data flood (at most 3 flashes/s) condenses into a low-res face whose eye is a circle",
    "shots": [
     {
      "t": 197.974,
      "anchor": "s",
-     "desc": "the star's observation face"
+     "cam": "flat",
+     "desc": "an Ikeda data flood: black barcodes on white"
     },
     {
      "t": 200.305,
      "anchor": "+1B",
-     "desc": "aperture side view, blades closing"
+     "cam": "close",
+     "desc": "the flood condenses into a low-res face; its eye is a circle at the anchor"
     }
    ]
   },
   {
-   "id": "p38-shell-pullback",
-   "module": "shell",
-   "variant": "pullback",
+   "id": "p41-orbit-swarm",
+   "n": 42,
+   "module": "orbit",
+   "variant": "swarm",
    "start": 202.636,
-   "end": 211.959,
+   "end": 207.297,
    "lines": [],
    "tier": "T1",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "3d-lit",
+   "family": "M",
+   "palette": "swarm",
+   "sequence": null,
    "accent": false,
-   "beat": "the sealed sphere's seams signal per beat; one star goes out every 2 s, the rest flare on the kick",
+   "beat": "a collector volley launches per beat and snaps into orbit",
    "lyric": "none",
-   "exit": "the sphere dissolves into lines",
-   "event": "close on the sealed sphere | shots: close on the sealed sphere → wide starfield, the sphere small → the afterimages of the extinguished stars are projected onto the sphere's surface and drain into its seams (the shell as a screen)",
+   "subject": {
+    "kind": "swarm",
+    "x": 1187,
+    "y": 413,
+    "s": 0.35
+   },
+   "lyr": null,
+   "exit": "match cut: the ringed Sun becomes the shell's oculus",
+   "event": "AI launches the swarm: collector volleys snap into orbit around the Sun from #15; lateral track in orbit",
    "shots": [
     {
      "t": 202.636,
      "anchor": "s",
-     "desc": "close on the sealed sphere"
+     "cam": "track",
+     "desc": "lateral track in orbit: the Sun (from #15) at the anchor, volleys launching"
     },
     {
-     "t": 207.297,
-     "anchor": "+2B",
-     "desc": "wide starfield, the sphere small"
-    },
-    {
-     "t": 209.628,
-     "anchor": "+3B",
-     "desc": "the afterimages of the extinguished stars are projected onto the sphere's surface and drain into its seams (the shell as a screen)"
+     "t": 204.966,
+     "anchor": "+1B",
+     "cam": "wide",
+     "desc": "wider: the swarm rings the Sun"
     }
    ]
   },
   {
-   "id": "p39-blueprint-return",
-   "module": "blueprint",
-   "variant": "return",
-   "start": 211.959,
-   "end": 218.951,
+   "id": "p42-shell-dancheong",
+   "n": 43,
+   "module": "shell",
+   "variant": "dancheong",
+   "start": 207.297,
+   "end": 211.959,
    "lines": [],
    "tier": "T1",
-   "ground": "bone",
+   "ground": "light",
+   "idiom": "dancheong",
+   "family": "H",
+   "palette": "dancheong",
+   "sequence": null,
    "accent": false,
-   "beat": "one line erases per beat",
+   "beat": "one ring of hex panels locks shut per beat, with a painted flash",
    "lyric": "none",
-   "exit": "a blank sheet",
-   "event": "the sphere as a blueprint | shots: the sphere as a blueprint → lines erasing → only the orbit ellipses remain",
+   "subject": {
+    "kind": "vault",
+    "x": 1187,
+    "y": 413,
+    "s": 0.9
+   },
+   "lyr": null,
+   "exit": "match cut: the closed oculus becomes the sealed sphere",
+   "event": "the shell closes: hex panels painted in dancheong lock shut, seen looking up from inside the sunlit shell",
+   "shots": [
+    {
+     "t": 207.297,
+     "anchor": "s",
+     "cam": "up",
+     "desc": "looking up from inside the shell: dancheong hex panels around the Sun at the anchor"
+    },
+    {
+     "t": 209.628,
+     "anchor": "+1B",
+     "cam": "close",
+     "desc": "the last panels lock shut, the oculus closes"
+    }
+   ]
+  },
+  {
+   "id": "p43-shell-pullback",
+   "n": 44,
+   "module": "shell",
+   "variant": "pullback",
+   "start": 211.959,
+   "end": 216.62,
+   "lines": [],
+   "tier": "T1",
+   "ground": "dark",
+   "idiom": "3d-lit",
+   "family": "M",
+   "palette": "pullback",
+   "sequence": null,
+   "accent": false,
+   "beat": "one star goes dark per beat; the sealed sphere's seams pulse on the kick",
+   "lyric": "none",
+   "subject": {
+    "kind": "pullback",
+    "x": 1187,
+    "y": 413,
+    "s": 0.25
+   },
+   "lyr": null,
+   "exit": "black field → title",
+   "event": "pull back (exterior wide): the enclosed Sun goes dark; other stars go dark too (other spheres)",
    "shots": [
     {
      "t": 211.959,
      "anchor": "s",
-     "desc": "the sphere as a blueprint"
+     "cam": "close",
+     "desc": "exterior: the sealed sphere at the anchor, the Sun gone dark"
     },
     {
      "t": 214.29,
      "anchor": "+1B",
-     "desc": "lines erasing"
-    },
-    {
-     "t": 216.62,
-     "anchor": "+2B",
-     "desc": "only the orbit ellipses remain"
+     "cam": "pull",
+     "desc": "pulling back wide: other stars go dark too (other spheres)"
     }
    ]
   },
   {
-   "id": "p40-press-credits",
+   "id": "p44-press-credits",
+   "n": 45,
    "module": "press",
    "variant": "credits",
-   "start": 218.951,
+   "start": 216.62,
    "end": 225.943,
    "lines": [],
    "tier": "T1",
-   "ground": "bone",
+   "ground": "mid",
+   "idiom": "constructivist",
+   "family": "P",
+   "palette": "constructivist",
+   "sequence": null,
    "accent": false,
    "beat": "one glyph stamped per kick; the stamp afterimage lasts until the next kick",
    "lyric": "none (DYSON SPHERE / Sentient Architect)",
-   "exit": "paper to black",
-   "event": "title stamped | shots: title stamped → credit line stamped → full card",
+   "subject": {
+    "kind": "wedge",
+    "x": 960,
+    "y": 540,
+    "s": 0.8
+   },
+   "lyr": null,
+   "exit": "the red field to black",
+   "event": "title and credits: constructivist wedge typography, stamped on the beat",
    "shots": [
     {
-     "t": 218.951,
+     "t": 216.62,
      "anchor": "s",
-     "desc": "title stamped"
+     "cam": "wide",
+     "desc": "red field: a black wedge drives in, the title stamped"
+    },
+    {
+     "t": 218.951,
+     "anchor": "+1B",
+     "cam": "tilt",
+     "desc": "credit line stamped along the wedge"
     },
     {
      "t": 221.282,
-     "anchor": "+1B",
-     "desc": "credit line stamped"
-    },
-    {
-     "t": 223.613,
      "anchor": "+2B",
+     "cam": "flat",
      "desc": "full card"
     }
    ]
   },
   {
-   "id": "p41-spark-outro",
+   "id": "p45-spark-outro",
+   "n": 46,
    "module": "spark",
    "variant": "outro",
    "start": 225.943,
    "end": 232.299,
    "lines": [],
    "tier": "T1",
-   "ground": "ink",
+   "ground": "dark",
+   "idiom": "light-trace",
+   "family": "E",
+   "palette": "bco",
+   "sequence": null,
    "accent": false,
    "beat": "the point shrinks one step per kick; the hairline undraws at the beat rate; cut at size 0 on the last beat",
    "lyric": "none",
+   "subject": {
+    "kind": "point",
+    "x": 960,
+    "y": 540,
+    "s": 0.02
+   },
+   "lyr": null,
    "exit": "black (matches frame 1)",
-   "event": "the point alone, hairline | shots: the point alone, hairline → hairline undrawing",
+   "event": "the point shrinks per beat to nothing",
    "shots": [
     {
      "t": 225.943,
      "anchor": "s",
+     "cam": "wide",
      "desc": "the point alone, hairline"
     },
     {
      "t": 230.605,
      "anchor": "+2B",
+     "cam": "close",
      "desc": "hairline undrawing"
     }
    ]

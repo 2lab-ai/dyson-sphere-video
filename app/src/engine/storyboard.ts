@@ -3,14 +3,20 @@
 // structural states on these times (they may add shots, never drop or move one). Pure: safe to import from the gate.
 import sb from '@root/data/storyboard.json';
 
-export interface SbShot { t: number; anchor: string; desc: string }
+/** One shot: song time, anchor, camera (the animatic's structural state), description. */
+export interface SbShot { t: number; anchor: string; cam: string; desc: string }
+/** The planned main subject: animatic proxy kind, centre (px on 1920x1080), scale (fraction of frame height). */
+export interface SbSubject { kind: string; x: number; y: number; s: number; [k: string]: string | number }
+/** Lyric placement: anchor (px), glyph size (px), material hint, rotation (rad). */
+export interface SbLyr { x: number; y: number; size: number; mat: string; rot: number; align: 'left' | 'center' | 'right'; vertical: boolean }
 export interface SbPlate {
-  id: string; module: string; variant: string; start: number; end: number; lines: number[];
-  tier: 'T1' | 'T2' | 'T3'; ground: 'ink' | 'bone'; accent: boolean; beat: string; lyric: string; exit: string; event: string;
-  shots: SbShot[];
+  id: string; n: number; module: string; variant: string; start: number; end: number; lines: number[];
+  tier: 'T1' | 'T2' | 'T3'; ground: 'dark' | 'mid' | 'light'; idiom: string; family: string; palette: string;
+  sequence: string | null; accent: boolean; beat: string; lyric: string; subject: SbSubject; lyr: SbLyr | null;
+  exit: string; event: string; shots: SbShot[];
 }
 
-const BY_ID = new Map<string, SbPlate>((sb as { plates: SbPlate[] }).plates.map((p) => [p.id, p]));
+const BY_ID = new Map<string, SbPlate>((sb as unknown as { plates: SbPlate[] }).plates.map((p) => [p.id, p]));
 
 /** The storyboard entry for a plate id (throws if the plate isn't in the approved storyboard). */
 export function sbPlate(id: string): SbPlate {

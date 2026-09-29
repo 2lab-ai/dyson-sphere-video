@@ -48,6 +48,24 @@ export interface PlateInfo {
   dur?: number;
   /** The only plates allowed to use the 'accent' palette token. */
   accent?: boolean;
+  /** v3: PLAN-V3 row number (#36 does not exist). */
+  n?: number;
+  /** v3 look: canonical idiom (adjacency/uniqueness), family, named palette (engine/palette.ts), ground, legacy B/C/O palette. */
+  look?: PlateLook;
+  /** v3: plate-ID-scoped sequence exception (popup-life, demo). */
+  sequence?: string;
+  /** v3: the cut to the next plate is a gated circle match cut. */
+  match_circle_next?: boolean;
+  /** v3: the PLAN-V3 start time before snapping. */
+  plan?: number;
+}
+
+export interface PlateLook {
+  idiom: string;
+  family: 'E' | 'S' | 'H' | 'M' | 'P' | 'A' | string;
+  palette: string;
+  ground: 'dark' | 'mid' | 'light';
+  bco: boolean;
 }
 
 /** The slice of data/audio.json a shot list may depend on. */

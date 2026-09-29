@@ -1,7 +1,10 @@
 #!/usr/bin/env bun
-// The edit gate (docs/EDIT-SPEC.md §Gate). Fail-closed: exit 1 unless every check passes.
-//   bun scripts/edit-gate.ts             self-test first (aborts if the gate is broken), then the real edit
-//   bun scripts/edit-gate.ts --selftest  only the self-test
+// The edit gate (docs/EDIT-SPEC.md §Gate + docs/PLAN-V3.md "Trinity decisions"). Fail-closed: exit 1 unless every
+// check passes.
+//   bun scripts/edit-gate.ts                          self-test first (aborts if the gate is broken), then the real edit
+//   bun scripts/edit-gate.ts --selftest               only the self-test
+//   bun scripts/edit-gate.ts --tolerate-module-missing  exit 0 when C.module-missing is the ONLY failing check (the
+//                                                     animatic render: modules/variants not built yet; nothing else)
 //
 // Every check is a pure function of one GateInput (plates, lyrics, audio, source texts, shot functions,
 // the lyric timing helper), so the self-test can feed it in-memory fixtures. Each negative fixture names
@@ -11,10 +14,15 @@
 //
 // Layers:
 //   T  timeline   coverage, 4-bar cap, plate count, lyric ownership, no cut inside a line, anchors,
-//                 light plates, adjacency, distinct modules, accent plates
-//   C  code paths no global lyric HUD; modules exist; vocal modules call drawLyric; every module calls a
-//                 beat pulse; no colour literals in scenes; scene imports; retired idioms; accent guard
-//   S  shots      .shots.ts present; >= 60 structural transitions; max gap per section; determinism
+//                 light plates, distinct modules, accent plates; v3 look: look fields + palette, ground vs palette
+//                 luminance, idiom adjacency (sequence-exempt), idiom once (allow-list), family run / window (one
+//                 literal demo exception), ground run, B/C/O budget, cream budget, sequences, match-circle pairs
+//   C  code paths no global lyric HUD; modules/variants built; vocal modules call drawLyric; every module calls a
+//                 beat pulse; no colour literals in scenes; scene imports; retired idioms; v3 retired modules;
+//                 annotation helpers (titleBlock/crosshair/dimension); accent guard
+//   S  shots      .shots.ts present; >= 60 structural transitions; max gap per section; determinism. Plates whose
+//                 module/variant is not built yet are checked against the animatic's shot list (the stand-in that
+//                 renders them until the module phase), built from the same storyboard contract.
 //   L  lyric      no syllable counts as sung before its start
 //
 // Parser: rolldown/parseAst (oxc, ships with Vite). The spec asked for the TypeScript compiler API, but
@@ -34,6 +42,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { barLen, gapCap, sameState, stateAt, type AudioLite, type PlateInfo, type Shot, type ShotState } from '../src/engine/shots';
 import { syllableState as realSyllableState } from '../src/engine/lyric';
+import { HEX, PALETTES, groundClass, isCream, type NamedPalette } from '../src/engine/palette';
 
 const APP = path.resolve(import.meta.dir, '..');
 const ROOT = path.resolve(APP, '..');
@@ -41,6 +50,48 @@ const FRAME = 1 / 60;
 const TOL = 1.5e-3; // edit.json rounds to ms
 const RETIRED = ['grid', 'tunnel', 'glitch', 'kaleido'];
 const LINES_EXPECTED = 32;
+
+// ------------------------------------------------------------------ v3 literals (docs/PLAN-V3.md, Trinity decisions)
+/** v3-retired modules: no plate may use them and no file may import them (the files stay on disk, untouched). */
+const RETIRED_V3 = ['blueprint', 'screen', 'silhouette', 'chrome'];
+/** Retired annotation-chrome helpers: any identifier in a used scene matching this fails. */
+const ANNOTATION_RE = /titleBlock|crosshair|dimension/i;
+/**
+ * (module/variant) pairs that are BUILT for v3. Everything else in the edit is a new module or a new variant of an
+ * old one: C.module-missing names it, and the S layer checks it against the animatic stand-in. The module phase
+ * adds a pair here when its module agent lands it.
+ */
+const BUILT = new Set([
+  'spark/write', 'spark/merge', 'spark/outro', 'sign/neon', 'lens/gaze', 'lens/ai', 'engrave/hand',
+  'orbit/capture', 'void/descent', 'popup/city', 'press/credits',
+]);
+/** Idioms allowed to repeat, with their max count. Everything else: at most once. */
+const IDIOM_REPEAT: Record<string, number> = { 'pop-up': 3, demoscene: 3, 'light-trace': 3, aperture: 2, '3d-lit': 3 };
+/** Idioms allowed only on named plates (M3 fluid: #5 ocean and #13 Big Bang). */
+const IDIOM_PLATES: Record<string, string[]> = { 'fluid-cosmos': ['p05-wave-ocean', 'p13-cosmos-bigbang'] };
+/** Banned idioms (the retired drawing / UI-chrome looks). */
+const IDIOM_BANNED = ['blueprint', 'drawing', 'technical-drawing', 'screen-ui', 'dial-chrome', 'silhouette', 'liquid-chrome'];
+/** Plate-ID-scoped sequences: the only places the same idiom may sit on adjacent plates. */
+const SEQUENCES: Record<string, string[]> = {
+  'popup-life': ['p18-popup-life-sea', 'p19-popup-life-land'],
+  demo: ['p38-demo-boot', 'p39-demo-internet', 'p40-demo-ai'],
+};
+const SEQ_MAX_BARS = 8;
+/**
+ * The one family exception (PLAN-V3 #39–#46): the demo sequence makes an E-E-E run (#39–#41) and E×4 in the
+ * 8-plate window #39–#46. Keyed by plate ids; nothing else is exempt.
+ */
+const DEMO_EXCEPTION = {
+  run: ['p38-demo-boot', 'p39-demo-internet', 'p40-demo-ai'],
+  window: ['p38-demo-boot', 'p39-demo-internet', 'p40-demo-ai', 'p41-orbit-swarm', 'p42-shell-dancheong', 'p43-shell-pullback', 'p44-press-credits', 'p45-spark-outro'],
+  family: 'E', max: 4,
+};
+/** Gated match-circle cuts (#41→#42, #42→#43, #43→#44). Stub: declared, and adjacent. The snapshot check comes with the modules. */
+const MATCH_REQUIRED: [string, string][] = [
+  ['p40-demo-ai', 'p41-orbit-swarm'], ['p41-orbit-swarm', 'p42-shell-dancheong'], ['p42-shell-dancheong', 'p43-shell-pullback'],
+];
+const FAMILIES = ['E', 'S', 'H', 'M', 'P', 'A'];
+const MAX_DARK_RUN = 4, MAX_BCO = 8, MAX_CREAM = 3, FAMILY_WINDOW = 8, FAMILY_WINDOW_MAX = 3;
 
 // ------------------------------------------------------------------ inputs
 interface LyWord { w: string; start: number; end: number; syl?: [number, number][] }
@@ -57,7 +108,17 @@ interface GateInput {
   /** Pure shot functions per module (absent = no .shots.ts). */
   shotsFns: Map<string, ShotsFn>;
   syllableState: SylFn;
+  /** 'module/variant' pairs that are built (the real run: BUILT; the positive control: every pair). */
+  built: Set<string>;
+  /** Shot list used for plates that are not built (the animatic's shots()); absent = those plates have no shots. */
+  standIn?: ShotsFn;
+  /** Storyboard shot times per plate id (data/storyboard.json). */
+  sbTimes: Map<string, { t: number; anchor: string }[]>;
 }
+
+const pairOf = (p: PlateInfo) => `${p.module}/${p.variant}`;
+const idiomOf = (p: PlateInfo) => p.look?.idiom ?? `module:${p.module}`;
+const palOf = (p: PlateInfo): NamedPalette | undefined => (p.look ? (PALETTES as Record<string, NamedPalette>)[p.look.palette] : undefined);
 
 interface Result { id: string; ok: boolean; detail: string }
 
@@ -226,12 +287,138 @@ function timelineChecks(I: GateInput): Result[] {
 
   const light = P.filter((p) => p.light).length, needLight = Math.ceil(P.length / 4);
   R.push(light >= needLight ? pass('T.light', `${light} >= ${needLight}`) : fail('T.light', `${light} light plates < ceil(${P.length}/4) = ${needLight}`));
-  const adj = P.slice(1).filter((p, i) => p.module === P[i]!.module).map((p) => p.id);
-  R.push(adj.length ? fail('T.adjacent', `same module as the previous plate: ${list(adj)}`) : pass('T.adjacent'));
   const mods = new Set(P.map((p) => p.module));
-  R.push(mods.size >= 8 ? pass('T.distinct', `${mods.size} modules`) : fail('T.distinct', `${mods.size} distinct modules < 8`));
+  R.push(mods.size >= 8 ? pass('T.distinct', `${mods.size} modules, ${new Set(P.map(idiomOf)).size} idioms`) : fail('T.distinct', `${mods.size} distinct modules < 8`));
   const acc = P.filter((p) => p.accent).map((p) => p.id);
   R.push(acc.length <= 2 ? pass('T.accent', acc.join(', ') || 'none') : fail('T.accent', `${acc.length} accent plates > 2: ${list(acc)}`));
+  R.push(...lookChecks(I));
+  return R;
+}
+
+/** A plate's declared sequence, if it is a valid plate-ID-scoped one. */
+const seqOf = (p: PlateInfo) => (p.sequence && SEQUENCES[p.sequence]?.includes(p.id) ? p.sequence : null);
+
+function lookChecks(I: GateInput): Result[] {
+  const { plates: P, audio: au } = I;
+  const bar = barLen(au);
+  const R: Result[] = [];
+
+  // look fields present and valid
+  const lk: string[] = [];
+  for (const p of P) {
+    const l = p.look;
+    if (!l) { lk.push(`${p.id}: no look`); continue; }
+    if (!l.idiom) lk.push(`${p.id}: no idiom`);
+    if (!FAMILIES.includes(l.family)) lk.push(`${p.id}: family '${l.family}'`);
+    if (!palOf(p)) lk.push(`${p.id}: unknown palette '${l.palette}'`);
+    if (!['dark', 'mid', 'light'].includes(l.ground)) lk.push(`${p.id}: ground '${l.ground}'`);
+    if (typeof l.bco !== 'boolean') lk.push(`${p.id}: bco not boolean`);
+    if (p.light !== (l.ground === 'light')) lk.push(`${p.id}: light=${p.light} but ground '${l.ground}'`);
+  }
+  R.push(lk.length ? fail('T.look', list(lk)) : pass('T.look', `${P.length} plates: idiom, family, palette, ground, bco`));
+
+  // declared ground vs the palette's ground luminance (a plate cannot declare itself light on a dark palette)
+  const gm: string[] = [];
+  for (const p of P) { const pal = palOf(p); if (pal && p.look && groundClass(pal.ground) !== p.look.ground) gm.push(`${p.id}: declared ${p.look.ground}, palette '${p.look.palette}' ground ${pal.ground} is ${groundClass(pal.ground)}`); }
+  R.push(gm.length ? fail('T.ground-match', list(gm)) : pass('T.ground-match', 'declared grounds match palette luminance'));
+
+  // adjacency on the canonical idiom; exempt only inside one declared sequence
+  const adj: string[] = [];
+  for (let i = 1; i < P.length; i++) {
+    const a = P[i - 1]!, b = P[i]!;
+    if (idiomOf(a) !== idiomOf(b)) continue;
+    if (seqOf(a) && seqOf(a) === seqOf(b)) continue;
+    adj.push(`${a.id}→${b.id} (${idiomOf(b)})`);
+  }
+  R.push(adj.length ? fail('T.adjacent', `same idiom as the previous plate outside a sequence: ${list(adj)}`) : pass('T.adjacent', 'no adjacent idiom repeats outside the declared sequences'));
+
+  // each idiom once, except the explicit allow-list
+  const cnt = new Map<string, string[]>();
+  for (const p of P) if (p.look) cnt.set(p.look.idiom, [...(cnt.get(p.look.idiom) ?? []), p.id]);
+  const once: string[] = [];
+  for (const [id, ps] of cnt) {
+    if (IDIOM_BANNED.includes(id)) once.push(`${id} is banned (${ps.join(',')})`);
+    else if (IDIOM_PLATES[id]) { const bad = ps.filter((x) => !IDIOM_PLATES[id]!.includes(x)); if (bad.length) once.push(`${id} only on ${IDIOM_PLATES[id]!.join(',')}: ${bad.join(',')}`); }
+    else if (ps.length > (IDIOM_REPEAT[id] ?? 1)) once.push(`${id} ×${ps.length} > ${IDIOM_REPEAT[id] ?? 1}`);
+  }
+  R.push(once.length ? fail('T.idiom-once', list(once)) : pass('T.idiom-once', `${cnt.size} idioms; repeats only ${Object.keys(IDIOM_REPEAT).join('/')} + fluid-cosmos on #5/#13`));
+
+  // family: no 3 in a row; <= 3 of one family in any 8-plate window (one literal exception: the demo run/window)
+  const fam = (p: PlateInfo) => p.look?.family;
+  const run: string[] = [];
+  for (let i = 2; i < P.length; i++) {
+    const tri = [P[i - 2]!, P[i - 1]!, P[i]!];
+    const f = fam(tri[0]!);
+    if (!f || !tri.every((p) => fam(p) === f)) continue;
+    const exempt = f === DEMO_EXCEPTION.family && tri.every((p) => DEMO_EXCEPTION.run.includes(p.id));
+    if (!exempt) run.push(`${tri.map((p) => p.id).join(',')} (${f})`);
+  }
+  R.push(run.length ? fail('T.family-run', `3 plates of one family in a row: ${list(run)}`) : pass('T.family-run', 'no family 3 in a row (demo run p38–p40 exempt by id)'));
+  const win: string[] = [];
+  for (let i = 0; i + FAMILY_WINDOW <= P.length; i++) {
+    const w = P.slice(i, i + FAMILY_WINDOW);
+    const c = new Map<string, number>();
+    for (const p of w) { const f = fam(p); if (f) c.set(f, (c.get(f) ?? 0) + 1); }
+    const isDemoWin = w.map((p) => p.id).join() === DEMO_EXCEPTION.window.join();
+    for (const [f, n] of c) {
+      const cap = isDemoWin && f === DEMO_EXCEPTION.family ? DEMO_EXCEPTION.max : FAMILY_WINDOW_MAX;
+      if (n > cap) win.push(`${w[0]!.id}..${w[w.length - 1]!.id}: ${f}×${n} > ${cap}`);
+    }
+  }
+  R.push(win.length ? fail('T.family-window', list(win)) : pass('T.family-window', `<= ${FAMILY_WINDOW_MAX} per family in every ${FAMILY_WINDOW}-plate window (demo window p38–p45: E <= ${DEMO_EXCEPTION.max})`));
+
+  // ground: non-light at most 4 in a row
+  const gr: string[] = [];
+  let k0 = 0;
+  for (let i = 0; i <= P.length; i++) {
+    const light = i < P.length && P[i]!.look?.ground === 'light';
+    if (light || i === P.length) {
+      if (i - k0 > MAX_DARK_RUN) gr.push(`${P[k0]!.id}..${P[i - 1]!.id}: ${i - k0} non-light plates`);
+      k0 = i + 1;
+    }
+  }
+  R.push(gr.length ? fail('T.ground-run', `> ${MAX_DARK_RUN} non-light plates in a row: ${list(gr)}`) : pass('T.ground-run', `non-light runs <= ${MAX_DARK_RUN}`));
+
+  // B/C/O budget (and the flag must match the palette)
+  const bco = P.filter((p) => p.look?.bco).map((p) => p.id);
+  // a palette is B/C/O when every role is a legacy v2 token (ink / bone / graphite / paper2 / signal …)
+  const legacy = new Set<string>(Object.values(HEX));
+  const isBco = (p: PlateInfo) => { const pal = palOf(p); return !!pal && Object.values(pal).every((h) => legacy.has(h)); };
+  const bcoBad = P.filter((p) => p.look && palOf(p) && p.look.bco !== isBco(p)).map((p) => `${p.id} bco=${p.look!.bco} but palette '${p.look!.palette}' is ${isBco(p) ? '' : 'not '}B/C/O`);
+  R.push(bco.length > MAX_BCO || bcoBad.length ? fail('T.bco', [bco.length > MAX_BCO ? `${bco.length} B/C/O plates > ${MAX_BCO}: ${list(bco)}` : '', list(bcoBad)].filter(Boolean).join('; ')) : pass('T.bco', `${bco.length} B/C/O plates <= ${MAX_BCO}`));
+
+  // cream grounds (computed from the palette's ground hex, engine/palette.ts isCream)
+  const cream = P.filter((p) => { const pal = palOf(p); return pal ? isCream(pal.ground) : false; }).map((p) => p.id);
+  R.push(cream.length > MAX_CREAM ? fail('T.cream', `${cream.length} cream grounds > ${MAX_CREAM}: ${list(cream)}`) : pass('T.cream', `${cream.length} cream grounds (${cream.join(', ') || 'none'})`));
+
+  // sequences: plate-ID scoped, contiguous, <= 8 bars, a storyboard shot at every bar boundary
+  const sq: string[] = [];
+  for (const p of P) if (p.sequence && !seqOf(p)) sq.push(`${p.id} declares sequence '${p.sequence}' outside the allowed ids`);
+  for (const [name, ids] of Object.entries(SEQUENCES)) {
+    const idx = P.map((p, i) => (p.sequence === name ? i : -1)).filter((i) => i >= 0);
+    if (!idx.length) continue; // not in this edit (fixtures)
+    if (idx.some((v, j) => j && v !== idx[j - 1]! + 1)) sq.push(`${name}: plates not contiguous`);
+    const ps = idx.map((i) => P[i]!);
+    if (ps.map((p) => p.id).join() !== ids.join()) sq.push(`${name}: plates ${ps.map((p) => p.id).join(',')} != ${ids.join(',')}`);
+    const bars = (ps[ps.length - 1]!.end - ps[0]!.start) / bar;
+    if (bars > SEQ_MAX_BARS + FRAME / bar) sq.push(`${name}: ${bars.toFixed(2)} bars > ${SEQ_MAX_BARS}`);
+    for (const p of ps) {
+      const sb = I.sbTimes.get(p.id) ?? [];
+      for (const d of au.downbeats) if (d >= p.start - TOL && d < p.end - TOL && !sb.some((x) => Math.abs(x.t - d) <= FRAME)) sq.push(`${p.id}: no storyboard shot at bar ${f3(d)}`);
+    }
+  }
+  R.push(sq.length ? fail('T.sequence', list(sq)) : pass('T.sequence', Object.entries(SEQUENCES).map(([n, ids]) => `${n} ${ids.length} plates`).join(', ') + `, each <= ${SEQ_MAX_BARS} bars, a shot per bar`));
+
+  // match-circle: the three gated pairs are declared and adjacent (snapshot check comes with the modules)
+  const mc: string[] = [];
+  P.forEach((p, i) => { if (p.match_circle_next && i + 1 >= P.length) mc.push(`${p.id} declares a match cut but is the last plate`); });
+  for (const [a, b] of MATCH_REQUIRED) {
+    const i = P.findIndex((p) => p.id === a);
+    if (!P.some((p) => p.id === a || p.id === b)) continue; // not in this edit (fixtures)
+    if (i < 0 || P[i + 1]?.id !== b) mc.push(`${a}→${b} not adjacent`);
+    else if (!P[i]!.match_circle_next) mc.push(`${a}→${b} not declared (match_circle_next)`);
+  }
+  R.push(mc.length ? fail('T.match-circle', list(mc)) : pass('T.match-circle', `${MATCH_REQUIRED.length} gated pairs declared and adjacent (snapshot check: module phase)`));
   return R;
 }
 
@@ -255,15 +442,21 @@ function codeChecks(I: GateInput): Result[] {
   R.push(hud.length ? fail('C.no-hud', list(hud)) : pass('C.no-hud', 'no HUD / lyricStyle / fx in engine, post, main, timeline'));
 
   const used = [...new Set(I.plates.map((p) => p.module))];
-  const vocalMods = new Set(I.plates.filter((p) => p.lines.length).map((p) => p.module));
+  // the animatic (one generic module that stands in for every plate under --animatic) obeys the same code rules
+  const ANIM = S.has('scenes/animatic.ts') ? ['animatic'] : [];
+  const vocalMods = new Set([...I.plates.filter((p) => p.lines.length).map((p) => p.module), ...ANIM]);
   const missing = used.filter((m) => !S.has(`scenes/${m}.ts`));
-  R.push(missing.length ? fail('C.module-missing', `no scenes/<m>.ts for: ${missing.join(', ')}`) : pass('C.module-missing', `${used.length} modules present`));
+  const unbuilt = [...new Set(I.plates.filter((p) => S.has(`scenes/${p.module}.ts`) && !I.built.has(pairOf(p))).map(pairOf))];
+  R.push(missing.length || unbuilt.length
+    ? fail('C.module-missing', [missing.length ? `no scenes/<m>.ts for: ${missing.join(', ')}` : '', unbuilt.length ? `variant not built: ${unbuilt.join(', ')}` : ''].filter(Boolean).join(' | '))
+    : pass('C.module-missing', `${used.length} modules present, every module/variant built`));
 
   const noLyric = [...vocalMods].filter((m) => S.has(`scenes/${m}.ts`) && !callsImported(parse(`scenes/${m}.ts`, src(`scenes/${m}.ts`)!), '../engine/lyric', ['drawLyric']));
   R.push(noLyric.length ? fail('C.lyric-call', `vocal modules without a drawLyric(...) call: ${noLyric.join(', ')}`) : pass('C.lyric-call', `${[...vocalMods].filter((m) => S.has(`scenes/${m}.ts`)).length} present vocal modules call drawLyric`));
 
-  const noBeat = used.filter((m) => S.has(`scenes/${m}.ts`) && !callsImported(parse(`scenes/${m}.ts`, src(`scenes/${m}.ts`)!), '../engine/beat', ['beatPulse', 'kickPulse', 'downbeatPulse']));
-  R.push(noBeat.length ? fail('C.beat-call', `modules without a beatPulse/kickPulse/downbeatPulse call: ${noBeat.join(', ')}`) : pass('C.beat-call', `${used.filter((m) => S.has(`scenes/${m}.ts`)).length} present modules drive the beat`));
+  const beatMods = [...used, ...ANIM];
+  const noBeat = beatMods.filter((m) => S.has(`scenes/${m}.ts`) && !callsImported(parse(`scenes/${m}.ts`, src(`scenes/${m}.ts`)!), '../engine/beat', ['beatPulse', 'kickPulse', 'downbeatPulse']));
+  R.push(noBeat.length ? fail('C.beat-call', `modules without a beatPulse/kickPulse/downbeatPulse call: ${noBeat.join(', ')}`) : pass('C.beat-call', `${beatMods.filter((m) => S.has(`scenes/${m}.ts`)).length} present modules drive the beat`));
 
   const sceneFiles = [...S.keys()].filter((f) => /^scenes\/[^/]+\.ts$/.test(f));
   const col: string[] = [];
@@ -294,6 +487,26 @@ function codeChecks(I: GateInput): Result[] {
   }
   R.push(ret.length ? fail('C.retired', list(ret)) : pass('C.retired', `${RETIRED.join('/')} absent`));
 
+  // v3-retired modules: referenced by no plate and imported by no file (the files themselves may stay on disk)
+  const r3: string[] = [];
+  for (const p of I.plates) if (RETIRED_V3.includes(p.module)) r3.push(`${p.id} uses retired module ${p.module}`);
+  for (const [f, s] of S) {
+    if (RETIRED_V3.some((r) => f === `scenes/${r}.ts` || f === `scenes/${r}.shots.ts`)) continue;
+    for (const spec of importSpecs(parse(f, s))) if (RETIRED_V3.includes(stripTs(path.basename(spec)).replace(/\.shots$/, ''))) r3.push(`${f} imports ${spec}`);
+  }
+  R.push(r3.length ? fail('C.retired-v3', list(r3)) : pass('C.retired-v3', `${RETIRED_V3.join('/')} referenced by no plate and no import`));
+
+  // retired annotation chrome: no titleBlock / crosshair / dimension identifiers in any scene the edit renders
+  const ann: string[] = [];
+  for (const m of [...used, ...ANIM]) for (const f of [`scenes/${m}.ts`, `scenes/${m}.shots.ts`]) {
+    const s = src(f);
+    if (s === undefined) continue;
+    const ids = new Set<string>();
+    walk(parse(f, s), (n) => { if (n.type === 'Identifier' && ANNOTATION_RE.test(n.name)) ids.add(n.name); });
+    for (const id of ids) ann.push(`${f}: ${id}`);
+  }
+  R.push(ann.length ? fail('C.annotation', `annotation helpers in rendered scenes: ${list(ann)}`) : pass('C.annotation', 'no titleBlock/crosshair/dimension identifiers in rendered scenes'));
+
   // accent: a scene that references the accent token must guard it with params.accent (grep)
   const accUse: string[] = [];
   for (const f of sceneFiles) {
@@ -307,9 +520,14 @@ function codeChecks(I: GateInput): Result[] {
 function shotChecks(I: GateInput): Result[] {
   const R: Result[] = [];
   const au = I.audio, bar = barLen(au);
-  const used = [...new Set(I.plates.map((p) => p.module))];
+  // built plates use their module's shot list; the others the stand-in (the animatic), which must exist
+  const isBuilt = (p: PlateInfo) => I.built.has(pairOf(p));
+  const fnFor = (p: PlateInfo): ShotsFn | undefined => (isBuilt(p) ? I.shotsFns.get(p.module) : I.standIn);
+  const used = [...new Set(I.plates.filter(isBuilt).map((p) => p.module))];
   const missing = used.filter((m) => !I.shotsFns.has(m));
-  R.push(missing.length ? fail('S.shots-missing', `no scenes/<m>.shots.ts for: ${missing.join(', ')}`) : pass('S.shots-missing', `${used.length} shot lists`));
+  const nStand = I.plates.filter((p) => !isBuilt(p)).length;
+  if (nStand && !I.standIn) missing.push(`(stand-in for ${nStand} unbuilt plates: scenes/animatic.shots.ts)`);
+  R.push(missing.length ? fail('S.shots-missing', `no scenes/<m>.shots.ts for: ${missing.join(', ')}`) : pass('S.shots-missing', `${used.length} shot lists` + (nStand ? `; ${nStand} unbuilt plates on the animatic stand-in` : '')));
 
   // events: every plate start + every real state change inside a plate
   const events: number[] = [];
@@ -317,7 +535,7 @@ function shotChecks(I: GateInput): Result[] {
   const lists = new Map<string, Shot[]>();
   for (const p of I.plates) {
     events.push(p.start);
-    const fn = I.shotsFns.get(p.module);
+    const fn = fnFor(p);
     if (!fn) continue;
     let sh: Shot[];
     try { sh = fn(p, au); } catch (e) { errs.push(`${p.id}: ${(e as Error).message}`); continue; }
@@ -335,19 +553,17 @@ function shotChecks(I: GateInput): Result[] {
 
   // every approved storyboard shot (data/storyboard.json) must be a real state change (or the plate start) in the module's list
   const sbMiss: string[] = [];
-  const sbPlates = new Map<string, { shots: { t: number; anchor: string }[] }>(
-    (JSON.parse(readFileSync(path.join(ROOT, 'data/storyboard.json'), 'utf8')).plates as any[]).map((p) => [p.id, p]));
   for (const p of I.plates) {
-    const sh = lists.get(p.id), sbp = sbPlates.get(p.id);
-    if (!sbp) { sbMiss.push(`${p.id}: not in storyboard`); continue; }
+    const sh = lists.get(p.id), sbs = I.sbTimes.get(p.id);
+    if (!sbs) { sbMiss.push(`${p.id}: not in storyboard`); continue; }
     if (!sh) continue;
-    for (const x of sbp.shots) {
+    for (const x of sbs) {
       if (Math.abs(x.t - p.start) <= FRAME) continue;
       const before = stateAt(sh, x.t - FRAME), at = stateAt(sh, x.t + FRAME / 4);
       if (sameState(before, at)) sbMiss.push(`${p.id}: no state change at storyboard shot ${x.t} (${x.anchor})`);
     }
   }
-  if (I.shotsFns.size) R.push(sbMiss.length ? fail('S.storyboard', list(sbMiss)) : pass('S.storyboard', 'every storyboard shot is a real state change'));
+  if (I.shotsFns.size || I.standIn) R.push(sbMiss.length ? fail('S.storyboard', list(sbMiss)) : pass('S.storyboard', 'every storyboard shot is a real state change'));
   events.sort((a, b) => a - b);
   const ev: number[] = [];
   for (const t of events) if (!ev.length || t - ev[ev.length - 1]! > FRAME) ev.push(t);
@@ -369,7 +585,7 @@ function shotChecks(I: GateInput): Result[] {
   let seed = 12345;
   const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
   for (const p of I.plates) {
-    const fn = I.shotsFns.get(p.module), a = lists.get(p.id);
+    const fn = fnFor(p), a = lists.get(p.id);
     if (!fn || !a) continue;
     const b = fn(p, au);
     if (JSON.stringify(a) !== JSON.stringify(b)) { det.push(`${p.id}: shots() differs between calls`); continue; }
@@ -425,7 +641,7 @@ async function realInput(): Promise<GateInput> {
   const a = loadJSON<AudioLite>('data/audio.json');
   const audio: AudioLite = { bpm: a.bpm, beats: a.beats, downbeats: a.downbeats, sections: a.sections, duration: a.duration };
   const shotsFns = new Map<string, ShotsFn>();
-  for (const m of new Set(edit.plates.map((p) => p.module))) {
+  for (const m of new Set([...edit.plates.map((p) => p.module), 'animatic'])) {
     const f = path.join(APP, 'src/scenes', `${m}.shots.ts`);
     if (!existsSync(f)) continue;
     // a broken shot list must not hide everyone else's status: it becomes a throwing fn (-> S.errors)
@@ -437,7 +653,13 @@ async function realInput(): Promise<GateInput> {
       shotsFns.set(m, () => { throw new Error(`scenes/${m}.shots.ts failed to import: ${msg}`); });
     }
   }
-  return { plates: edit.plates, lines: ly.lines, audio, sources: readSources(), shotsFns, syllableState: realSyllableState };
+  const standIn = shotsFns.get('animatic');
+  shotsFns.delete('animatic');
+  return { plates: edit.plates, lines: ly.lines, audio, sources: readSources(), shotsFns, syllableState: realSyllableState, built: BUILT, standIn, sbTimes: loadSbTimes() };
+}
+
+function loadSbTimes(): Map<string, { t: number; anchor: string }[]> {
+  return new Map((JSON.parse(readFileSync(path.join(ROOT, 'data/storyboard.json'), 'utf8')).plates as any[]).map((p) => [p.id, p.shots]));
 }
 
 // ------------------------------------------------------------------ self-test
@@ -451,8 +673,7 @@ export default class M extends Scene {
   render(f) { const k = beatPulse(this.ctx.audio, f.t); for (const l of ownedLines(this.ctx)) drawLyric(this.c, l, f.t, { x: 0, y: 0, size: 100 * (1 + k) }); return stateAt(shots(this.ctx.params, this.ctx.audio), f.t); }
 }
 `;
-const SB_TIMES = new Map<string, number[]>(
-  (JSON.parse(readFileSync(path.join(ROOT, 'data/storyboard.json'), 'utf8')).plates as any[]).map((p) => [p.id, p.shots.map((x: any) => x.t)]));
+const SB_TIMES = new Map<string, number[]>([...loadSbTimes()].map(([id, sh]) => [id, sh.map((x) => x.t)]));
 const goodShots: ShotsFn = (p, au) => {
   // a cut on every downbeat and at every approved storyboard shot, each a new state
   const ts = [...new Set([p.start, ...au.downbeats.filter((d) => d > p.start + FRAME && d < p.end - FRAME), ...(SB_TIMES.get(p.id) ?? [])])]
@@ -465,11 +686,14 @@ function compliantBase(real: GateInput): GateInput {
   for (const f of ['engine/engine.ts', 'engine/post.ts', 'main.ts', 'timeline.ts']) sources.set(f, real.sources.get(f) ?? '');
   const mods = new Set(real.plates.map((p) => p.module));
   for (const m of mods) sources.set(`scenes/${m}.ts`, goodModule(m));
-  return { ...real, sources, shotsFns: new Map([...mods].map((m) => [m, goodShots])) };
+  // every module/variant is "built" by a compliant synthetic module; the stand-in is never used
+  return { ...real, sources, shotsFns: new Map([...mods].map((m) => [m, goodShots])), built: new Set(real.plates.map(pairOf)), standIn: undefined };
 }
 
 interface Fixture { name: string; expect: string; make: (base: GateInput, real: GateInput) => GateInput }
-const clonePlates = (ps: PlateInfo[]) => ps.map((p) => ({ ...p, lines: [...p.lines] }));
+const clonePlates = (ps: PlateInfo[]) => ps.map((p) => ({ ...p, lines: [...p.lines], look: p.look ? { ...p.look } : undefined }));
+/** Index of a plate by id prefix (fixtures address plates by their v3 id). */
+const at = (ps: PlateInfo[], idPrefix: string) => { const i = ps.findIndex((p) => p.id.startsWith(idPrefix)); if (i < 0) throw new Error(`fixture: no plate ${idPrefix}`); return i; };
 
 const FIXTURES: Fixture[] = [
   {
@@ -550,6 +774,44 @@ export default class M { render(f) { drawLyric(this.c, this.l, f.t, { x: 0, y: 0
       return { ...b, sources };
     },
   },
+  // ---- v3
+  {
+    name: 'same idiom on adjacent plates outside a sequence', expect: 'T.adjacent',
+    make: (b) => {
+      // the two pop-up life plates lose their declared sequence: pop-up → pop-up is now an adjacent repeat
+      const plates = clonePlates(b.plates);
+      for (const p of plates) if (p.sequence === 'popup-life') delete p.sequence;
+      return { ...b, plates };
+    },
+  },
+  {
+    name: '5 non-light plates in a row', expect: 'T.ground-run',
+    make: (b) => {
+      // #16 claymation goes dark (with a dark palette, so ground and palette stay consistent): #12–#16 all dark
+      const plates = clonePlates(b.plates);
+      const p = plates[at(plates, 'p16-')]!;
+      p.look = { ...p.look!, ground: 'dark', palette: 'sdo' }; p.light = false;
+      return { ...b, plates };
+    },
+  },
+  {
+    name: 'B/C/O palette on 9 plates', expect: 'T.bco',
+    make: (b) => {
+      // five more dark plates switch to the legacy ink/bone/signal palette: 4 + 5 = 9 > 8
+      const plates = clonePlates(b.plates);
+      for (const id of ['p02-', 'p03-', 'p09-', 'p10-', 'p12-']) { const p = plates[at(plates, id)]!; p.look = { ...p.look!, palette: 'bco', bco: true }; }
+      return { ...b, plates };
+    },
+  },
+  {
+    name: 'one family 3 plates in a row outside the demo', expect: 'T.family-run',
+    make: (b) => {
+      // #4 riso and #5 ocean relabelled E: #3 crt, #4, #5 = E E E
+      const plates = clonePlates(b.plates);
+      for (const id of ['p04-', 'p05-']) { const p = plates[at(plates, id)]!; p.look = { ...p.look!, family: 'E' }; }
+      return { ...b, plates };
+    },
+  },
 ];
 
 function selftest(real: GateInput): boolean {
@@ -585,5 +847,9 @@ if (import.meta.main) {
   printTable(rs);
   const bad = rs.filter((r) => !r.ok);
   console.log(bad.length ? `\nGATE FAIL: ${bad.length} of ${rs.length} checks (${bad.map((r) => r.id).join(', ')})` : `\nGATE PASS: ${rs.length} checks`);
+  if (process.argv.includes('--tolerate-module-missing') && bad.length === 1 && bad[0]!.id === 'C.module-missing') {
+    console.log('TOLERATED (--tolerate-module-missing): only C.module-missing fails — modules/variants not built yet (animatic render only)');
+    process.exit(0);
+  }
   process.exit(bad.length ? 1 : 0);
 }
