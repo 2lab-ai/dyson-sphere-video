@@ -129,7 +129,9 @@ ${SCALE === 1 ? `        c += texture(src, vUv + texel * vec2(-1, -1)).rgb; c +=
         col *= exposure;
         col = shoulder(col);
         col = mix(col, vec3(0.8515) - col * 0.84, invert); // ink<->bone in linear-ish space
-        col += C_BONE * flash;
+        // flash = exposure punch + bone that only takes over near 1: an additive linear lift at small values
+        // reads as a grey veil over ink (0.1 linear ≈ 35% sRGB), so low flashes brighten what's lit instead
+        col = col * (1.0 + 4.0 * flash) + C_BONE * flash * flash * flash;
         // vignette
         float v = smoothstep(0.95, 0.25, length(dc * vec2(1.0, 0.8)));
         col *= mix(1.0, v, vignette);

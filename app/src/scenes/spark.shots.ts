@@ -1,34 +1,71 @@
 // Shot list for the spark plates (pure: imported by scenes/spark.ts and by the edit gate).
-// State = camera framing (`frame`) + lyric layout (`layout`). A cut lands on downbeats: every bar inside
-// drop/climax sections, otherwise as rarely as keeps every gap within the section's cap (gapCap).
-import { barTimes, gapCap, type AudioLite, type PlateInfo, type Shot } from '../engine/shots';
+// Times come from the approved storyboard (docs/STORYBOARD.md via engine/storyboard): every storyboard shot is a
+// structural change here, in order. State = `frame` (camera) + `stage` (what the marks are: medium/topology).
+// A few extra shots land on downbeats where the storyboard leaves a long hold (EXTRA below).
+import { type AudioLite, type PlateInfo, type Shot, type ShotState } from '../engine/shots';
+import { sbShotTimes } from '../engine/storyboard';
 
-export const FRAMES = ['wide', 'close', 'tilt', 'offset', 'high'] as const;
-export const LAYOUTS = ['center', 'left', 'vertical', 'right', 'low', 'stack'] as const;
-export type Framing = (typeof FRAMES)[number];
-export type Layout = (typeof LAYOUTS)[number] | 'none';
+/** Per variant: one state per storyboard shot, in storyboard order. */
+const PLAN: Record<string, ShotState[]> = {
+  // black; ignition + one hairline -> street/window strokes -> circuit (hard cut) -> tight tracking, speed streaks -> whip
+  write: [
+    { frame: 'wide', stage: 'ignite' },
+    { frame: 'write', stage: 'street' },
+    { frame: 'macro', stage: 'circuit' },
+    { frame: 'track', stage: 'streak' },
+    { frame: 'whip', stage: 'streak' },
+  ],
+  // side tracking on the ruler -> head-on (the point rushes at the camera) -> overhead vanishing strip -> locked, exit right
+  race: [
+    { frame: 'side', stage: 'ruler' },
+    { frame: 'headon', stage: 'ruler' },
+    { frame: 'overhead', stage: 'strip' },
+    { frame: 'locked', stage: 'ruler' },
+  ],
+  // constellation in the pupil reflection -> the points stand up as a city model -> flattened into a button grid
+  glint: [
+    { frame: 'pupil', stage: 'constellation' },
+    { frame: 'model', stage: 'city' },
+    { frame: 'front', stage: 'buttons' },
+  ],
+  // different marks -> uniform grid with the line printed on it -> the grid compresses -> one point
+  merge: [
+    { frame: 'field', stage: 'marks' },
+    { frame: 'field', stage: 'grid' },
+    { frame: 'close', stage: 'compress' },
+    { frame: 'void', stage: 'point' },
+  ],
+  // the point alone with its hairline -> hairline undrawing
+  outro: [
+    { frame: 'wide', stage: 'hairline' },
+    { frame: 'close', stage: 'undraw' },
+  ],
+};
 
-// per-variant starting offsets into the cycles, so the five spark plates don't open alike
-const SEED: Record<string, number> = { write: 0, race: 3, glint: 1, merge: 2, outro: 4 };
+/** Extra (non-storyboard) shots: on the first downbeat after storyboard shot `after` (if before the next one). */
+const EXTRA: Record<string, { after: number; s: ShotState }[]> = {
+  // climax downbeat (first flare): the camera leans in on the marks before they are forced into line
+  merge: [{ after: 0, s: { frame: 'lean', stage: 'marks' } }],
+  // outro: the second downbeat tightens the wide frame to a mid frame while the point keeps shrinking
+  outro: [{ after: 0, s: { frame: 'mid', stage: 'hairline' } }],
+};
+
+function sbTimes(p: PlateInfo): number[] {
+  try {
+    return sbShotTimes(p.id);
+  } catch {
+    return [p.start];
+  }
+}
 
 export function shots(p: PlateInfo, au: AudioLite): Shot[] {
-  const frame = 1 / 60;
-  const downs = barTimes(au, p.start + frame, p.end - frame);
-  // greedy: keep a downbeat when skipping it would leave a gap longer than the cap at that point
-  const cuts = [p.start];
-  for (let i = 0; i < downs.length; i++) {
-    const next = downs[i + 1] ?? p.end;
-    const last = cuts[cuts.length - 1]!;
-    if (next - last > gapCap(au, last, next) - 1e-3) cuts.push(downs[i]!);
+  const plan = PLAN[p.variant] ?? PLAN.write!;
+  const ts = sbTimes(p);
+  const out: Shot[] = ts.map((t, i) => ({ t: i === 0 ? p.start : t, s: { id: `${p.id}#${i}`, ...plan[Math.min(i, plan.length - 1)]! } }));
+  for (const ex of EXTRA[p.variant] ?? []) {
+    const a = out[ex.after]?.t ?? p.start, b = out[ex.after + 1]?.t ?? p.end;
+    const d = au.downbeats.find((x) => x > a + 0.05 && x < b - 0.05);
+    if (d !== undefined) out.push({ t: d, s: { id: `${p.id}#x${ex.after}`, ...ex.s } });
   }
-  const k0 = SEED[p.variant] ?? 0;
-  const vocal = p.lines.length > 0;
-  return cuts.map((t, i) => ({
-    t,
-    s: {
-      id: `${p.id}#${i}`,
-      frame: FRAMES[(k0 + i) % FRAMES.length]!,
-      layout: vocal ? LAYOUTS[(k0 + 2 * i) % LAYOUTS.length]! : 'none',
-    },
-  }));
+  return out.sort((x, y) => x.t - y.t);
 }
