@@ -1,7 +1,8 @@
 // Entry: preview player (default) or export mode (?export=1, driven by scripts/render.ts).
 import { Engine, type AdaptiveSampling } from './engine/engine';
 import { PW, PH, SCALE } from './engine/gl';
-import { makeTimeline, lyricStyle, fx } from './timeline';
+import { makeTimeline } from './timeline';
+import { lyricDrawLog } from './engine/lyric';
 
 const params = new URLSearchParams(location.search);
 const EXPORT = params.has('export');
@@ -13,7 +14,7 @@ const canvas = document.getElementById('c') as HTMLCanvasElement;
 canvas.width = PW;
 canvas.height = PH;
 
-const engine = new Engine(canvas, makeTimeline, { lyricStyle, fx });
+const engine = new Engine(canvas, makeTimeline);
 
 declare global {
   interface Window { __pdoom: any }
@@ -41,6 +42,8 @@ function setupExport() {
     width: PW,
     height: PH,
     timeline: TIMELINE.map(({ id, start, end }) => ({ id, start, end })),
+    /** drawLyric calls per plate id so far (live; see engine/lyric.ts). */
+    get lyricDraws(): Record<string, number> { return Object.fromEntries(lyricDrawLog); },
     /** Render a single frame at t (seeks as needed). */
     still(t: number, samples: number | AdaptiveSampling = 1, shutter = 0.5) { return engine.render(t, 1 / 60, true, samples, shutter); },
     /** The last rendered frame as a full-resolution (PW x PH) PNG, base64 (for stills at scale > 1). */
@@ -168,8 +171,8 @@ function setupPlayer() {
   if (import.meta.hot) {
     import.meta.hot.on('vite:afterUpdate', (payload: any) => {
       for (const u of payload.updates ?? []) {
-        const m = /scenes\/([\w-]+)\.ts/.exec(u.path ?? '');
-        if (m) for (const e of TIMELINE) if (e.id === m[1] || (e as any).file === m[1]) engine.reload(e.id);
+        const m = /scenes\/([\w-]+?)(?:\.shots)?\.ts/.exec(u.path ?? '');
+        if (m) for (const e of TIMELINE) if (e.id === m[1] || e.params?.module === m[1]) engine.reload(e.id);
       }
     });
   }

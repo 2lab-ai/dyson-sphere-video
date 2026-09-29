@@ -1,12 +1,13 @@
 // The engine: owns the renderer, loads scenes for the timeline, renders any song time
-// deterministically (with preroll for stateful scenes), composites transitions, HUD, post.
+// deterministically (with preroll for stateful scenes), composites the active scenes, then post.
+// Nothing draws lyrics or beat FX globally: each plate draws its own lines (engine/lyric.ts) and returns
+// its own post overrides per shot.
 import * as THREE from 'three';
 import { AudioData } from './audio';
 import { Lyrics } from './lyrics';
 import { Compositor, FSPass, W, H, PW, PH, SCALE, SS_TAP, makeRT, clearRT } from './gl';
 import { DEFAULT_POST, Post, SHOULDER_GLSL, type PostParams } from './post';
-import { Hud, type LyricStyle } from './hud';
-import type { Line } from './lyrics';
+import { setLyricPlate } from './lyric';
 import type { Frame, Scene, SceneClass, SceneCtx, PostOverrides } from './scene';
 import { loadFonts } from './type';
 
@@ -16,8 +17,6 @@ export interface TimelineEntry {
   load: () => Promise<{ default: SceneClass }>;
   start: number;
   end: number;
-  /** Plate caption shown bottom-right at the start of this entry. */
-  caption?: { fig: string; text: string; dur?: number; delay?: number };
   /** Default post overrides for this entry (the scene's own overrides win). */
   post?: PostOverrides;
   /** Free-form params handed to the scene as ctx.params. */
@@ -54,7 +53,6 @@ export class Engine {
   ctx!: SceneCtx;
   audio!: AudioData;
   lyrics!: Lyrics;
-  hud!: Hud;
   post!: Post;
   comp = new Compositor();
   loaded = new Map<string, Loaded>();
@@ -79,18 +77,12 @@ export class Engine {
   private lastT = -1;
   lastPost: PostParams = { ...DEFAULT_POST };
   errors: string[] = [];
-  /** Suppress the HUD (captions, crop marks) — used when rendering plate thumbnails. */
-  hudOff = false;
 
   timeline: TimelineEntry[] = [];
-
-  private lyricRT = makeRT(W, H, { depthBuffer: false });
 
   constructor(
     public canvas: HTMLCanvasElement,
     private makeTimeline: (lyrics: Lyrics, audio: AudioData) => TimelineEntry[],
-    /** Lyric style per line, and the song-wide beat FX applied on top of every scene's post params. */
-    private opts: { lyricStyle: (l: Line) => LyricStyle; fx?: (t: number, p: PostParams, audio: AudioData) => PostParams },
   ) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(1);
@@ -150,7 +142,6 @@ export class Engine {
     this.timeline = this.makeTimeline(this.lyrics, this.audio);
     this.ctx = { renderer: this.renderer, audio: this.audio, lyrics: this.lyrics, comp: this.comp, W, H, id: '', params: {}, start: 0, end: 0 };
     this.post = new Post();
-    this.hud = new Hud(this.lyrics, this.opts.lyricStyle);
     const entries = only ? this.timeline.filter(only) : this.timeline;
     await Promise.all(entries.map((e) => this.loadEntry(e)));
   }
@@ -228,7 +219,7 @@ export class Engine {
       // shaders that supersample share their 4 taps across the sub-frames when every set holds a multiple
       // of 4 (rotated by k/4 so a tap doesn't always land in the same part of the shutter)
       const cycle = adaptive || samples % 4 === 0;
-      // post parameters (shake, flash, zoom, fades, the HUD's paper mode) are read at one point of the shutter,
+      // post parameters (shake, flash, zoom, fades) are read at one point of the shutter,
       // 1/8 of it after t: where the video was tuned (4 sub-frames, the third) and a point every adaptive set
       // includes. (A flash that starts between t and there shows at its peak on this frame, not one frame on.)
       const POST_U = 0.125;
@@ -269,13 +260,7 @@ export class Engine {
       outTex = this.avgRT.texture;
     }
     this.lastSamples = n;
-    if (this.opts.fx) post = this.opts.fx(t, post, this.audio);
-    // lyrics go into the HDR frame (lifted above white so they bloom), under zoom/shake/CA like the picture
-    const a = this.audio.sample(t);
-    const hudTex = this.hud.draw(t, { opacity: this.hudOff ? 0 : post.hud, kick: a.kick, snare: this.audio.backbeat(t), bar: this.audio.barAt(t) });
-    this.comp.draw(r, outTex, this.lyricRT, { mode: 'replace', opacity: 1, premult: false });
-    this.comp.draw(r, hudTex, this.lyricRT, { mode: 'normal', tint: [post.lyricGain, post.lyricGain, post.lyricGain] });
-    this.post.render(r, this.lyricRT.texture, hudTex, this.finalRT, { ...post, hud: 0 }, t);
+    this.post.render(r, outTex, this.finalRT, post, t);
     this.lastPost = post;
     if (toScreen) {
       this.blit.u.src!.value = this.finalRT.texture;
@@ -328,6 +313,7 @@ export class Engine {
         return;
       }
       const s = rec.scene;
+      setLyricPlate(e.id);
       // (sub-frames of one frame may step back within its shutter: not a seek)
       const sceneSeeked = seeked || rec.lastT < 0 || Math.abs(t - rec.lastT) > 0.25;
       if (s.stateful && sceneSeeked) {

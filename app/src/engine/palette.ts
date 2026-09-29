@@ -1,16 +1,18 @@
 import { hexToLinear } from './util';
 
-// Neon synth-pop: a violet-black void, a star's gold, and two hot neons that trade places on the beat.
+// The only colours in the video (docs/EDIT-SPEC.md §Look). Scenes use these tokens — never colour literals:
+//   Canvas2D: rgba('signal', 0.8)     GLSL: C_SIGNAL (linear, from glsl/common.ts)     uniforms: LIN.signal
+// Dark plates sit on ink, bright plates on bone paper. `accent` (cyan) is reserved for the plates whose
+// params set accent: true (≤ 2 in the whole edit); the gate rejects any other scene that references it.
 export const HEX = {
-  ink: '#07020F', // void (violet black)
-  ink2: '#140A26', // raised void
-  bone: '#FFF4F8', // plasma white, primary text
-  pink: '#FF2BD6', // hot magenta
-  cyan: '#19F0FF', // electric cyan
-  gold: '#FFC53D', // solar gold: the star
-  ember: '#FF6A1F', // hotter orange for cores
-  violet: '#8A3CFF', // deep neon violet
-  lime: '#C6FF3C', // acid accent, used sparingly on drops
+  ink: '#0B0A10', // the void / printing ink
+  ink2: '#17151F', // raised ink (panels, second plane)
+  bone: '#F3EEE4', // bone paper, primary text on ink
+  paper2: '#E4DCCB', // shaded paper (second plane on bright plates)
+  graphite: '#6B6560', // pencil / rules / unsung text on paper
+  signal: '#FF5A14', // stellar orange: the point of light, the voice
+  ember: '#FFA04A', // warm highlight of signal
+  accent: '#1FD6FF', // cyan — accent plates only
 } as const;
 
 export type PaletteKey = keyof typeof HEX;
@@ -20,12 +22,8 @@ export const LIN: Record<PaletteKey, [number, number, number]> = Object.fromEntr
   Object.entries(HEX).map(([k, v]) => [k, hexToLinear(v)]),
 ) as Record<PaletteKey, [number, number, number]>;
 
-/** CSS rgba() for Canvas2D. */
-export function rgba(key: PaletteKey | string, a = 1): string {
-  const hex = (HEX as Record<string, string>)[key] ?? key;
-  const n = parseInt(hex.replace('#', ''), 16);
+/** CSS rgba() for Canvas2D, from a palette token. */
+export function rgba(key: PaletteKey, a = 1): string {
+  const n = parseInt(HEX[key].slice(1), 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
-
-/** The neon accent cycle, advanced once per bar. */
-export const NEONS: PaletteKey[] = ['pink', 'cyan', 'gold', 'violet', 'lime'];

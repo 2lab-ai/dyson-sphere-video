@@ -23,9 +23,6 @@ export interface PostParams {
   ca: number; // chromatic aberration in px at the frame edge
   grain: number; // grain amplitude (sRGB units), ~0.04-0.1
   vignette: number; // 0..1
-  hud: number; // lyric layer opacity
-  /** HDR gain of the lyric layer (>1 blooms). */
-  lyricGain: number;
   fade: number; // fade to black 0..1
   flash: number; // additive bone-white flash 0..1+
   shake: [number, number]; // frame offset in px
@@ -33,18 +30,18 @@ export interface PostParams {
   invert: number; // 0..1 invert (ink <-> bone), applied before grain
 }
 
+// Neutral by default: bloom and halation are off (shots opt in per plate via post overrides), grain and
+// vignette modest. There are no global beat FX — hits are authored by each plate.
 export const DEFAULT_POST: PostParams = {
   exposure: 1,
-  bloom: 0.55,
+  bloom: 0,
   bloomThreshold: 0.85,
   bloomKnee: 0.5,
   bloomRadius: 0.75,
-  halation: 0.25,
-  ca: 1.2,
-  grain: 0.055,
-  vignette: 0.35,
-  hud: 1,
-  lyricGain: 1.25,
+  halation: 0,
+  ca: 0.6,
+  grain: 0.045,
+  vignette: 0.25,
   fade: 0,
   flash: 0,
   shake: [0, 0],
@@ -112,8 +109,8 @@ ${SCALE === 1 ? `        c += texture(src, vUv + texel * vec2(-1, -1)).rgb; c +=
         fragColor = vec4(texture(prev, vUv).rgb + s / 16.0, 1.0);
       }`, { src: { value: null }, prev: { value: null }, texel: { value: new THREE.Vector2() }, radius: { value: 1 } });
     this.final = new FSPass(/* glsl */ `
-      uniform sampler2D src; uniform sampler2D bloomTex; uniform sampler2D haloTex; uniform sampler2D hudTex;
-      uniform float exposure, bloom, halation, ca, grain, vignette, hud, fade, flash, time, zoom, invert;
+      uniform sampler2D src; uniform sampler2D bloomTex; uniform sampler2D haloTex;
+      uniform float exposure, bloom, halation, ca, grain, vignette, fade, flash, time, zoom, invert;
       uniform vec2 shake; uniform vec2 res;
       ${SHOULDER_GLSL}
       void main() {
@@ -128,11 +125,8 @@ ${SCALE === 1 ? `        c += texture(src, vUv + texel * vec2(-1, -1)).rgb; c +=
         vec3 bl = texture(bloomTex, uv).rgb;
         vec3 ha = texture(haloTex, uv).rgb;
         col += bl * bloom;
-        col += vec3(1.0, 0.18, 0.04) * luma(ha) * halation;
+        col += C_SIGNAL * luma(ha) * halation;
         col *= exposure;
-        // HUD is composited in linear space before the shoulder so it gets grain & vignette too
-        vec4 h = texture(hudTex, vUv);
-        col = mix(col, h.rgb / max(h.a, 1e-4), h.a * hud);
         col = shoulder(col);
         col = mix(col, vec3(0.8515) - col * 0.84, invert); // ink<->bone in linear-ish space
         col += C_BONE * flash;
@@ -153,15 +147,15 @@ ${SCALE === 1 ? `        float g1 = hash12(gl_FragCoord.xy + fract(time * 13.37)
         s += (hash12(gl_FragCoord.xy * 1.37 + time) - 0.5) / 255.0; // dither
         fragColor = vec4(sat(s), 1.0);
       }`, {
-      src: { value: null }, bloomTex: { value: null }, haloTex: { value: null }, hudTex: { value: null },
+      src: { value: null }, bloomTex: { value: null }, haloTex: { value: null },
       exposure: { value: 1 }, bloom: { value: 0.5 }, halation: { value: 0.2 }, ca: { value: 1 }, grain: { value: 0.05 },
-      vignette: { value: 0.3 }, hud: { value: 1 }, fade: { value: 0 }, flash: { value: 0 }, time: { value: 0 },
+      vignette: { value: 0.3 }, fade: { value: 0 }, flash: { value: 0 }, time: { value: 0 },
       zoom: { value: 1 }, invert: { value: 0 }, shake: { value: new THREE.Vector2() }, res: { value: new THREE.Vector2(W, H) },
     });
   }
 
   /** Apply the chain: src (HDR linear) -> out (sRGB 8-bit target or screen). */
-  render(renderer: THREE.WebGLRenderer, src: THREE.Texture, hud: THREE.Texture, out: THREE.WebGLRenderTarget | null, p: PostParams, time: number) {
+  render(renderer: THREE.WebGLRenderer, src: THREE.Texture, out: THREE.WebGLRenderTarget | null, p: PostParams, time: number) {
     // bloom pyramid
     this.prefilter.u.src!.value = src;
     (this.prefilter.u.texel!.value as THREE.Vector2).set(1 / W, 1 / H);
@@ -189,14 +183,12 @@ ${SCALE === 1 ? `        float g1 = hash12(gl_FragCoord.xy + fract(time * 13.37)
     f.src!.value = src;
     f.bloomTex!.value = this.ups[0]!.texture;
     f.haloTex!.value = this.ups[3]!.texture;
-    f.hudTex!.value = hud;
     f.exposure!.value = p.exposure;
     f.bloom!.value = p.bloom / 3; // pyramid sums ~MIPS levels; normalize
     f.halation!.value = p.halation;
     f.ca!.value = p.ca;
     f.grain!.value = p.grain;
     f.vignette!.value = p.vignette;
-    f.hud!.value = p.hud;
     f.fade!.value = p.fade;
     f.flash!.value = p.flash;
     f.time!.value = time;

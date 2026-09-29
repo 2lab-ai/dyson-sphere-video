@@ -7,6 +7,8 @@
 //   video:   bun scripts/render.ts video [--from 0] [--to 232.3] [--fps 60] [--crf 16] [--x264 aq-mode=3] [--samples 1] [--shutter 0.5] [--out ../out/dyson.mp4] [--noaudio]
 //            --samples N averages N sub-frames per frame over shutter×(1/fps): motion blur + temporal AA;
 //            --samples auto picks the count per frame (4, 12, 36, 108 or 324, see Engine.render)
+//            video mode runs the edit gate first (scripts/edit-gate.ts) and refuses to render unless it passes;
+//            --force-no-gate skips it (loud warning; for private test renders only)
 //   --scale N (all modes): render at N× the 1920x1080 layout (--scale 2 = true 3840x2160); stills are then saved
 //            full-res from the pixel buffer, videos are encoded at the physical size.
 // Uses the Vite dev server at --url (default http://localhost:5173); starts a private one if unreachable.
@@ -145,6 +147,19 @@ async function video(page: Page, from: number, to: number, fps: number, out: str
   console.log(`sub-frames per frame (count:frames): ${hist(used)}`);
 }
 
+if (mode === 'video') {
+  if (flag('force-no-gate')) {
+    const bar = '!'.repeat(78);
+    console.error(`${bar}\n!! --force-no-gate: rendering WITHOUT the edit gate. This video is not a release candidate.\n${bar}`);
+  } else {
+    const g = Bun.spawnSync(['bun', path.join(APP, 'scripts/edit-gate.ts')], { cwd: APP, stdout: 'inherit', stderr: 'inherit' });
+    if (g.exitCode !== 0) {
+      console.error('render: the edit gate failed (see above); refusing to render video. Fix the edit, or pass --force-no-gate for a private test render.');
+      process.exit(1);
+    }
+  }
+}
+
 const { url, stop } = await ensureServer();
 const { browser, page, logs } = await openPage(url);
 try {
@@ -176,7 +191,6 @@ try {
     const overrides: Record<string, number> = existsSync(path.join(APP, 'plates.json')) ? await Bun.file(path.join(APP, 'plates.json')).json() : {};
     const dir = path.join(APP, 'public/plates');
     mkdirSync(dir, { recursive: true });
-    await page.evaluate(() => { (window as any).__pdoom.engine.hudOff = true; });
     for (let i = 0; i < figs.length; i++) {
       const e = tl.find((x) => x.id === figs[i]);
       if (!e) continue;
