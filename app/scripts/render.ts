@@ -169,7 +169,9 @@ if (mode === 'video') {
 }
 
 const { url, stop } = await ensureServer();
-const { browser, page, logs } = await openPage(url);
+let opened: Awaited<ReturnType<typeof openPage>>;
+try { opened = await openPage(url); } catch (e) { stop(); throw e; } // don't leak the vite server when the browser fails to launch
+const { browser, page, logs } = opened;
 try {
   if (mode === 'gpu') {
     console.log(await page.evaluate(() => {
