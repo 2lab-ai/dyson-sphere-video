@@ -55,7 +55,7 @@ export default class Solar extends ShaderScene {
     for (const b of this.beats) {
       if (b < this.ign - 1e-3) continue;
       const down = au.downbeats.some((d) => Math.abs(d - b) < 0.02), cut = Math.abs(b - limbT) < 0.02;
-      this.proms.push({ t: b, ang: angs[i % angs.length]!, h: down || cut ? 0.42 : 0.24, w: down || cut ? 0.16 : 0.09, k: down || cut ? 1.4 : 0.9 });
+      this.proms.push({ t: b, ang: angs[i % angs.length]!, h: down || cut ? 0.3 : 0.17, w: down || cut ? 0.42 : 0.26, k: down || cut ? 1.0 : 0.7 });
       i++;
     }
     super.init();
@@ -120,7 +120,7 @@ export default class Solar extends ShaderScene {
       ov.bloom = 0.35; ov.bloomThreshold = 0.55;
     } else {
       const ig = ignT >= 0 ? Math.exp(-ignT / 0.16) : 0;
-      ov.flash = 0.95 * ig + 0.4 * flare * flare;
+      ov.flash = 1.1 * Math.exp(-ignT / 0.1) * (ignT >= 0 ? 1 : 0) + 0.12 * flare * flare;
       ov.zoom = 1 + 0.07 * ig + 0.014 * kick + (st.frame === 'limb' ? 0.05 * Math.exp(-since / 0.14) : 0);
       const sh = 14 * ig + 3 * kick;
       ov.shake = [sh * Math.sin(t * 91.0), sh * Math.cos(t * 73.0)];
@@ -162,17 +162,17 @@ vec2 worley(vec2 p) {
 
 float ridged(vec2 p, int oct) { float s = 0.0, a = 0.5; for (int i = 0; i < 6; i++) { if (i >= oct) break; s += a * (1.0 - abs(snoise(p))); p = rot2(0.7) * p * 2.1 + 5.3; a *= 0.5; } return s; }
 
-// ---- the cold cloud: filaments spiralling into the anchor; c = beat-stepped collapse 0..1
+// ---- the cold cloud: a billowing emission cloud with dust lanes, bounded, spiralling into the anchor; c = beat-stepped collapse
 float nebula(vec2 w, float c) {
   float r = length(w);
   float k = 1.0 + 4.5 * c * c + 1.2 * c;                   // the cloud contracts toward the anchor
-  float tw = (0.6 + 3.2 * c) / (r * k * 0.8 + 0.35);        // differential rotation: inner parts wind faster
+  float tw = (0.4 + 2.4 * c) / (r * k * 0.7 + 0.45);        // differential rotation: inner parts wind faster
   vec2 u = rot2(tw + 0.08 * uRotT) * w * k;
-  float fil = ridged(u * 0.9 + 3.1, 5);
-  fil = pow(fil, 3.2) * 1.7;
-  float env = exp(-length(u) * 0.42);
-  float dust = smoothstep(0.1, 0.6, fbm(u * 1.7 - 7.0, 3));   // dark lanes
-  float I = fil * env * (1.0 - 0.7 * dust) * (0.8 + 0.35 * uHit);
+  float dens = smoothstep(0.38, 0.95, fbm(u * 0.62 + 2.0, 5) * 0.5 + 0.5 + 0.25 * exp(-dot(u, u) * 0.6));
+  float rim = pow(ridged(u * 1.3 + 3.1, 4), 4.0) * 0.9;     // bright ionisation fronts on the billows
+  float env = exp(-dot(u, u) / 3.6);                       // bounded: the cloud has an edge
+  float dust = smoothstep(0.05, 0.5, fbm(u * 1.5 - 7.0, 3)); // dark lanes
+  float I = (0.62 * dens + rim * dens) * env * (1.0 - 0.75 * dust) * (0.8 + 0.4 * uHit);
   // the point at the anchor: grows with the collapse, flares on each beat
   I += (0.004 + 0.03 * c + 0.03 * uHit * c) / (r * r * 6.0 + 0.004 + 0.02 * (1.0 - c));
   return I;
@@ -207,17 +207,18 @@ float disc(vec2 q, float R) {
     // spherical coordinates (the texture foreshortens toward the limb), slow rotation
     vec2 uv = vec2(atan(s.x, z) + 0.03 * uRotT, asin(clamp(s.y, -1.0, 1.0)));
     float boil = 0.21 * uBoil + 0.12 * uRotT;
-    vec2 n1 = worley(uv * 11.0 + vec2(0.0, boil));
-    vec2 n2 = worley(uv * 29.0 + vec2(boil * 1.7, 3.0));
-    float net = 1.0 - smoothstep(0.0, 0.16, n1.y - n1.x);   // the bright network lanes between supergranules
-    float gran = 1.0 - smoothstep(0.0, 0.22, n2.y - n2.x);
+    vec2 wp = uv + 0.03 * vec2(snoise(uv * 7.0 + 1.7), snoise(uv * 7.0 - 4.1)); // curl the cell walls (no straight edges)
+    vec2 n1 = worley(wp * 11.0 + vec2(0.0, boil));
+    vec2 n2 = worley(wp * 29.0 + vec2(boil * 1.7, 3.0));
+    float net = 1.0 - smoothstep(0.0, 0.34, n1.y - n1.x);   // the soft bright network lanes between supergranules
+    float gran = 1.0 - smoothstep(0.0, 0.4, n2.y - n2.x);
     float cellMid = smoothstep(0.1, 0.7, n1.x);             // cell interiors a touch darker
     float large = fbm(uv * 2.2 + 4.0, 4);
     float active = smoothstep(0.18, 0.55, large);            // plage: bright active regions
     float fil = smoothstep(0.84, 0.97, ridged(uv * vec2(3.2, 5.0) + 17.0, 3)); // dark filaments
     float kick = uKickP;
     I = 0.5 + 0.08 * large
-      + (0.2 + 0.28 * kick) * net
+      + (0.14 + 0.3 * kick) * net
       + (0.07 + 0.14 * kick) * gran
       - 0.1 * cellMid
       + 0.38 * active * (0.7 + 0.5 * net)
@@ -237,24 +238,31 @@ float disc(vec2 q, float R) {
   return I;
 }
 
-// one prominence: a plasma loop rising off the limb (circle arc through two footpoints), Gaussian tube, twisted strands
+// one prominence: a squat arch of plasma rising off the limb (circle through two footpoints). Not a thin line: a thick
+// ragged band, brightest along its outer edge, with flame texture streaming along the arch (SDO 304 hedgerow look).
 float prominence(vec2 q, float R, vec4 pa, float k) {
   if (pa.y < 0.0) return 0.0;
   float age = pa.y;
   float grow = 1.0 - pow(1.0 - clamp(age / 0.34, 0.0, 1.0), 3.0);
-  float h = pa.z * grow + 0.05 * age;                      // keeps drifting up
+  float h = pa.z * grow + 0.04 * age;                      // keeps drifting up
+  vec2 p = rot2(pa.x) * (q / R);                           // local frame: the apex along +x
+  float rp = length(p);
+  if (rp < 1.0) return 0.0;
   float hw = pa.w;
-  vec2 p = rot2(pa.x) * (q / R);                           // local frame: the loop apex along +x
-  if (length(p) < 1.0) return 0.0;
   float c = ((1.0 + h) * (1.0 + h) - 1.0) / (2.0 * (1.0 + h - cos(hw)));
   float rho = 1.0 + h - c;
   vec2 d = p - vec2(c, 0.0);
-  float dist = abs(length(d) - rho);
-  float th = 0.011 + 0.012 * pa.z;
   float ang = atan(d.y, d.x);
-  float strands = 0.6 + 0.4 * snoise(vec2(ang * 22.0, dist * 60.0 - age * 1.5));
-  float fade = exp(-age / 1.6);
-  return k * fade * strands * exp(-pow(dist / th, 2.0)) * (1.0 + 0.6 * exp(-age / 0.12));
+  float s = length(d) / max(rho, 1e-3);                    // 1 = the outer edge of the arch
+  float band = 0.55;                                       // band thickness as a fraction of the radius
+  float flame = fbm(vec2(ang * 3.2 - age * 0.9, s * 4.0 + age * 0.4), 4) * 0.5 + 0.5;
+  float edge = s + 0.12 * (flame - 0.5);                   // ragged outer edge
+  float inBand = smoothstep(1.0, 0.94, edge) * smoothstep(1.0 - band, 1.0 - band * 0.35, s);
+  float I = inBand * (0.35 + 0.95 * pow(flame, 1.6)) * (0.6 + 0.6 * smoothstep(1.0 - band, 1.0, s));
+  I += 0.22 * exp(-max(edge - 1.0, 0.0) * 18.0) * step(1.0, edge);   // soft glow just outside the edge
+  I *= smoothstep(1.0, 1.02, rp);                          // rooted at the limb
+  float fade = exp(-age / 1.8);
+  return k * fade * I * (1.0 + 0.6 * exp(-age / 0.12));
 }
 
 vec3 plate(vec2 _p) {
@@ -276,7 +284,7 @@ vec3 plate(vec2 _p) {
     for (int i = 0; i < ${NP}; i++) I += prominence(q, R, uPA[i], uPK[i]);
     // exit: the limb flares out
     float rr = length(q) / R;
-    I += uFlare * (2.2 * exp(-abs(rr - 1.0) * 26.0) + 0.5 * exp(-max(rr - 1.0, 0.0) * 4.0));
+    I += uFlare * (3.2 * exp(-abs(rr - 1.0) * 30.0) + 0.7 * exp(-max(rr - 1.0, 0.0) * 5.0) * step(1.0, rr));
   }
   return lut(I);
 }

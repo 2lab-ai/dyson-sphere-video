@@ -4,7 +4,6 @@
 //   gaze: two-shot → tight left iris → ring macro (extra, downbeat) → overlap zone → tight right iris
 //         → both irises again as the apertures close (extra, last beat)
 //   ai:   full-frame eye → pupil macro → oblique macro on the glass reflection (extra, the downbeat inside line 19)
-//   star: observation face → aperture push-in (extra, first blade beat) → side view → side macro (extra, last blade)
 import { barTimes, beatTimes, type AudioLite, type PlateInfo, type Shot, type ShotState } from '../engine/shots';
 import { sbShotTimes } from '../engine/storyboard';
 
@@ -35,16 +34,6 @@ const PLANS: Record<string, Plan> = {
       { frame: 'pupil', surface: 'glass' },
     ],
     extra: [{ at: (p, au) => barTimes(au, p.start + 1.2, p.end)[0] ?? beatAt(p, au, -2), s: { frame: 'reflect', surface: 'glass' } }],
-  },
-  star: {
-    frames: [
-      { frame: 'face', surface: 'none' },
-      { frame: 'side', surface: 'none' },
-    ],
-    extra: [
-      { at: (p, au) => beatAt(p, au, 2), s: { frame: 'push', surface: 'none' } },
-      { at: (p, au) => beatAt(p, au, 6), s: { frame: 'sideMacro', surface: 'none' } },
-    ],
   },
 };
 

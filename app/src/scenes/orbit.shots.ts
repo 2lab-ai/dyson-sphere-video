@@ -4,6 +4,8 @@
 //   launch   silhouette -> threeq (sparse orbits) -> plane (dense collector plane) -> top (disc occludes the star)
 //   ring     gaps (between ring planes) -> behind (silhouettes on the overexposed star) -> wide (rings closed) -> flare
 //   capture  outside (rings closing) -> inside (the words pressed to the bars) -> spin (the cage spins to a blur)
+//   swarm    track (lateral track in orbit, volleys launching) -> wide (high 3/4: the swarm rings the Sun)
+//            -> lock (last beat: every ring widens into a closed band, the hand-off to the shell)
 import { beatTimes, type AudioLite, type PlateInfo, type Shot, type ShotState } from '../engine/shots';
 import { sbShotTimes } from '../engine/storyboard';
 
@@ -25,9 +27,14 @@ const PLAN: Record<string, ShotState[]> = {
     { cam: 'inside', topo: 'cage' },
     { cam: 'spin', topo: 'blur' },
   ],
+  swarm: [
+    { cam: 'track', topo: 'volley' },
+    { cam: 'wide', topo: 'rings' },
+    { cam: 'wide', topo: 'lock' },
+  ],
 };
 
-/** The beat the exit shot sits on: the last beat of the plate (launch, ring), the last beat of the line (capture). */
+/** The beat the exit shot sits on: the last beat of the plate (launch, ring, swarm), the last beat of the line (capture). */
 function exitTime(p: PlateInfo, au: AudioLite): number {
   const bs = beatTimes(au, p.start + 0.05, p.end - 0.05);
   return bs[bs.length - 1] ?? p.end - 0.4;

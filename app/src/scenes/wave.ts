@@ -1,322 +1,355 @@
-// WAVE — a halftone print wave on bone paper. Dot size = wave height: a 45° print screen of ink dots samples the
-// water's height field, so the swell reads as coarse black where it towers and a pale tint where the sea lies flat.
-// Structure comes from the pure shot list (./wave.shots) via stateAt(): side / curl / crest / top, each its own
-// camera and halftone screen. The beat: on every beat the crest snaps forward (80 ms), throws a row of signal dots
-// ahead of itself and the whole screen fattens for an instant. The line rides the water surface (per-glyph on a
-// path by arc length), knocked out to bone wherever the ink covers it. Exit: the front swallows the frame to ink.
-// Variants (data/edit.json): tide (p05 — rolls in from the right, carries line 5 to the left).
-import type * as THREE from 'three';
-import { Scene, type Frame, type PostOverrides } from '../engine/scene';
-import { Layer2D, clearRT } from '../engine/gl';
-import { LIN, rgba, type PaletteKey } from '../engine/palette';
-import { drawLyric, layoutLine, ownedLines, F } from '../engine/lyric';
+// WAVE — M3 ink-in-water (the Tree of Life creation sequence: dye poured into a tank, backlit, billowing), ocean
+// palette. ocean (p05): a side-on cross-section of a breaking wave flowing LEFT through dark clear water. The wave is
+// not a solid: it is a mass of teal dye whose surface billows (two-phase flow map over a static curl field, so it is
+// seekable), whose lip curls over a hollow barrel, and whose leading face sheds plumes ahead of itself. Amber light
+// runs through it in thin threads. Line 5 is carried INSIDE the water, just under the back of the wave, on two rows
+// that follow the surface; the letters are drawn into a texture that the shader diffuses like dye at their edges.
+// Unlike p13 (frontal, gold/white, expanding everywhere) this plate is lateral: profile camera, mid-dark teal, and
+// the motion is one direction (right to left).
+// Beat: every beat the crest snaps forward (left) and swells, the amber threads and the backlit rim flare, and a curl
+// of amber light breaks off the lip and is flung ahead. Structure from ./wave.shots via stateAt(): side / low / surge
+// / close. Exit: the sea rises through the frame until it is all teal.
+import * as THREE from 'three';
+import type { Frame, PostOverrides } from '../engine/scene';
+import { Layer2D } from '../engine/gl';
+import { palette, plin, pcss, pmix, type NamedPalette } from '../engine/palette';
+import { drawLyric, layoutLine, ownedLines, F, type CharState } from '../engine/lyric';
 import { beatPulse, kickPulse, downbeatPulse, beatIndex } from '../engine/beat';
 import { shotAt, stateAt, type PlateInfo, type Shot } from '../engine/shots';
-import { hash, clamp, smoothstep, ease } from '../engine/util';
+import { clamp, ease, hash, smoothstep } from '../engine/util';
 import type { Line } from '../engine/lyrics';
-import { shots, type View } from './wave.shots';
+import { ShaderScene } from './_shader';
+import { shots, type Cam } from './wave.shots';
 
-type P = { x: number; y: number };
-type PathPt = { x: number; y: number; ang: number };
-const W = 1920, H = 1080, SAFE = 96;
+type P2 = { x: number; y: number };
+const W = 1920, H = 1080, SAFE = 96, HALF = H / 2;
 
-// per-variant wave: sea level, crest height, entry (world x at plate start → after the roll-in), drift, beat jump
-const VARIANT: Record<string, { sea: number; amp: number; x0: number; x1: number; roll: number; drift: number; jump: number }> = {
-  tide: { sea: 760, amp: 360, x0: 2150, x1: 640, roll: 1.1, drift: 50, jump: 46 },
+// ---- the wave, in world units (= shader p units at zoom 1: the short side spans -1..1, y up)
+export const WAVE = {
+  sea: -0.46,  // still-water level
+  amp: 0.66,   // crest height above the sea at the plate start
+  grow: 0.03,  // + per beat (the tide builds)
+  face: 0.2,   // gaussian width of the steep leading face
+  back: 1.25,  // exp decay of the long back slope
+  x0: 3.3, x1: -0.2, roll: 0.5, // roll-in: crest x at the plate start -> after `roll` s
+  drift: 0.08, // continuous leftward travel (world/s)
+  jump: 0.055, // leftward snap per beat
 };
 
-/** A screen-space polyline with arc-length lookup (the lyric's baseline path). */
+/** Camera per shot: centre relative to the (lagged) crest / sea, zoom, roll. */
+const CAM: Record<Cam, { dx: number; ay: number; zoom: number; rot: number; push: number; size: number; thread: number; diff: number }> = {
+  side: { dx: 0.15, ay: 0.7, zoom: 1.0, rot: 0.0, push: 0.05, size: 92, thread: 0.3, diff: 0.25 },
+  low: { dx: 0.25, ay: 0.42, zoom: 1.75, rot: -0.07, push: 0.06, size: 100, thread: 1.9, diff: 0.35 },
+  surge: { dx: 0.8, ay: 0.4, zoom: 1.3, rot: 0.05, push: 0.05, size: 124, thread: 0.8, diff: 0.3 },
+  close: { dx: 0.5, ay: 0.7, zoom: 2.3, rot: 0.38, push: 0.2, size: 150, thread: 0.9, diff: 1.0 },
+};
+
+/** A screen-space polyline with arc-length lookup. */
 class Path {
   private cum: number[] = [0];
-  constructor(private pts: P[]) {
+  constructor(private pts: P2[]) {
     for (let i = 1; i < pts.length; i++) this.cum.push(this.cum[i - 1]! + Math.hypot(pts[i]!.x - pts[i - 1]!.x, pts[i]!.y - pts[i - 1]!.y));
   }
-  get length() { return this.cum[this.cum.length - 1]!; }
-  at(s: number): PathPt {
+  at(s: number): { x: number; y: number; ang: number } {
     const n = this.pts.length, c = this.cum;
     let i = 1;
     while (i < n - 1 && c[i]! < s) i++;
     const a = this.pts[i - 1]!, b = this.pts[i]!;
-    const seg = Math.max(1e-6, c[i]! - c[i - 1]!), k = (s - c[i - 1]!) / seg; // extrapolates past either end
+    const k = (s - c[i - 1]!) / Math.max(1e-6, c[i]! - c[i - 1]!);
     return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, ang: Math.atan2(b.y - a.y, b.x - a.x) };
   }
 }
 
-export default class Wave extends Scene {
-  private layer!: Layer2D;
+export default class Wave extends ShaderScene {
+  private P: NamedPalette = palette(this.ctx.params.look?.palette ?? 'ocean');
   private list: Shot[] = [];
-  private plate!: PlateInfo;
   private lines: Line[] = [];
   private beats: number[] = [];
   private wordStarts: number[] = [];
-  private cfg = VARIANT.tide!;
+  private T!: Layer2D;
 
   override init() {
-    this.plate = this.ctx.params as PlateInfo;
-    this.cfg = VARIANT[this.ctx.params.variant as string] ?? VARIANT.tide!;
-    this.list = shots(this.plate, this.ctx.audio);
+    this.T = new Layer2D();
+    this.list = shots(this.ctx.params as PlateInfo, this.ctx.audio);
     this.lines = ownedLines(this.ctx);
-    this.beats = this.ctx.audio.beats.filter((b) => b >= this.ctx.start - 1e-3 && b < this.ctx.end);
+    this.beats = this.ctx.audio.beats.filter((b) => b >= this.ctx.start - 1e-3 && b < this.ctx.end - 1e-3);
     this.wordStarts = this.lines.flatMap((l) => l.words.map((w) => w.start));
-    this.layer = new Layer2D();
+    super.init();
   }
 
-  // ------------------------------------------------------------------ the wave (side-view world, px)
-  /** Beat jumps so far: a staircase, each step snapping in over `tau` s. */
-  private jumps(t: number, tau: number): number {
+  protected override uniforms(): Record<string, THREE.IUniform> {
+    const v = (r: 'ground' | 'deep' | 'mid' | 'hi' | 'signal') => ({ value: new THREE.Vector3(...plin(this.P, r)) });
+    const v4 = () => ({ value: new THREE.Vector4() });
+    return {
+      uText: { value: this.T.texture },
+      cGround: v('ground'), cDeep: v('deep'), cMid: v('mid'), cHi: v('hi'), cSig: v('signal'),
+      uCam: v4(), uWave: v4(), uK0: v4(), uK1: v4(), uK2: v4(),
+      uFlowT: { value: 0 }, uBp: { value: 0 }, uThread: { value: 1 }, uDiff: { value: 0 }, uExit: { value: 0 },
+    };
+  }
+
+  protected override glsl(): string {
+    return /* glsl */ `
+uniform sampler2D uText;
+uniform vec3 cGround, cDeep, cMid, cHi, cSig;
+uniform vec4 uCam;   // centre x, y (world), zoom, roll
+uniform vec4 uWave;  // crest x, amplitude, sea level, rise (exit)
+uniform vec4 uK0, uK1, uK2; // amber curls: centre x, y (world), age (s), strength
+uniform float uFlowT, uBp, uThread, uDiff, uExit;
+
+const float W_FACE = ${WAVE.face.toFixed(4)};
+const float W_BACK = ${WAVE.back.toFixed(4)};
+const float FLOW_PER = 1.6;
+const float LIP_L = 3.3; // arc length of the lip (rad)
+// smoothstep that accepts reversed edges (GLSL leaves edge0 >= edge1 undefined)
+float sstep(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
+
+float surfY(float x) {
+  float u = x - uWave.x;
+  float h = u < 0.0 ? exp(-(u * u) / (W_FACE * W_FACE)) : exp(-u / W_BACK);
+  return uWave.z + uWave.y * h + 0.018 * sin(x * 3.1 - uFlowT * 2.2) * (1.0 - h) + uWave.w;
+}
+
+// one dye realisation: domain-warped fbm (soft billows)
+float dyeN(vec2 q, float seed, int oct) {
+  vec2 w = vec2(fbm(q + seed, 2), fbm(q + vec2(5.2, 1.3) - seed, 2));
+  return fbm(q + 1.0 * w, oct);
+}
+// static flow: rotated gradient of one noise (divergence-free) + the water streaming back through the moving wave
+vec2 flowV(vec2 q) {
+  float e = 0.06, n = snoise(q * 0.5);
+  vec2 g = vec2(snoise(q * 0.5 + vec2(e, 0.0)) - n, snoise(q * 0.5 + vec2(0.0, e)) - n) / e;
+  return vec2(g.y, -g.x) * 0.22 + vec2(0.3, -0.04);
+}
+// two-phase flow map (seekable at any t)
+float dyeF(vec2 q, float seed, int oct) {
+  vec2 fl = flowV(q + seed);
+  float ph = uFlowT / FLOW_PER;
+  float f1 = fract(ph), f2 = fract(ph + 0.5);
+  float n1 = dyeN(q - fl * f1, seed, oct);
+  float n2 = dyeN(q - fl * f2, seed + 0.37, oct);
+  return mix(n2, n1, 1.0 - abs(2.0 * f1 - 1.0));
+}
+
+// a curl of amber light: a log spiral that opens and fades as it flies
+float curlA(vec2 w, vec4 k) {
+  if (k.w <= 0.0) return 0.0;
+  vec2 d = w - k.xy;
+  float R = 0.07 + 0.3 * k.z;
+  float rr = length(d) / R;
+  if (rr > 1.4) return 0.0;
+  float a = atan(d.y, d.x);
+  float s = sin(a + log(max(rr, 0.05)) * 2.6 - k.z * 7.0 + 0.8 * snoise(d * 14.0));
+  float band = sstep(0.35, 0.95, s) * sstep(1.3, 0.25, rr) * sstep(0.05, 0.3, rr);
+  return band * (1.0 - sstep(0.15, 0.65, k.z)) * k.w;
+}
+
+vec3 plate(vec2 p) {
+  float cr = cos(uCam.w), sr = sin(uCam.w);
+  vec2 w = uCam.xy + vec2(cr * p.x + sr * p.y, -sr * p.x + cr * p.y) / uCam.z;
+  float X = uWave.x, A = uWave.y, sea = uWave.z + uWave.w;
+  vec2 q = (w - vec2(X, sea)) * 1.4;
+
+  // ---- geometry: water below the surface, the lip (annulus sector), the barrel carved out under it
+  float d = w.y - surfY(w.x);                       // > 0 above the water
+  vec2 Lc = vec2(X - 0.26 * A, sea + 0.6 * A);
+  float rin = 0.25 * A, th = 0.2 * A;
+  vec2 dl = w - Lc;
+  float r = length(dl), ang = atan(dl.y, dl.x);
+  // the lip: a tube along the ring from the crest (0.6 rad) over the top to its tip, tapering to a point
+  float rc = rin + 0.5 * th, arc = mod(ang - 0.6, 2.0 * PI);
+  vec2 tip = Lc + rc * vec2(cos(0.6 + LIP_L), sin(0.6 + LIP_L));
+  float lipD = arc < LIP_L ? abs(r - rc) - 0.5 * th * (1.0 - sstep(0.45 * LIP_L, LIP_L, arc)) : length(w - tip);
+  float carve = sstep(X + 0.03, X - 0.12, w.x) * sstep(sea, sea + 0.2 * A, w.y); // the barrel, soft-edged
+  d = mix(d, max(d, rin - r), carve);
+  float dist = min(d, lipD);
+
+  // ---- clear water above: near-black teal with faint suspended dye
+  float far = sstep(0.45, 0.0, dist);          // only pay for the fluid near/inside the dye
+  float hz = fbm(q * 0.6 + vec2(uFlowT * 0.3, 0.0), 2);
+  vec3 air = cGround * (1.0 + 0.35 * sstep(-1.0, 1.0, -p.y)) + cDeep * 0.3 * sstep(-0.1, 0.5, hz);
+  if (far <= 0.0 && uExit <= 0.0) return air;
+
+  float n = dyeF(q, 1.3, 3);                       // ~ -0.6..0.6
+  // the billowing boundary: the dye surface is a plume edge, not a line (stronger where the wave breaks)
+  float wob = 0.09 + 0.08 * sstep(0.6, -0.2, (w.x - X) / max(A, 0.1));
+  float b = dist + wob * n;
+  float wet = sstep(0.035, -0.05, b);
+  // the travelling front: plumes shed ahead of the face, streaming left along the sea surface
+  float ahead = X - 0.18 * A - w.x;
+  if (ahead > 0.0) {
+    float pl = sstep(0.05, 0.4, n + 0.2) * exp(-ahead / 0.5) * sstep(0.42 * A, 0.0, w.y - sea - 0.04);
+    wet = max(wet, pl * 0.85);
+  }
+
+  float depth = clamp(-b, 0.0, 0.8) * (1.0 - 0.7 * uExit);
+  float nb = 0.5 + 0.9 * n;
+  vec3 water = mix(cDeep, cMid, clamp(0.22 + 0.9 * nb - 1.4 * depth, 0.0, 1.0));
+  float rim = wet * (1.0 - wet) * 4.0;             // the thin backlit edge of the dye
+  water += (cMid * 0.8 + cHi * 0.1) * rim * (1.0 + 1.6 * uBp);
+
+  vec3 col = mix(air, water, wet);
+
+  // ---- the line: diffused like dye at its edges (warp + an 8-tap halo), inked into the water
+  vec2 uv = vec2(p.x * 0.5 * uRes.y / uRes.x + 0.5, p.y * 0.5 + 0.5);
+  vec2 wv = vec2(snoise(w * 9.0 + vec2(uFlowT * 0.8, 0.0)), snoise(w * 9.0 + vec2(3.1, -uFlowT * 0.8)));
+  uv += wv * (0.6 + 2.2 * uDiff) / uRes;
+  vec4 tc = texture(uText, uv);
+  float halo = 0.0, rad = 4.0 + 16.0 * uDiff;
+  for (int i = 0; i < 8; i++) {
+    float a = float(i) * 0.785398 + 0.3;
+    halo += texture(uText, uv + vec2(cos(a), sin(a)) * rad / uRes).a;
+  }
+  halo *= 0.125;
+  // ---- amber light threads inside the teal, flowing with it
+  if (wet > 0.05 && uThread > 0.0) {
+    float m = dyeF(q * 1.2 + vec2(7.1, -3.3), 4.4, 3);
+    float stream = sstep(-0.12, 0.2, fbm(q * 0.35 + vec2(1.7, uFlowT * 0.1), 2)); // threads run in a few streams
+    stream = max(stream, clamp(uThread - 1.0, 0.0, 0.8));                   // the low shot: threads everywhere
+    float thr = pow(clamp(1.0 - abs(m) * 7.0, 0.0, 1.0), 5.0) * stream * sstep(0.0, 0.2, depth + 0.04) * wet;
+    thr *= 1.0 - sstep(0.0, 0.35, halo + tc.a);                            // the threads part around the letters
+    col += cHi * thr * uThread * (0.8 + 1.6 * uBp);
+  }
+  // ---- curls breaking off the lip
+  float ca = curlA(w, uK0) + curlA(w, uK1) + curlA(w, uK2);
+  col += cHi * 1.4 * ca;
+
+  col *= 1.0 - 0.4 * halo;                          // the dye parts around the letters
+  col += cHi * halo * (0.05 + 0.2 * uDiff);         // and their pigment bleeds into it
+  col = mix(col, tc.rgb, tc.a);
+  return col;
+}
+`;
+  }
+
+  // ------------------------------------------------------------------ the wave (TS mirror of the shader's surface)
+  /** Beat steps so far, each snapping in over `tau` s. */
+  private steps(t: number, tau: number): number {
     let s = 0;
     for (const b of this.beats) if (b <= t) s += ease.outExpo(clamp((t - b) / tau));
     return s;
   }
-  private crestBase(t: number): number {
-    const { x0, x1, roll, drift } = this.cfg, lt = t - this.ctx.start;
-    return x0 - (x0 - x1) * ease.outCubic(clamp(lt / roll)) - drift * lt;
+  private crestX(t: number, tau = 0.08): number {
+    const lt = t - this.ctx.start;
+    return WAVE.x0 - (WAVE.x0 - WAVE.x1) * ease.outCubic(clamp(lt / WAVE.roll)) - WAVE.drift * lt - WAVE.jump * this.steps(t, tau);
   }
-  /** Crest x: snaps forward on every beat (80 ms). */
-  private crestX(t: number) { return this.crestBase(t) - this.cfg.jump * this.jumps(t, 0.08); }
-  private amp(t: number) { return this.cfg.amp * (1 + 0.07 * beatPulse(this.ctx.audio, t, 0.14)); }
-  /** Normalised height 0..1 of the water at world x. */
-  private hn(x: number, X: number): number {
+  private amp(t: number): number {
+    return (WAVE.amp + WAVE.grow * this.steps(t, 0.1)) * (1 + 0.06 * beatPulse(this.ctx.audio, t, 0.14));
+  }
+  private surfY(x: number, X: number, A: number, flowT: number, rise: number): number {
     const u = x - X;
-    return u < 0 ? Math.exp(-((u / 125) ** 2)) : 0.16 + 0.84 * Math.exp(-u / 540);
-  }
-  private surfY(x: number, X: number, A: number, t: number): number {
-    const h = this.hn(x, X);
-    return this.cfg.sea - A * h - 9 * Math.sin(x * 0.021 - t * 2.3) * (1 - h);
-  }
-  /** The lip: an annulus sector overhanging ahead of the crest (centre, inner radius, thickness). */
-  private lip(X: number, A: number) { return { cx: X - 112, cy: this.cfg.sea - 0.6 * A, rin: 0.25 * A, th: 0.3 * A }; }
-  /** Ink density 0..1 at world point (x, y). */
-  private densWorld(x: number, y: number, X: number, A: number, t: number): number {
-    const L = this.lip(X, A);
-    const dx = x - L.cx, dy = y - L.cy, r = Math.hypot(dx, dy);
-    if (r < L.rin && x < X) return 0; // the hollow of the tube
-    if (r < L.rin + L.th) {
-      const a = Math.atan2(dy, dx);
-      if (a >= 2.0 || a <= -1.05) return 0.92;
-    }
-    const ys = this.surfY(x, X, A, t);
-    if (y < ys) return 0;
-    return clamp(0.1 + 0.8 * this.hn(x, X) + 0.12 * smoothstep(0, 260, y - ys));
+    const h = u < 0 ? Math.exp(-(u * u) / (WAVE.face * WAVE.face)) : Math.exp(-u / WAVE.back);
+    return WAVE.sea + A * h + 0.018 * Math.sin(x * 3.1 - flowT * 2.2) * (1 - h) + rise;
   }
 
-  // ------------------------------------------------------------------ cameras (world → screen)
-  private camera(view: View, t: number) {
-    // crest: tracks the crest top with a lag (the camera eases over 0.4 s, the crest snaps in 0.08 s)
-    const fx = view === 'crest' ? this.crestBase(t) - this.cfg.jump * this.jumps(t, 0.4) + 360 : W / 2;
-    const fy = view === 'crest' ? 463 : H / 2;
-    const s = view === 'crest' ? 1.75 : 1, rot = view === 'crest' ? -0.06 : 0;
-    const c = Math.cos(rot), sn = Math.sin(rot);
-    return {
-      s,
-      to: (q: P): P => { const x = (q.x - fx) * s, y = (q.y - fy) * s; return { x: W / 2 + c * x - sn * y, y: H / 2 + sn * x + c * y }; },
-      from: (sx: number, sy: number): P => { const x = sx - W / 2, y = sy - H / 2; return { x: fx + (c * x + sn * y) / s, y: fy + (-sn * x + c * y) / s }; },
-    };
-  }
-
-  // ------------------------------------------------------------------ halftone
-  /** One ink pass: a rotated dot lattice (pitch `pitch`, angle `ang`) sampling `dens` in screen space. */
-  private halftone(c: CanvasRenderingContext2D, pitch: number, ang: number, dens: (x: number, y: number) => number, gain: number, color: PaletteKey) {
-    const ca = Math.cos(ang), sa = Math.sin(ang), N = Math.ceil(1102 / pitch) + 1, rmax = pitch * 0.72;
-    c.fillStyle = rgba(color);
-    c.beginPath();
-    for (let j = -N; j <= N; j++) {
-      for (let i = -N; i <= N; i++) {
-        const x = W / 2 + (i * ca - j * sa) * pitch, y = H / 2 + (i * sa + j * ca) * pitch;
-        if (x < -pitch || x > W + pitch || y < -pitch || y > H + pitch) continue;
-        const d = dens(x, y);
-        if (d <= 0.004) continue;
-        const r = rmax * Math.sqrt(clamp(d)) * gain;
-        c.moveTo(x + r, y);
-        c.arc(x, y, r, 0, Math.PI * 2);
-      }
-    }
-    c.fill();
-  }
-
-  /** The row of dots each beat throws ahead of the wave (signal), for a launch point + direction in screen px. */
-  private thrown(c: CanvasRenderingContext2D, t: number, launch: (b: number) => { o: P; dir: P; s: number }) {
-    c.fillStyle = rgba('signal');
-    c.beginPath();
-    for (const b of this.beats) {
-      const age = t - b;
-      if (age < 0 || age > 0.62) continue;
-      const { o, dir, s } = launch(b), k = 1 - age / 0.62;
-      for (let n = 0; n < 9; n++) {
-        const sp = (520 + n * 120) * s, dist = sp * age - 0.5 * 700 * s * age * age * (n / 9);
-        const x = o.x + dir.x * dist, y = o.y + dir.y * dist + 0.5 * 900 * s * age * age;
-        const r = (17 - n * 1.1) * s * k * (0.7 + 0.3 * hash(n, b * 7));
-        if (r < 0.4) continue;
-        c.moveTo(x + r, y);
-        c.arc(x, y, r, 0, Math.PI * 2);
-      }
-    }
-    c.fill();
-  }
-
-  // ------------------------------------------------------------------ print furniture
-  private furniture(c: CanvasRenderingContext2D, label: string) {
-    c.strokeStyle = rgba('graphite', 0.7);
-    c.lineWidth = 1.2;
-    const m = 44, l = 30;
-    c.beginPath();
-    for (const [x, y, sx, sy] of [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]] as const) {
-      c.moveTo(x - sx * 12, y); c.lineTo(x + sx * l, y);
-      c.moveTo(x, y - sy * 12); c.lineTo(x, y + sy * l);
-    }
-    // registration target, top centre
-    c.moveTo(W / 2 + 11, 36); c.arc(W / 2, 36, 11, 0, Math.PI * 2);
-    c.moveTo(W / 2 - 18, 36); c.lineTo(W / 2 + 18, 36);
-    c.moveTo(W / 2, 18); c.lineTo(W / 2, 54);
-    c.stroke();
-    c.font = `14px "${F.mono(500)}"`;
-    c.fillStyle = rgba('graphite', 0.85);
-    c.textAlign = 'left';
-    c.fillText(label, m + 44, m + 5);
-  }
-
-  // ------------------------------------------------------------------ render
-  override render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
-    const { renderer, audio } = this.ctx;
-    const t = f.t;
+  // ------------------------------------------------------------------ frame
+  protected override frame(f: Frame): PostOverrides {
+    const { audio } = this.ctx;
+    const t = f.t, u = this.pass.u, P = this.P;
     const st = stateAt(this.list, t);
     const sh = shotAt(this.list, t);
-    const view = st.view as View;
-    const L = this.layer, c = L.ctx;
-    L.clear();
-
-    const bp = beatPulse(audio, t, 0.1);
-    const gain = 1 + 0.16 * bp + 0.06 * kickPulse(audio, t, 0.08);
+    const cam = st.cam as Cam;
+    const cf = CAM[cam] ?? CAM.side;
+    const lt = t - sh.t0;
+    const bp = beatPulse(audio, t, 0.11), kp = kickPulse(audio, t, 0.09), db = downbeatPulse(audio, t, 0.25);
+    const flowT = t - this.ctx.start + 2.3;
     const X = this.crestX(t), A = this.amp(t);
-    const end = this.ctx.end, lastBeat = this.beats[this.beats.length - 1] ?? end;
-    // exit: the swallow runs from ~24.6 s and lands full coverage on the plate's last beat
-    const sw = view === 'top' ? smoothstep(lastBeat - 0.32, lastBeat, t) : 0;
+    const exit = smoothstep(this.ctx.end - 0.3, this.ctx.end - 0.02, t);
+    const rise = 2.6 * ease.inCubic(exit);
 
-    let dens: (x: number, y: number) => number;
-    let pitch = 16, ang = Math.PI / 4;
-    let path: Path;
-    let size = 96, maxW = 1300;
-    let launch: (b: number) => { o: P; dir: P; s: number };
+    // camera: follows the crest with a lag (the crest snaps in 80 ms, the camera eases over 0.4 s)
+    const Xl = cam === 'side' ? WAVE.x1 - WAVE.drift * 0.5 : this.crestX(t, 0.4);
+    const zoom = cf.zoom * (1 + cf.push * lt);
+    const cx = Xl + cf.dx, cy = WAVE.sea + cf.ay * A;
+    u.uCam!.value.set(cx, cy, zoom, cf.rot);
+    u.uWave!.value.set(X, A, WAVE.sea, rise);
+    u.uFlowT!.value = flowT;
+    u.uBp!.value = bp;
+    u.uThread!.value = cf.thread;
+    u.uDiff!.value = cf.diff + 1.2 * exit;
+    u.uExit!.value = exit;
 
-    if (view === 'curl') {
-      // low, inside the barrel: the lip arcs overhead from right to left, huge dots; trough below
-      const cx = 920, cy = 720 + 10 * Math.sin((t - sh.t0) * 2.2), rin = 545 - 48 * bp - 50 * (t - sh.t0);
-      const trough = 985 - 14 * bp;
-      pitch = 64;
-      dens = (x, y) => {
-        const dx = x - cx, dy = y - cy, r = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
-        let d = 0;
-        if (r > rin && (a < 0.28 || a > 2.86)) d = (0.34 + 0.66 * smoothstep(rin, rin + 380, r)) * (0.84 + 0.16 * Math.sin(a * 7 + (t - sh.t0) * 7));
-        const ty = trough + 16 * Math.sin(x * 0.012 + t * 3);
-        if (y > ty) d = Math.max(d, 0.22 + 0.5 * smoothstep(ty, H, y));
-        return d;
-      };
-      size = 104;
-      const rp = rin - 70;
-      const pts: P[] = [];
-      for (let k = 0; k <= 96; k++) { const a = Math.PI - 0.22 + (Math.PI + 0.44) * (k / 96); pts.push({ x: cx + rp * Math.cos(a), y: cy + rp * Math.sin(a) }); }
-      path = new Path(pts);
-      maxW = path.length - 20;
-      launch = (b) => { const a = 2.9, r0 = 545 - 50 * (b - sh.t0); return { o: { x: cx + r0 * Math.cos(a), y: cy + r0 * Math.sin(a) }, dir: { x: -0.86, y: 0.5 }, s: 2.2 }; };
-    } else if (view === 'top') {
-      // overhead: the front is a line of dot rows marching down-frame; the swallow sweeps it over everything
-      const al = -0.16, dv = { x: Math.cos(al), y: Math.sin(al) }, nv = { x: Math.sin(al), y: -Math.cos(al) }; // nv points up, into the wave
-      const lt = t - sh.t0, jumpT = this.jumps(t, 0.08) - this.jumps(sh.t0, 0.08);
-      const Fc = 120 - 55 * lt - 38 * jumpT; // front offset along nv (decreasing = moving down)
-      const Fs = Fc - sw * 1500;
-      pitch = 26; ang = al;
-      dens = (x, y) => {
-        const u = (x - W / 2) * nv.x + (y - H / 2) * nv.y - Fs;
-        let d: number;
-        if (u < 0) d = 0.05 + 0.05 * smoothstep(-160, 0, u);
-        else d = u < 30 ? 1 : (0.3 + 0.62 * Math.exp(-u / 420)) * (0.55 + 0.45 * (0.5 + 0.5 * Math.cos((u / 110) * Math.PI * 2)));
-        return d + (1 - d) * sw;
-      };
-      size = 104;
-      const off = Fc - size * 0.95; // the text rides just ahead of the front (not swept: the swallow overtakes it)
-      const base = { x: W / 2 + nv.x * off, y: H / 2 + nv.y * off };
-      maxW = 1560;
-      const half = layoutLine(c, this.lines[0]!, F.slam(), size, maxW).width / 2; // centred on the frame along the front
-      path = new Path([{ x: base.x - dv.x * half, y: base.y - dv.y * half }, { x: base.x + dv.x * (half + 400), y: base.y + dv.y * (half + 400) }]);
-      launch = (b) => {
-        const Fb = 120 - 55 * (b - sh.t0) - 38 * (this.jumps(b + 0.1, 0.08) - this.jumps(sh.t0, 0.08));
-        return { o: { x: W / 2 + nv.x * Fb, y: H / 2 + nv.y * Fb }, dir: { x: -nv.x, y: -nv.y }, s: 1 };
-      };
-    } else {
-      // side / crest: the world wave through a camera
-      const cam = this.camera(view, t);
-      pitch = view === 'crest' ? 30 : 16;
-      dens = (x, y) => { const w = cam.from(x, y); return this.densWorld(w.x, w.y, X, A, t); };
-      size = view === 'crest' ? 118 : 92;
-      maxW = view === 'crest' ? 1380 : 1300;
-      const fs = layoutLine(c, this.lines[0]!, F.slam(), size, maxW).size;
-      const lift = fs * 0.58;
-      const pts: P[] = [];
-      if (view === 'crest') {
-        for (let x = X - 10; x < X + 1400; x += 8) { const q = cam.to({ x, y: this.surfY(x, X, A, t) }); pts.push({ x: q.x, y: q.y - lift }); }
-      } else {
-        const x0 = Math.min(X - 20, W - SAFE - maxW);
-        for (let x = Math.max(SAFE, x0); x < W + 200; x += 8) pts.push({ x, y: this.surfY(x, X, A, t) - lift });
-      }
-      path = new Path(pts);
-      launch = (b) => {
-        const Xb = this.crestX(b + 0.08), Ab = this.cfg.amp * 1.07, Lb = this.lip(Xb, Ab), a = 2.05, r0 = Lb.rin + Lb.th * 0.5;
-        return { o: cam.to({ x: Lb.cx + r0 * Math.cos(a), y: Lb.cy + r0 * Math.sin(a) }), dir: { x: -0.94, y: -0.34 }, s: cam.s };
-      };
-    }
+    // world -> screen px (y down), the exact inverse of the shader's mapping
+    const c = Math.cos(cf.rot), s = Math.sin(cf.rot);
+    const toS = (x: number, y: number): P2 => {
+      const dx = (x - cx) * zoom, dy = (y - cy) * zoom;
+      return { x: W / 2 + (c * dx - s * dy) * HALF, y: H / 2 - (s * dx + c * dy) * HALF };
+    };
 
-    // ink: the halftone, then the thrown row of signal dots
-    this.halftone(c, pitch, ang, dens, gain, 'ink');
-    this.thrown(c, t, launch);
-    this.furniture(c, `WAVE/${this.plate.variant.toUpperCase()}  ${view.toUpperCase()}  ${st.screen}  ${(t - this.ctx.start).toFixed(2)}s`);
+    // amber curls: one breaks off the top of the lip on each of the last three beats, flung ahead and falling
+    const ks = [u.uK0!, u.uK1!, u.uK2!];
+    const recent = this.beats.filter((b) => b >= this.ctx.start + WAVE.roll && b <= t && t - b < 0.7).slice(-3).reverse();
+    ks.forEach((k, i) => {
+      const b = recent[i];
+      if (b === undefined) { k.value.set(0, 0, 0, 0); return; }
+      const age = t - b, Xb = this.crestX(b + 0.08), Ab = this.amp(b + 0.02);
+      const ox = Xb - 0.2 * Ab, oy = WAVE.sea + 0.97 * Ab; // the top of the lip
+      k.value.set(ox - 0.38 * age, oy + 0.22 * age - 0.45 * age * age, age, 0.8 + 0.4 * hash(b, 11));
+    });
 
-    // the line: glyphs on the path by arc length; bob with the wave height on each beat; knocked out over ink
-    const db = downbeatPulse(audio, t, 0.25);
-    this.lines.forEach((line) => {
-      const fs = layoutLine(c, line, F.slam(), size, maxW).size;
-      const under = new Map<number, boolean>();
-      drawLyric(c, line, t, {
-        x: 0, y: 0, size, maxWidth: maxW, align: 'left', family: F.slam(),
-        sungColor: 'ink', unsungColor: 'graphite', unsungAlpha: 0.6,
-        charTransform: (_ch, idx, s) => {
-          const b = s.box, sc = b.x + b.w / 2;
-          const p = path.at(sc);
-          const bi = beatIndex(audio, t);
-          // bob: each beat kicks the letters up (outward on the curl) by an amount that falls along the line
-          const kick = (18 + 10 * db) * bp * (0.6 + 0.4 * Math.sin(sc * 0.01 + bi));
-          const nx = Math.sin(p.ang), ny = -Math.cos(p.ang);
-          const px = p.x + nx * kick, py = p.y + ny * kick;
-          under.set(idx, dens(px, py) > 0.45 || t >= lastBeat);
-          return { dx: px - sc, dy: py + 0.35 * fs, rot: p.ang + (s.sung ? 0 : 0.06 * Math.sin(idx * 1.7 + t * 5)) };
+    // ---- the line: two rows inside the water, under the back of the wave, following its surface
+    const L = this.T, c2 = L.ctx;
+    L.clear();
+    const line = this.lines[0];
+    if (line) {
+      const fam = F.slam();
+      const full = layoutLine(c2, line, fam, cf.size);
+      // split into two rows at the word boundary nearest the middle
+      let split = 1, best = Infinity;
+      full.words.forEach((wb, i) => { if (i > 0 && Math.abs(wb.x - full.width / 2) < best) { best = Math.abs(wb.x - full.width / 2); split = i; } });
+      const rowX0 = [0, full.words[split]!.x];
+      const rowW = Math.max(full.words[split - 1]!.x + full.words[split - 1]!.w, full.width - rowX0[1]!);
+      // the path: the surface from just behind the crest, in screen px
+      const pts: P2[] = [];
+      for (let x = X + 0.03; x < X + 7; x += 0.012) pts.push(toS(x, this.surfY(x, X, A, flowT, 0)));
+      const path = new Path(pts);
+      const start = pts[0]!;
+      const avail = W - SAFE - Math.max(SAFE, start.x + 30);
+      const size = Math.min(cf.size, (cf.size * avail) / Math.max(1, rowW));
+      const k = size / cf.size;
+      const s0 = 30 + Math.max(0, SAFE - start.x);
+      const bi = beatIndex(audio, t);
+      drawLyric(c2, line, t, {
+        x: 0, y: 0, size, family: fam, align: 'left', unsungAlpha: 0.6,
+        charTransform: (_ch: string, _idx: number, cs: CharState) => {
+          const b = cs.box, row = cs.word >= split ? 1 : 0;
+          const sc = s0 + b.x - rowX0[row]! * k + b.w / 2;
+          const pp = path.at(sc);
+          const nx = -Math.sin(pp.ang), ny = Math.cos(pp.ang); // into the water
+          const depth = size * (1.08 + 1.18 * row);
+          // bob: each beat lifts the letters toward the surface, more at the head of the line
+          const bob = (10 + 8 * db) * bp * (0.6 + 0.4 * Math.sin(sc * 0.01 + bi));
+          const gx = pp.x + nx * (depth - bob), gy = pp.y + ny * (depth - bob); // the baseline point
+          // the glyph centre sits 0.35 size above its baseline, measured in the rotated frame
+          const cxg = gx + Math.sin(pp.ang) * 0.35 * size, cyg = gy - Math.cos(pp.ang) * 0.35 * size;
+          // ink bloom: a syllable opens slightly large and settles in 150 ms
+          const bloom = cs.sung ? 1 + 0.18 * (1 - ease.outCubic(clamp(cs.frac * 4))) : 1;
+          return { dx: cxg - (b.x + b.w / 2), dy: cyg - (b.y - 0.35 * size), rot: pp.ang, scale: bloom };
         },
-        drawChar: (c2d, ch, s) => {
-          const ko = under.get(s.box.index) ?? false;
-          c2d.lineJoin = 'round';
-          c2d.lineWidth = fs * 0.12;
-          c2d.strokeStyle = rgba(ko ? 'ink' : 'bone');
-          c2d.strokeText(ch, 0, 0);
-          c2d.fillStyle = rgba(s.sung && s.frac < 1 ? 'signal' : ko ? 'bone' : s.sung ? 'ink' : 'graphite');
-          c2d.fillText(ch, 0, 0);
+        drawChar: (cc: CanvasRenderingContext2D, ch: string, cs: CharState) => {
+          cc.fillStyle = !cs.sung ? pcss(P, 'ground') : cs.frac < 1 ? pcss(P, 'signal') : pcss(P, 'text');
+          cc.fillText(ch, 0, 0);
         },
       });
-    });
+    }
     L.upload();
 
-    clearRT(renderer, out, t >= lastBeat && view === 'top' ? LIN.ink : LIN.bone);
-    this.ctx.comp.draw(renderer, L.texture, out, { mode: 'normal' });
-
-    // hits (T1): per-beat zoom punch + ≤ 6 px shake, a harder punch on each cut, a small one on word starts
-    const bi = beatIndex(audio, t);
+    // ---- hits: beat zoom punch + small shake, a harder punch on each cut, a nudge on word starts, exposure on the beat
     let ws = 0;
-    for (const w of this.wordStarts) if (t >= w) ws = Math.max(ws, Math.exp(-(t - w) / 0.1));
-    const cut = sh.t0 > this.ctx.start + 1e-3 ? Math.exp(-(t - sh.t0) / 0.12) : 0;
+    for (const w0 of this.wordStarts) if (t >= w0) ws = Math.max(ws, Math.exp(-(t - w0) / 0.1));
+    const cut = sh.t0 > this.ctx.start + 1e-3 ? Math.exp(-lt / 0.12) : 0;
+    const bI = beatIndex(audio, t);
     return {
-      bloom: 0,
-      zoom: 1 + 0.022 * bp + 0.05 * cut + 0.018 * ws,
-      shake: [(hash(bi, 1) - 0.5) * 11 * bp, (hash(bi, 2) - 0.5) * 11 * bp],
-      vignette: 0.12,
+      bloom: 0.28,
+      bloomThreshold: 0.75,
+      exposure: 1 + 0.2 * bp + 0.08 * kp,
+      flash: 0.12 * cut,
+      zoom: 1 + 0.02 * bp + 0.05 * cut + 0.015 * ws,
+      shake: [(hash(bI, 1) - 0.5) * 8 * bp, (hash(bI, 2) - 0.5) * 8 * bp],
+      vignette: 0.22,
+      grain: 0.04,
     };
   }
 
-  override dispose() { this.layer?.texture.dispose(); }
+  override dispose() { this.T?.texture.dispose(); }
 }

@@ -1,24 +1,30 @@
-// Shot list for the split plates (pure: imported by scenes/split.ts and by the edit gate).
-// State = camera framing (`frame`) + what the seam holds (`seam`: which letters sit in it), on the approved
-// storyboard times exactly (bridge cap = 2 bars; the longest gap here is the 2.33 s tail, well inside it).
-// The plate ends on the top-down shot: p-engrave opens on the same fibres, so the tension carries across the cut.
+// Shot list for the split plate (pure: imported by scenes/split.ts and by the edit gate).
+// p20-split-ascii (E6 ASCII Hangul raster, palette `ascii`): one lit room, torn vertically into two media.
+// State = camera (`cam`) + what the tear is doing (`tear`) + how the raster side is drawn (`raster`), one
+// structural change on every approved storyboard time (bridge cap = 2 bars; the longest gap is the 2.33 s tail):
+//   wide   98.333  (s)      the frame torn vertically: amber ASCII raster left, the lit room right   tear hairline
+//   close  99.831  (L15)    close on the tear: glyph cells against continuous light                   tear hairline
+//   tilt   102.024 (W15.2)  dutch tilt, the tear gapes; the syllable on the tear is half glyph/half solid
+//   macro  104.16  (+10b)   macro on the last cells: the tear sweeps right and the raster swallows the frame
 import { type AudioLite, type PlateInfo, type Shot } from '../engine/shots';
 import { sbShotTimes } from '../engine/storyboard';
 
-export const FRAMES = ['frontal', 'raking', 'gape', 'topdown'] as const;
-export type Framing = (typeof FRAMES)[number];
-/** split = glyphs straddle the seam, cut in two; wedged = sung letters are jammed into the gap. */
-export type Seam = 'split' | 'wedged';
+export type Cam = 'wide' | 'close' | 'tilt' | 'macro';
+/** hairline = a thin torn gap; gape = the gap opens wide; sweep = the tear runs off the right edge. */
+export type Tear = 'hairline' | 'gape' | 'sweep';
+/** cells = glyph cells only; flip = cells swallowed by the tear flip over on the beat. */
+export type Raster = 'cells' | 'flip';
 
 export function shots(p: PlateInfo, _au: AudioLite): Shot[] {
   const sb = sbShotTimes(p.id);
-  // storyboard order: frontal (start) -> raking light (L15) -> the seam gapes (W15.2) -> top-down on the last fibres
-  const plan: { frame: Framing; seam: Seam }[] = [
-    { frame: 'frontal', seam: 'split' },
-    { frame: 'raking', seam: 'split' },
-    { frame: 'gape', seam: 'wedged' },
-    { frame: 'topdown', seam: 'wedged' },
+  const plan: { cam: Cam; tear: Tear; raster: Raster }[] = [
+    { cam: 'wide', tear: 'hairline', raster: 'cells' },
+    { cam: 'close', tear: 'hairline', raster: 'cells' },
+    { cam: 'tilt', tear: 'gape', raster: 'cells' },
+    { cam: 'macro', tear: 'sweep', raster: 'flip' },
   ];
-  const out: Shot[] = sb.map((t, i) => ({ t, s: { id: `${p.id}#${i}`, ...plan[Math.min(i, plan.length - 1)]! } }));
-  return out;
+  return sb.map((t, i) => {
+    const s = plan[Math.min(i, plan.length - 1)]!;
+    return { t, s: { id: `${p.id}#${s.cam}`, ...s } };
+  });
 }

@@ -8,10 +8,15 @@
 //   exp (p23): an exponential (log-decade) scale; the needle races up, pins past the red line and overshoots
 //     +6° on every kick/beat, settling in 2 frames; line 23 runs along an exponential curve engraved on the
 //     face, traced in signal as it is sung; on the last beat the needle snaps off.
+//   bass (v3 p07): a Saul Bass cut-paper clock on mustard (palette 'bass'): flat paper shapes with scissor-cut
+//     edges, paper-strip hands that try to rewind on every beat (one 12 fps frame back) and snap a notch forward
+//     onto a paper stop; line 7 is cut paper (a strip per word slides in hard, each syllable drops onto it). Shots:
+//     wide (the line round the rim) / close on the hands at the stop / title card / tilt, a black paper arrow pins
+//     the hands with the line cut out of its shaft / the clock tears in two on the last beat (the exit).
 import type * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../engine/scene';
 import { Layer2D, clearRT } from '../engine/gl';
-import { LIN, rgba } from '../engine/palette';
+import { LIN, rgba, palette, pcss, plin, type NamedPalette, type Role } from '../engine/palette';
 import { drawLyric, layoutLine, ownedLines, F, type CharState, type CharXform, type DrawLyricOpts } from '../engine/lyric';
 import { beatPulse, kickPulse, downbeatPulse } from '../engine/beat';
 import { font } from '../engine/type';
@@ -45,6 +50,34 @@ function since(xs: readonly number[], t: number): number {
 }
 const polar = (a: number, r: number): V2 => ({ x: r * Math.sin(a * DEG), y: -r * Math.cos(a * DEG) });
 
+/** bass: one notch = 30° (five minutes), the paper stop at 3 o'clock, disc radius, the 12 fps step. */
+const NOTCH = 30, BSTOP = 90, BR = 360, STEP = 1 / 12;
+/** Whole 12 fps frames since an event (negative before it). */
+const q12 = (tau: number) => Math.floor(tau * 12 + 1e-6);
+function hash(i: number, seed: number): number { const x = Math.sin(i * 127.1 + seed * 311.7) * 43758.5453; return x - Math.floor(x); }
+/** A closed polygon with a rough scissor cut: each edge subdivided every `step` px and nudged along its normal. */
+function jag(pts: V2[], seed: number, amp = 3.5, step = 26): V2[] {
+  const out: V2[] = [];
+  let k = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i]!, b = pts[(i + 1) % pts.length]!;
+    const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1;
+    const n = Math.max(1, Math.round(l / step)), nx = -dy / l, ny = dx / l;
+    for (let j = 0; j < n; j++) {
+      const u = j / n, d = j === 0 ? 0 : (hash(k++, seed) - 0.5) * 2 * amp;
+      out.push({ x: a.x + dx * u + nx * d, y: a.y + dy * u + ny * d });
+    }
+  }
+  return out;
+}
+/** A hand-cut paper disc: radius jittered per vertex (stable per seed, never boils). */
+function jagDisc(r: number, seed: number, amp = 4): V2[] {
+  const n = Math.max(20, Math.round((2 * Math.PI * r) / 22));
+  const out: V2[] = [];
+  for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2, rr = r + (hash(i, seed) - 0.5) * 2 * amp; out.push({ x: rr * Math.cos(a), y: rr * Math.sin(a) }); }
+  return out;
+}
+
 export default class Gauge extends Scene {
   private layer!: Layer2D;
   private list: Shot[] = [];
@@ -67,6 +100,7 @@ export default class Gauge extends Scene {
     this.tStop = stopTime(this.plate, au);
     this.tSnap = snapTime(this.plate, au);
     this.tDown = barTimes(au, this.ctx.start, this.ctx.end)[0] ?? this.ctx.start + 0.5;
+    if (this.plate.variant === 'bass') this.initBass();
   }
 
   // ------------------------------------------------------------------ mechanisms (pure in t)
@@ -501,6 +535,241 @@ export default class Gauge extends Scene {
     }, fr === 'macro' ? 1350 : undefined);
   }
 
+  // ================================================================== bass (v3 p07): Saul Bass cut paper
+  // Flat construction paper on the mustard ground: a black paper disc on a vermilion backing, mustard slivers cut
+  // out for the hours, the hands are paper strips (blue minute, vermilion hour), a vermilion paper tab is the stop.
+  // Everything steps at 12 fps from its event (the beat lands on its own frame). No lines, no labels.
+  private P!: NamedPalette;
+  private fibres: [number, number, number, number][] = [];
+  private tArrow = Infinity;
+  private tTear = Infinity;
+
+  private initBass() {
+    this.P = palette((this.ctx.params as PlateInfo & { look: { palette: string } }).look.palette);
+    for (let i = 0; i < 240; i++) this.fibres.push([hash(i, 1) * W, hash(i, 2) * H, 6 + 22 * hash(i, 3), 1 + 2 * hash(i, 4)]);
+    for (const s of this.list) {
+      if (s.s.frame === 'tilt') this.tArrow = s.t;
+      if (s.s.frame === 'tear') this.tTear = s.t;
+    }
+  }
+
+  /** Minute-hand angle (deg, clockwise from 12). Two notches onto the stop by the first downbeat; then on every beat
+   *  it tries to rewind: one 12 fps frame a full notch back, the next slammed onto the stop (the tab bends). */
+  private bassAngle(t: number): { a: number; bend: number } {
+    const target = (k: number) => Math.min(BSTOP, BSTOP - NOTCH * (2 - k));
+    let k = 0;
+    for (const b of this.beats) if (b <= t + 1e-9) k++;
+    const kp = kickPulse(this.ctx.audio, t, 0.06);
+    const trem = kp > 0.5 ? 2.5 * (Math.floor(t * 12) % 2 ? 1 : -1) : 0;
+    if (k === 0) return { a: target(0) + trem, bend: 0 };
+    const step = q12(t - this.beats[k - 1]!);
+    const prev = target(k - 1), next = target(k);
+    const pinned = t >= this.tArrow + 2 * STEP;
+    const back = pinned ? 12 : NOTCH; // the arrow pins it: the rewind only twitches
+    const atStop = next === BSTOP;
+    if (step === 0) return { a: prev - back, bend: 0 };
+    if (step === 1) return { a: next + (atStop ? 4 : 5), bend: atStop ? 8 : 0 };
+    return { a: next + trem, bend: 0 };
+  }
+
+  private shape(c: CanvasRenderingContext2D, pts: V2[], col: string, sh = 0) {
+    if (sh) {
+      c.fillStyle = pcss(this.P, 'deep', 0.2);
+      c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p.x + sh * 0.7, p.y + sh) : c.moveTo(p.x + sh * 0.7, p.y + sh))); c.closePath(); c.fill();
+    }
+    c.fillStyle = col;
+    c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y))); c.closePath(); c.fill();
+  }
+  private rotPts(pts: V2[], deg: number): V2[] {
+    const co = Math.cos(deg * DEG), si = Math.sin(deg * DEG);
+    return pts.map((p) => ({ x: co * p.x - si * p.y, y: si * p.x + co * p.y }));
+  }
+
+  /** The paper clock in world px (centre at the origin, R = 360). */
+  private bassClock(c: CanvasRenderingContext2D, t: number) {
+    const P = this.P, au = this.ctx.audio;
+    const lift = beatPulse(au, t, 0.08) > 0.35 ? 1 : 0; // the paper lifts off the ground on every beat
+    const { a, bend } = this.bassAngle(t);
+    c.save();
+    c.translate(-5 * lift, -8 * lift);
+    const sh = 8 + 12 * lift;
+    this.shape(c, jagDisc(372, 11, 5).map((p) => ({ x: p.x + 26, y: p.y + 22 })), pcss(P, 'mid'), sh);
+    this.shape(c, jagDisc(BR, 12, 4), pcss(P, 'deep'));
+    // hours: mustard slivers cut out of the black disc
+    for (let i = 0; i < 12; i++) {
+      const q = i % 3 === 0, w = q ? 30 : 15, r0 = q ? 270 : 298;
+      this.shape(c, this.rotPts(jag([{ x: -w / 2, y: -r0 }, { x: w / 2, y: -r0 }, { x: w / 2, y: -346 }, { x: -w / 2, y: -346 }], 20 + i, 2, 14), i * 30), pcss(P, 'ground'));
+    }
+    // the stop: a vermilion paper tab standing across the track (blue on the downbeat)
+    const tabCol = downbeatPulse(au, t, 0.08) > 0.35 ? 'hi' : 'mid';
+    this.shape(c, this.rotPts(jag([{ x: -24, y: -236 }, { x: 24, y: -236 }, { x: 24, y: -392 }, { x: -24, y: -392 }], 40, 3, 18), BSTOP + 11 + bend), pcss(P, tabCol), 6);
+    // hour hand (vermilion strip) and minute hand (blue strip with a cut point)
+    this.shape(c, this.rotPts(jag([{ x: -27, y: 54 }, { x: 27, y: 54 }, { x: 27, y: -196 }, { x: -27, y: -196 }], 51, 3, 20), 208 + (lift ? -2 : 0)), pcss(P, 'mid'), 7);
+    this.shape(c, this.rotPts(jag([{ x: -18, y: 66 }, { x: 18, y: 66 }, { x: 18, y: -300 }, { x: 0, y: -344 }, { x: -18, y: -300 }], 52, 3, 20), a), pcss(P, 'hi'), 9);
+    this.shape(c, jagDisc(32, 53, 2), pcss(P, 'ground'), 4);
+    this.shape(c, jagDisc(11, 54, 1), pcss(P, 'deep'));
+    c.restore();
+  }
+
+  /** Cam per framing: world (fx, fy) lands on screen (x, y), scaled s, rotated r, squashed sy (the tilt). */
+  private bassCam(fr: Framing) {
+    switch (fr) {
+      case 'close': return { x: 900, y: 450, s: 2.5, r: 0.06, sy: 1, fx: 250, fy: 30 };
+      case 'words': return { x: 420, y: 330, s: 0.58, r: 0, sy: 1, fx: 0, fy: 0 };
+      case 'tilt': case 'tear': return { x: 580, y: 500, s: 1.02, r: -0.2, sy: 0.84, fx: 0, fy: 0 };
+      default: return { x: 820, y: 470, s: 0.78, r: 0, sy: 1, fx: 0, fy: 0 };
+    }
+  }
+
+  /** Line 7 as cut paper: each word a paper strip that slides in hard on its first syllable and stops dead; each
+   *  syllable is a black/mustard piece dropped onto the strip when it is sung. `place(s)` maps a position along the
+   *  line to a screen baseline point and its reading angle (an arc along the rim, or a straight run). */
+  private bassLyric(c: CanvasRenderingContext2D, t: number, line: Line, size: number, maxWidth: number,
+    place: (s: number, width: number) => { x: number; y: number; ang: number }, strips: Role[] | null, glyph: (w: number) => Role, slideAxis: number) {
+    const P = this.P;
+    const family = F.slam();
+    const lay = layoutLine(c, line, family, size, maxWidth);
+    const sz = lay.size, Wd = lay.width;
+    const DIRS: V2[] = [{ x: -1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 0 }, { x: 0, y: -1 }];
+    const SL = [0.62, 0.18];
+    const slide = (wi: number): V2 => {
+      const w = line.words[wi]!;
+      const k = q12(t - w.start);
+      const f = k < 0 ? 1 : k < SL.length ? SL[k]! : 0;
+      const d = DIRS[(wi + slideAxis) % 4]!;
+      return { x: d.x * 300 * f, y: d.y * 300 * f };
+    };
+    if (strips) {
+      lay.words.forEach((wb, wi) => {
+        if (t < line.words[wi]!.start) return;
+        const o = slide(wi), pad = sz * 0.2;
+        const top: V2[] = [], bot: V2[] = [];
+        for (let s = wb.x - pad; s <= wb.x + wb.w + pad + 1e-6; s += Math.max(12, (wb.w + 2 * pad) / 8)) {
+          const p = place(Math.min(s, wb.x + wb.w + pad), Wd);
+          const ux = Math.sin(p.ang), uy = -Math.cos(p.ang);
+          top.push({ x: p.x + o.x + ux * sz * 1.0, y: p.y + o.y + uy * sz * 1.0 });
+          bot.push({ x: p.x + o.x - ux * sz * 0.24, y: p.y + o.y - uy * sz * 0.24 });
+        }
+        this.shape(c, jag([...top, ...bot.reverse()], 70 + wi, 4, 22), pcss(P, strips[wi % strips.length]!), 9);
+      });
+    }
+    drawLyric(c, line, t, {
+      x: 0, y: 0, size, family, align: 'left', maxWidth, unsungAlpha: 0, lead: 0,
+      charTransform: (_ch, _i, st) => {
+        const b = st.box;
+        const p = place(b.x + b.w / 2, Wd);
+        const ux = Math.sin(p.ang), uy = -Math.cos(p.ang);
+        const o = slide(st.word);
+        const w = line.words[st.word]!;
+        const s0 = (w.syl ?? [[w.start, w.end]])[st.syl]?.[0] ?? w.start;
+        const k = q12(t - s0);
+        const drop = k === 0 ? 0.5 : k === 1 ? 0.12 : 0; // the syllable piece drops onto its strip
+        const gx = p.x + o.x + ux * (0.35 + drop) * sz, gy = p.y + o.y + uy * (0.35 + drop) * sz;
+        return { dx: gx - (b.x + b.w / 2), dy: gy + 0.35 * sz, rot: p.ang };
+      },
+      drawChar: (cc, ch, st) => { cc.fillStyle = pcss(P, glyph(st.word)); cc.fillText(ch, 0, 0); },
+    });
+  }
+
+  /** The black paper arrow that pins the hands (tilt/tear): head on the hub, shaft out to the lower right. */
+  private arrowGeom(t: number) {
+    const cam = this.bassCam('tilt');
+    const phi = 0.4, u = { x: Math.cos(phi), y: Math.sin(phi) };
+    const k = q12(t - this.tArrow);
+    const f = k < 0 ? 1 : ([0.55, 0.2, 0.04][k] ?? 0); // slides in hard, stops dead on the 4th frame
+    // the tip lands on the minute hand's tip at the stop (world (330, 0) through the tilt camera)
+    const wx = 330 * cam.s, wy = 0;
+    const tip = { x: cam.x + Math.cos(cam.r) * wx - Math.sin(cam.r) * wy, y: cam.y + Math.sin(cam.r) * wx + Math.cos(cam.r) * wy };
+    const H0 = { x: tip.x + u.x * 1150 * f, y: tip.y + u.y * 1150 * f };
+    return { H0, u, phi };
+  }
+  private drawArrow(c: CanvasRenderingContext2D, t: number, line: Line) {
+    const P = this.P;
+    const { H0, u, phi } = this.arrowGeom(t);
+    const n = { x: -u.y, y: u.x };
+    const at = (s: number, h: number): V2 => ({ x: H0.x + u.x * s + n.x * h, y: H0.y + u.y * s + n.y * h });
+    const kick = kickPulse(this.ctx.audio, t, 0.06) > 0.5 ? 6 : 0; // the shaft shivers on the kicks
+    const arrow = (m: number) => [at(-8 - 1.6 * m, 0), at(190, -150 - m), at(190, -104 - kick - m), at(1500, -104 - kick - m), at(1500, 104 + kick + m), at(190, 104 + kick + m), at(190, 150 + m)];
+    this.shape(c, jag(arrow(14), 89, 5, 24), pcss(P, 'ground')); // the cut margin: the arrow reads over the black disc
+    this.shape(c, jag(arrow(0), 90, 4, 24), pcss(P, 'deep'), 12);
+    // the line cut out of the shaft (mustard = the ground showing through)
+    this.bassLyric(c, t, line, 112, 740, (s, Wd) => {
+      const q = at(590 + s - Wd / 2, 0);
+      return { x: q.x + n.x * 42, y: q.y + n.y * 42, ang: phi };
+    }, null, () => 'ground', 0);
+  }
+
+  private bassScene(c: CanvasRenderingContext2D, t: number, fr: Framing, line: Line) {
+    const cam = this.bassCam(fr);
+    c.save();
+    c.translate(cam.x, cam.y); c.rotate(cam.r); c.scale(cam.s, cam.s * cam.sy); c.translate(-cam.fx, -cam.fy);
+    this.bassClock(c, t);
+    c.restore();
+    if (fr === 'tilt' || fr === 'tear') { if (t >= this.tArrow) this.drawArrow(c, t, line); return; }
+    if (fr === 'wide') {
+      // round the lower rim: the words read along the clock's edge, their tops toward the hub
+      // the first words land at the bottom (level, legible); the rest climbs the right rim in the later shots
+      const R = 460, th0 = 116 * DEG;
+      this.bassLyric(c, t, line, 104, 860, (s) => {
+        const th = th0 - s / R;
+        return { x: cam.x + R * Math.cos(th), y: cam.y + R * Math.sin(th), ang: Math.atan2(-Math.cos(th), Math.sin(th)) };
+      }, ['mid', 'deep', 'hi', 'deep'], (w) => (w === 0 ? 'deep' : 'ground'), 0);
+      return;
+    }
+    if (fr === 'close') {
+      const x0 = 640, y0 = 930, r = -0.03;
+      this.bassLyric(c, t, line, 128, 1000, (s, Wd) => ({ x: x0 + (s - Wd / 2) * Math.cos(r), y: y0 + (s - Wd / 2) * Math.sin(r), ang: r }),
+        ['mid', 'ground', 'hi', 'ground'], (w) => (w === 2 ? 'ground' : 'deep'), 1);
+      return;
+    }
+    // words: a Bass title card — the small clock up left, the line huge across the lower half
+    const x0 = 1120, y0 = 800, r = -0.05;
+    this.bassLyric(c, t, line, 176, 1260, (s, Wd) => ({ x: x0 + (s - Wd / 2) * Math.cos(r), y: y0 + (s - Wd / 2) * Math.sin(r), ang: r }),
+      ['deep', 'mid', 'hi', 'deep'], (w) => (w === 1 ? 'deep' : 'ground'), 2);
+  }
+
+  /** Jagged vertical tear through the tilted clock (screen px). */
+  private tearLine(): V2[] {
+    const pts: V2[] = [];
+    for (let y = -80, i = 0; y <= H + 80; y += 34, i++) pts.push({ x: 640 + (hash(i, 99) - 0.5) * 70 + (y - 540) * 0.12, y });
+    return pts;
+  }
+
+  private bass(c: CanvasRenderingContext2D, f: Frame, fr: Framing) {
+    const P = this.P, t = f.t, line = this.lines[0]!;
+    c.fillStyle = pcss(P, 'ground'); c.fillRect(0, 0, W, H);
+    c.fillStyle = pcss(P, 'deep', 0.045);
+    for (const [x, y, l, w] of this.fibres) c.fillRect(x, y, l, w);
+    if (fr !== 'tear') { this.bassScene(c, t, fr, line); return; }
+    // the exit: the paper clock tears in two; the right half (with the arrow and the line) is pulled away
+    const k = q12(t - this.tTear) + 1;
+    const tl = this.tearLine();
+    const piv = { x: 660, y: H };
+    for (const side of [0, 1]) {
+      c.save();
+      c.translate(piv.x, piv.y);
+      c.rotate(side ? 0.08 * k : -0.012 * k);
+      c.translate(-piv.x + (side ? 115 * k : -12 * k), -piv.y + (side ? -10 * k : 4 * k));
+      c.beginPath();
+      const edge = side ? [{ x: W + 900, y: tl[tl.length - 1]!.y }, { x: W + 900, y: tl[0]!.y }] : [{ x: -900, y: tl[tl.length - 1]!.y }, { x: -900, y: tl[0]!.y }];
+      [...tl, ...edge].forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
+      c.closePath();
+      c.clip();
+      this.bassScene(c, t, 'tear', line);
+      c.restore();
+    }
+  }
+
+  private bassPost(t: number): PostOverrides {
+    const envq = (tau: number) => (tau < 0 ? 0 : env(Math.floor(tau * 12) / 12));
+    let word = 0;
+    for (const w of this.lines[0]!.words) word = Math.max(word, envq(t - w.start));
+    const stop = envq(t - this.tStop), arrow = envq(t - (this.tArrow + 2 * STEP)), tear = envq(t - this.tTear);
+    const dir = Math.floor(t * 12) % 2 ? 1 : -1;
+    const sh = Math.min(6, 6 * Math.max(stop, arrow) + 3 * tear);
+    return { zoom: Math.min(1.06, 1 + 0.025 * word + 0.035 * stop + 0.03 * tear), shake: [dir * sh, -dir * sh * 0.5], flash: 0, bloom: 0 };
+  }
+
   // ------------------------------------------------------------------ frame
   override render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
     const { renderer, audio } = this.ctx;
@@ -509,6 +778,13 @@ export default class Gauge extends Scene {
     const L = this.layer, c = L.ctx;
     L.clear();
     const v = this.plate.variant;
+    if (v === 'bass') {
+      this.bass(c, f, fr);
+      L.upload();
+      clearRT(renderer, out, plin(this.P, 'ground'));
+      this.ctx.comp.draw(renderer, L.texture, out, { mode: 'normal' });
+      return this.bassPost(f.t);
+    }
     if (v === 'exp') this.exp(c, f, fr); else this.countdown(c, f, fr);
     L.upload();
     clearRT(renderer, out, LIN.ink);

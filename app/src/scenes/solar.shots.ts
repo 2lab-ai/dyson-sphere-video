@@ -35,8 +35,9 @@ export function shots(p: PlateInfo, au: AudioLite): Shot[] {
   const plan = PLAN[p.variant] ?? PLAN.sun!;
   const ts = sbTimes(p);
   const out: Shot[] = ts.map((t, i) => ({ t: i === 0 ? p.start : t, s: { id: `${p.id}#${i}`, ...plan[Math.min(i, plan.length - 1)]! } }));
+  const sb = out.map((s) => s.t); // storyboard shots only (extras are appended below)
   for (const ex of EXTRA[p.variant] ?? []) {
-    const a = out[ex.after]?.t ?? p.start, b = out[ex.after + 1]?.t ?? p.end;
+    const a = sb[ex.after] ?? p.start, b = sb[ex.after + 1] ?? p.end;
     const third = beatTimes(au, a + 0.05, b - 0.05)[1]; // beats after `a`: [2nd, 3rd, ...] -> the 3rd beat of the bar
     if (third !== undefined) out.push({ t: third, s: { id: `${p.id}#x${ex.after}`, ...ex.s } });
   }

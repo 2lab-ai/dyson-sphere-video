@@ -1,818 +1,680 @@
-// SHELL — the Dyson shell as a heavy machined object: an analytic sphere tiled with hex panels (engine/prim
-// shell helpers), raytraced in one fragment pass: bevelled plates with bolts and grooves, seams, the point of
-// light inside, light shafts through the gaps, lock pins with shock rings, clip-plane cutaways with a hatched
-// section, an empty cradle where the point was, and a starfield. A Canvas2D layer on top carries the etched
-// lyric, wrapped glyph by glyph onto the panel surface through the same camera.
+// SHELL — the Dyson shell closing, told in two plates with two different looks (v3). Canvas2D only: every panel is a
+// real 3D hex on a sphere, projected through a pinhole camera; flat fills, no gradients, no filters.
 // Variants (data/edit.json):
-//   partial  (p17) half-built shell; per beat a blast of rays from a different gap (30° sweep), per downbeat
-//            panels clamp shut with a jolt; inside looking out through a gap; a panel slams shut, black.
-//   seal     (p30) failed capture: panels close like fingers around the point, line 31 is etched syllable by
-//            syllable on the last panels, the point escapes through the last gap and the 'could not hold'
-//            letters slip out after it; the gap slams, lock pins drive in per kick with shock rings; outside
-//            sealed, inside (cutaway) empty.
-//   whole    (p35) the complete sphere with a ratcheting equator collar (silhouette steps per beat, 1-frame
-//            jolt), the equator cutaway with its section, the empty cradle; exit: the equator seam glows.
-//   pullback (p38) close on the sealed sphere (seams signal per beat), wide starfield (a star goes out every
-//            2 s, the rest flare on the kick), the extinguished stars' afterimages projected onto the shell
-//            and draining into its seams; the sphere dissolves into lines.
+//   dancheong (p42, light, H3 dancheong vault)  Inside the sunlit shell, looking UP at the last opening. The panels are
+//            painted like the ceiling of a Korean temple: graded colour bands with white lines between them, lotus
+//            rosettes, black outlines, white plaster between the panels, ring beams with gold stamps. The first frame
+//            continues p41's Sun (disc at the anchor, r = 110 px) seen through the oculus. Per beat one ring of panels
+//            swings in bare, lands ON the beat, overshoots and flashes into paint; the eighth beat drops the lotus
+//            medallion over the Sun. The last frame is the painted medallion at the anchor, r = 135 px.
+//   pullback (p43, dark, 3D lit)  Outside: the sealed sphere at the anchor (r = 135 px, the medallion's pole facing us),
+//            flat-shaded facets, its seams still leaking the trapped Sun and dying within the first bar; seams pulse
+//            on the kick. Per beat another star gets its own shell: a dark sphere closes over it like an iris and
+//            locks with a ring flash. The camera grazes the sealed surface, then pulls back wide while the remaining
+//            stars go dark in batches, ending on a black field.
+// Structure from the pure shot list (./shell.shots) via stateAt(); colour only from the plate's named palette.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../engine/scene';
-import { FSPass, Layer2D, W, H } from '../engine/gl';
-import { rgba } from '../engine/palette';
-import { drawLyric, layoutLine, ownedLines, F, type LineLayout } from '../engine/lyric';
-import { beatPulse, kickPulse, downbeatPulse, beatIndex, barIndex } from '../engine/beat';
-import { shotAt, type PlateInfo, type Shot } from '../engine/shots';
-import { SHELL_GLSL } from '../engine/prim';
-import { clamp, hash, smoothstep, ease, lerp } from '../engine/util';
-import type { Line } from '../engine/lyrics';
+import { Layer2D, clearRT } from '../engine/gl';
+import { palette, pcss, pmix, plin, type NamedPalette, type Role } from '../engine/palette';
+import { beatPulse, kickPulse, downbeatPulse } from '../engine/beat';
+import { beatTimes, shotAt, stateAt, type PlateInfo, type Shot } from '../engine/shots';
+import { clamp, hash, ease, lerp, TAU } from '../engine/util';
 import { shots, type Cam } from './shell.shots';
 
-// ------------------------------------------------------------------ small vector kit
+const W = 1920, H = 1080;
+/** The match-circle anchor (storyboard subject centre for p40–p43). */
+const AX = 1187, AY = 413;
+/** p41's Sun disc at its last frame (orbit/swarm contract) and the p42 medallion = p43 sphere at the p42/p43 cut. */
+const R_SUN = 110, R_SEAL = 135;
+
+// ------------------------------------------------------------------ vector kit + pinhole camera
 type V = [number, number, number];
 const add = (a: V, b: V): V => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 const sub = (a: V, b: V): V => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const mul = (a: V, s: number): V => [a[0] * s, a[1] * s, a[2] * s];
 const dot = (a: V, b: V) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const cross = (a: V, b: V): V => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-const len = (a: V) => Math.hypot(a[0], a[1], a[2]);
-const norm = (a: V): V => mul(a, 1 / Math.max(1e-9, len(a)));
-const UP: V = [0, 1, 0];
+const norm = (a: V): V => mul(a, 1 / Math.max(1e-9, Math.hypot(a[0], a[1], a[2])));
+/** Direction on a sphere from polar angle th about `ax` (with `e1`, `e2` completing the frame) and azimuth ph. */
+const sph = (th: number, ph: number, ax: V, e1: V, e2: V): V =>
+  add(mul(ax, Math.cos(th)), add(mul(e1, Math.sin(th) * Math.cos(ph)), mul(e2, Math.sin(th) * Math.sin(ph))));
 
-// the shell's panel tiling (must match the GLSL): cube-sphere faces, CELLS hex units per half face
-const CELLS = 2.5;
-const gmod = (x: number, y: number) => x - y * Math.floor(x / y);
-function cubeUV(n: V): [number, number, number] {
-  const ax = n.map(Math.abs) as V;
-  let u: number, v: number, f: number;
-  if (ax[0] >= ax[1] && ax[0] >= ax[2]) { u = n[1] / ax[0]; v = n[2] / ax[0]; f = n[0] > 0 ? 0 : 1; }
-  else if (ax[1] >= ax[2]) { u = n[0] / ax[1]; v = n[2] / ax[1]; f = n[1] > 0 ? 2 : 3; }
-  else { u = n[0] / ax[2]; v = n[1] / ax[2]; f = n[2] > 0 ? 4 : 5; }
-  const k = (4 / Math.PI) * CELLS;
-  return [Math.atan(u) * k, Math.atan(v) * k, f];
-}
-function hexCentre(px: number, py: number): [number, number] {
-  const sx = 1, sy = 1.7320508;
-  const ax = gmod(px, sx) - 0.5 * sx, ay = gmod(py, sy) - 0.5 * sy;
-  const bx = gmod(px - 0.5 * sx, sx) - 0.5 * sx, by = gmod(py - 0.5 * sy, sy) - 0.5 * sy;
-  const [gx, gy] = ax * ax + ay * ay < bx * bx + by * by ? [ax, ay] : [bx, by];
-  return [px - gx, py - gy];
-}
-function cubeDir(u: number, v: number, f: number): V {
-  const a = Math.tan((u / CELLS) * (Math.PI / 4)), b = Math.tan((v / CELLS) * (Math.PI / 4));
-  const d: V[] = [[1, a, b], [-1, a, b], [a, 1, b], [a, -1, b], [a, b, 1], [a, b, -1]];
-  return norm(d[f]!);
-}
-/** The panel cell containing direction n: [cx, cy, face] and its centre direction. */
-function cellOf(n: V) {
-  const [u, v, f] = cubeUV(n);
-  const [cx, cy] = hexCentre(u, v);
-  return { cx, cy, f, dir: cubeDir(cx, cy, f) };
-}
-
-// ------------------------------------------------------------------ camera
-interface CamS { ro: V; ta: V; f: number; roll: number }
-interface Basis { ro: V; u: V; v: V; w: V; f: number }
-function basis(c: CamS): Basis {
-  const w = norm(sub(c.ta, c.ro));
-  let u = norm(cross(w, UP));
+interface Cam3 { C: V; w: V; u: V; v: V; f: number; px: number; py: number }
+function lookAt(C: V, target: V, ref: V, roll: number, f: number, px: number, py: number): Cam3 {
+  const w = norm(sub(target, C));
+  let u = norm(cross(w, ref));
   let v = cross(u, w);
-  if (c.roll) {
-    const cs = Math.cos(c.roll), sn = Math.sin(c.roll);
-    const u2 = add(mul(u, cs), mul(v, sn)), v2 = sub(mul(v, cs), mul(u, sn));
-    u = u2; v = v2;
+  if (roll) {
+    const cs = Math.cos(roll), sn = Math.sin(roll);
+    [u, v] = [add(mul(u, cs), mul(v, sn)), sub(mul(v, cs), mul(u, sn))];
   }
-  return { ro: c.ro, u, v, w, f: c.f };
+  return { C, w, u, v, f, px, py };
 }
-/** World -> logical screen px (and depth). */
-function project(b: Basis, x: V) {
-  const d = sub(x, b.ro);
-  const z = dot(d, b.w);
-  const zz = Math.max(1e-4, z);
-  return { x: W / 2 + (dot(d, b.u) / zz) * b.f * (H / 2), y: H / 2 - (dot(d, b.v) / zz) * b.f * (H / 2), z };
-}
-
-// ------------------------------------------------------------------ GLSL
-const MAXPINS = 24, MAXSTARS = 16, MAXAFT = 6;
-const FRAG = /* glsl */ `
-uniform vec2 uRes; uniform float uT;
-uniform vec3 uRo, uU, uV, uW; uniform float uF;
-uniform float uMode, uCover, uSoft;
-uniform vec3 uGapDir, uGapCell; uniform float uGapOn, uGapOpen;
-uniform vec3 uP; uniform float uPI;
-uniform vec4 uRay; uniform float uSpill;
-uniform vec4 uCut; uniform float uCutAmb;
-uniform float uSeam, uSection, uLeak, uShowQ, uDissolve, uCradle, uStarFlare, uStarDen;
-uniform vec2 uCollar;
-uniform vec4 uPins[${MAXPINS}];
-uniform vec4 uStars[${MAXSTARS}];
-uniform vec4 uAft[${MAXAFT}];
-${SHELL_GLSL}
-const float CELLS = ${CELLS.toFixed(1)};
-const vec3 KEY = vec3(-0.5547, 0.6276, 0.5454);
-
-vec3 cubeDir(vec2 uv, float f) {
-  vec2 a = tan(uv * (PI / 4.0));
-  if (f < 0.5) return normalize(vec3(1.0, a.x, a.y));
-  if (f < 1.5) return normalize(vec3(-1.0, a.x, a.y));
-  if (f < 2.5) return normalize(vec3(a.x, 1.0, a.y));
-  if (f < 3.5) return normalize(vec3(a.x, -1.0, a.y));
-  if (f < 4.5) return normalize(vec3(a.x, a.y, 1.0));
-  return normalize(vec3(a.x, a.y, -1.0));
-}
-// 0 = gap (panel not yet in place) .. 1 = panel closed
-float closedAmt(vec2 c, float face) {
-  if (uGapOn > 0.5 && abs(face - uGapCell.z) < 0.5 && length(c - uGapCell.xy) < 0.2) return 1.0 - uGapOpen;
-  float h = cellHash(c, face);
-  float rank = h;
-  if (uMode > 0.5) {
-    // fingers: the cells farthest from the last gap close first, the ring around the gap last
-    vec3 cd = cubeDir(c / CELLS, face);
-    rank = 1.0 - acos(clamp(dot(cd, uGapDir), -1.0, 1.0)) / PI + 0.1 * (h - 0.5);
-  }
-  return sat((uCover - rank) / uSoft);
-}
-struct Cell { vec2 g; vec2 c; float face; float k; float d; };
-Cell cellAt(vec3 n) {
-  Cell o; vec3 cu = cubeUV(n, CELLS); vec4 hc = hexCell(cu.xy);
-  o.g = hc.xy; o.c = hc.zw; o.face = cu.z; o.k = closedAmt(o.c, o.face); o.d = hexDist(o.g);
-  return o;
-}
-float plateMask(Cell c, float aa) { return smoothstep(aa, -aa, c.d - (0.5 * c.k - 0.024)); }
-
-// ---- machined panel, outside face
-vec3 metal(vec3 n, vec3 rd, Cell c, out float dq) {
-  vec2 q = c.g / max(c.k, 0.05);
-  dq = hexDist(q);
-  float dif = max(dot(n, KEY), 0.0);
-  float h = cellHash(c.c, c.face);
-  vec3 base = mix(C_INK2, C_GRAPHITE, 0.38 + 0.22 * h);
-  float brushed = 0.86 + 0.14 * hash12(vec2(floor(q.y * 150.0), c.face * 7.0 + h * 31.0));
-  vec3 col = base * brushed * (0.10 + 1.0 * dif);
-  float bev = smoothstep(0.35, 0.46, dq);
-  vec2 gd = q / max(length(q), 1e-4);
-  col += bev * dot(gd, vec2(-0.66, 0.75)) * 0.16 * C_BONE * (0.25 + dif);
-  col *= 1.0 - 0.75 * exp(-pow((dq - 0.29) / 0.007, 2.0)) - 0.55 * exp(-pow((dq - 0.455) / 0.006, 2.0));
-  // centre boss with a stamped index bar
-  col *= 1.0 - 0.35 * smoothstep(0.07, 0.06, length(q)) * (1.0 - smoothstep(0.045, 0.04, length(q)));
-  for (int i = 0; i < 6; i++) {
-    float a = (float(i) + 0.5) * PI / 3.0;
-    vec2 bp = 0.39 * vec2(cos(a), sin(a));
-    float db = length(q - bp);
-    float bm = smoothstep(0.03, 0.022, db);
-    col *= 1.0 - 0.55 * smoothstep(0.048, 0.03, db) * (1.0 - bm);
-    col = mix(col, C_BONE * (0.06 + 0.4 * dif) + C_GRAPHITE * 0.05, bm);
-  }
-  vec3 hv = normalize(KEY - rd);
-  col += C_BONE * pow(max(dot(n, hv), 0.0), 56.0) * 0.6 * (1.0 - 0.5 * bev);
-  col += C_GRAPHITE * 0.05 * pow(1.0 - max(dot(n, -rd), 0.0), 3.0);
-  return col;
-}
-vec3 pinsFx(vec3 n, vec3 col) {
-  for (int i = 0; i < ${MAXPINS}; i++) {
-    vec4 pn = uPins[i];
-    if (pn.w <= 0.0) continue;
-    float d = length(n - pn.xyz);
-    if (d > 1.2) continue;
-    float age = uT - pn.w;
-    const float r = 0.018;
-    if (age < 0.0) {
-      if (uShowQ < 0.5) continue;
-      // queued pin standing proud of the seam: cast shadow + unlit head
-      float sh = smoothstep(r * 2.0, r * 1.1, length(n - pn.xyz + vec3(0.016, -0.016, 0.0)));
-      col *= 1.0 - 0.6 * sh;
-      col = mix(col, C_GRAPHITE * 0.35, smoothstep(r, r * 0.8, d));
-      col += C_BONE * 0.35 * exp(-pow((d - r * 0.85) / 0.002, 2.0));
-    } else {
-      float head = smoothstep(r, r * 0.8, d);
-      col *= 1.0 - 0.7 * exp(-pow((d - r) / 0.004, 2.0));
-      col = mix(col, C_GRAPHITE * 0.3 + C_BONE * 0.1 + C_SIGNAL * 5.0 * exp(-age * 6.0), head);
-      float rr = r + age * 0.7;
-      float ring = exp(-pow((d - rr) / (0.005 + age * 0.03), 2.0)) * exp(-age * 7.0);
-      col += (C_EMBER * 1.5 + C_SIGNAL) * ring * 1.1;
-    }
-  }
-  return col;
-}
-vec3 afterFx(vec3 n, float plate, float dq, vec3 col) {
-  for (int j = 0; j < ${MAXAFT}; j++) {
-    vec4 a = uAft[j];
-    if (a.w <= 0.0) continue;
-    float age = uT - a.w;
-    if (age < 0.0) continue;
-    float d = length(n - a.xyz);
-    float rad = 0.13 + 0.05 * age;
-    float fade = exp(-age * 0.3);
-    float drain = smoothstep(0.2, 1.5, age);
-    float spot = exp(-pow(d / rad, 2.0)) * fade;
-    float onPanel = plate * spot * (1.0 - drain) * mix(1.0, smoothstep(0.2, 0.5, dq), drain);
-    float onSeam = (1.0 - plate) * exp(-pow(d / (rad * 2.2), 2.0)) * fade * (0.3 + drain);
-    col += C_EMBER * onPanel * 1.6 + C_SIGNAL * onSeam * 4.0;
-    col += C_BONE * exp(-pow(d / 0.02, 2.0)) * exp(-age * 2.5) * 4.0 * plate;
-  }
-  return col;
-}
-// ---- panel backs, seen from inside
-vec3 innerShade(vec3 x, Cell c, float plate) {
-  vec3 n = -x;
-  vec2 q = c.g / max(c.k, 0.05);
-  float dq = hexDist(q);
-  float rib = smoothstep(0.39, 0.44, dq) + 0.7 * exp(-pow(q.y / 0.018, 2.0)) * step(dq, 0.4)
-            + 0.7 * exp(-pow(dot(q, vec2(0.866, 0.5)) / 0.018, 2.0)) * step(dq, 0.4);
-  vec3 lp = uP - x;
-  float d2 = dot(lp, lp);
-  float lit = uPI * max(dot(n, normalize(lp)), 0.0) / (1.0 + 5.0 * d2);
-  vec3 col = C_INK2 * (0.35 + 0.6 * rib) + C_SIGNAL * lit * (0.25 + 0.7 * rib);
-  col += C_GRAPHITE * uCutAmb * (0.12 + 0.55 * rib) * (0.35 + 0.65 * max(dot(n, KEY), 0.0));
-  vec3 seam = C_INK * 0.3 + C_SIGNAL * uLeak * 0.3;
-  return mix(seam, col, plate);
-}
-vec3 stars(vec3 rd) {
-  vec3 col = vec3(0.0);
-  float pxr = 1.0 / (uF * 0.5 * uRes.y);
-  vec3 cu = cubeUV(rd, 70.0);
-  vec2 cell = floor(cu.xy), f = fract(cu.xy);
-  float h = hash12(cell + cu.z * 131.7);
-  float pc = pxr * 89.0;
-  if (h > 0.9) {
-    vec2 j = 0.2 + 0.6 * hash22(cell + cu.z * 7.1);
-    float d = length(f - j);
-    float b = (h - 0.9) / 0.1;
-    float fl = 1.0 + uStarFlare * 0.4 * step(0.4, hash12(cell * 1.31 + 2.0));
-    col += mix(C_BONE, C_EMBER, step(0.975, h)) * smoothstep(1.4 * pc, 0.2 * pc, d) * (0.35 + 1.4 * b) * fl;
-  }
-  col *= uStarDen;
-  for (int i = 0; i < ${MAXSTARS}; i++) {
-    vec4 s = uStars[i];
-    if (s.w <= 0.0) continue;
-    float d = length(rd - s.xyz);
-    float alive = uT < s.w ? 1.0 + 0.4 * uStarFlare : 0.0;
-    float pop = uT >= s.w ? exp(-(uT - s.w) * 7.0) * 2.5 : 0.0;
-    col += (C_BONE * smoothstep(3.2 * pxr, 0.6 * pxr, d) * 1.8 + C_EMBER * exp(-d / (7.0 * pxr)) * 0.3) * (alive + pop);
-  }
-  return col;
-}
-vec2 raySeg(vec3 ro, vec3 rd, vec3 a, vec3 b) {
-  vec3 ba = b - a, oa = ro - a;
-  float baba = dot(ba, ba), bard = dot(ba, rd), baoa = dot(ba, oa), rdoa = dot(rd, oa);
-  float t = (baoa * bard - rdoa * baba) / max(baba - bard * bard, 1e-6);
-  float s = clamp((baoa + t * bard) / baba, 0.0, 1.0);
-  vec3 pa = a + ba * s;
-  t = max(dot(pa - ro, rd), 0.0);
-  return vec2(length(ro + rd * t - pa), t);
-}
-// the empty cradle at the centre: three struts down to the wall, a socket ring, three claws holding nothing
-vec4 cradle(vec3 ro, vec3 rd, float tO) {
-  vec4 hit = vec4(0.0, 0.0, 0.0, tO);
-  for (int i = 0; i < 6; i++) {
-    float a = float(i % 3) * TAU / 3.0 + 0.4;
-    vec3 A, B; float rad;
-    if (i < 3) { A = vec3(0.075 * cos(a), -0.01, 0.075 * sin(a)); B = 0.97 * normalize(vec3(0.62 * cos(a), -0.78, 0.62 * sin(a))); rad = 0.013; }
-    else { A = vec3(0.078 * cos(a), 0.0, 0.078 * sin(a)); B = vec3(0.035 * cos(a), 0.075, 0.035 * sin(a)); rad = 0.008; }
-    vec2 q = raySeg(ro, rd, A, B);
-    if (q.x < rad && q.y < hit.w && q.y > 0.0) {
-      vec3 x = ro + rd * q.y;
-      vec3 ax = normalize(B - A);
-      vec3 nn = normalize((x - A) - ax * dot(x - A, ax));
-      float dif = max(dot(nn, KEY), 0.0);
-      hit = vec4(mix(C_INK2, C_GRAPHITE, 0.5) * (0.15 + 0.9 * dif) + C_BONE * pow(max(dot(nn, normalize(KEY - rd)), 0.0), 40.0) * 0.5, q.y);
-    }
-  }
-  if (abs(rd.y) > 1e-4) {
-    float tp = -ro.y / rd.y;
-    vec3 x = ro + rd * tp;
-    float r = length(x.xz);
-    if (tp > 0.0 && tp < hit.w && r > 0.05 && r < 0.088) {
-      float dif = abs(dot(vec3(0.0, sign(ro.y), 0.0), KEY));
-      vec3 c = mix(C_GRAPHITE, C_BONE, 0.15) * (0.2 + 0.7 * dif);
-      c *= 1.0 - 0.6 * exp(-pow((r - 0.069) / 0.003, 2.0));
-      hit = vec4(c, tp);
-    }
-  }
-  return hit;
+/** World -> logical px; null behind (or too close to) the camera. */
+function proj(c: Cam3, X: V): [number, number, number] | null {
+  const d = sub(X, c.C);
+  const z = dot(d, c.w);
+  if (z < 0.02) return null;
+  return [c.px + (c.f * dot(d, c.u)) / z, c.py - (c.f * dot(d, c.v)) / z, z];
 }
 
-void main() {
-  vec2 fc = vUv * uRes;
-  vec2 p = (fc - 0.5 * uRes) / (0.5 * uRes.y);
-  vec3 ro = uRo, rd = normalize(p.x * uU + p.y * uV + uF * uW);
-  float pxw = 1.0 / (uF * 0.5 * uRes.y);
-  vec3 bg = stars(rd);
-  vec3 col = bg;
-  float tO = 1e9;
-  bool inside = dot(ro, ro) < 1.0;
-  bool cutOn = uCut.w > 0.5;
-  vec3 cn = uCut.xyz;
-  vec2 hs = raySphere(ro, rd, 1.0);
-  if (hs.y > 0.0) {
-    // what lies behind the front face: the inner surface of the far side (or the sky through a gap / the cut)
-    vec3 back = bg; float tb = 1e9;
-    vec3 xb = ro + rd * hs.y;
-    if (!(cutOn && dot(xb, cn) > 0.0)) {
-      Cell cb = cellAt(xb);
-      float aab = pxw * hs.y * 3.2 * 1.5;
-      float plb = plateMask(cb, aab);
-      float opb = max(plb, step(0.9, cb.k));
-      if (opb > 0.0) { back = mix(bg, innerShade(xb, cb, plb), opb); tb = hs.y; }
-    }
-    if (!inside && hs.x > 0.0) {
-      vec3 x = ro + rd * hs.x;
-      vec3 n = x;
-      if (cutOn && dot(x, cn) > 0.0) { col = back; tO = tb; }
-      else {
-        Cell c = cellAt(n);
-        float graze = 1.0 / max(dot(n, -rd), 0.15);
-        float aa = pxw * hs.x * 3.2 * graze;
-        float plate = plateMask(c, aa);
-        float seam = step(0.9, c.k);
-        float op = max(plate, seam);
-        float dq = 0.0;
-        vec3 s = metal(n, rd, c, dq);
-        float leak = uLeak * (1.0 + 2.5 * exp(-pow((c.d - 0.49) / 0.012, 2.0)));
-        vec3 sc = C_INK * 0.25 + C_SIGNAL * (leak + uSeam * 1.6) + C_EMBER * uSeam * 0.6 * exp(-pow((c.d - 0.49) / 0.01, 2.0));
-        s = mix(sc, s, plate);
-        s = pinsFx(n, s);
-        s = afterFx(n, plate, dq, s);
-        // dissolve into lines: the fill goes, the panel outlines stay
-        vec3 lines = C_BONE * 0.9 * exp(-pow((c.d - 0.47) / (aa * 0.8 + 0.004), 2.0)) + C_INK * 0.4;
-        s = mix(s, lines, uDissolve);
-        col = mix(back, s, op);
-        tO = op > 0.5 ? hs.x : tb;
-      }
-    } else {
-      col = back; tO = tb;
-    }
-  }
-  // cut section: the shell's wall sliced by the clip plane (skins + hatched core), its seam can glow
-  if (cutOn) {
-    float dn = dot(rd, cn);
-    if (abs(dn) > 1e-4) {
-      float tp = -dot(ro, cn) / dn;
-      vec3 xp = ro + rd * tp;
-      float r = length(xp);
-      if (tp > 0.0 && tp < tO && r > 0.952 && r < 1.0) {
-        float u = (1.0 - r) / 0.048;
-        vec3 sc;
-        if (u < 0.2 || u > 0.82) sc = mix(C_GRAPHITE, C_BONE, 0.3) * 0.75;
-        else sc = mix(C_INK2, C_GRAPHITE * 0.8, step(0.5, fract(dot(xp, vec3(1.0, 1.0, 1.0)) * 70.0)) * 0.7);
-        sc *= 1.0 - 0.7 * exp(-pow((u - 0.2) / 0.03, 2.0)) - 0.7 * exp(-pow((u - 0.82) / 0.03, 2.0));
-        sc += C_SIGNAL * uSection * 5.0 * exp(-pow((u - 0.5) / 0.14, 2.0)) + C_EMBER * uSection * 2.0 * exp(-pow((u - 0.5) / 0.05, 2.0));
-        col = sc; tO = tp;
-      }
-    }
-  }
-  // equator collar: a flange with lugs that ratchet round (the silhouette steps)
-  if (uCollar.x > 0.5 && abs(rd.y) > 1e-4) {
-    float tc = -ro.y / rd.y;
-    vec3 xc = ro + rd * tc;
-    float r = length(xc.xz);
-    float a = atan(xc.z, xc.x);
-    float lug = fract(a / TAU * 32.0 + uCollar.y);
-    bool fl = r > 0.99 && r < 1.075, lg = r >= 1.075 && r < 1.16 && lug < 0.42;
-    if (tc > 0.0 && tc < tO && (fl || lg)) {
-      float dif = abs(dot(vec3(0.0, sign(ro.y), 0.0), KEY));
-      vec3 cc = mix(C_INK2, C_GRAPHITE, 0.55) * (0.15 + 0.9 * dif);
-      cc *= 1.0 - 0.7 * exp(-pow((r - 1.075) / 0.004, 2.0));
-      cc += C_BONE * 0.25 * smoothstep(0.012, 0.008, length(vec2(r - 1.118, (lug - 0.21) * TAU * r / 32.0))) * dif;
-      cc += C_SIGNAL * uSection * 3.0 * exp(-pow((r - 0.995) / 0.01, 2.0));
-      col = cc; tO = tc;
-    }
-  }
-  if (uCradle > 0.5) {
-    vec4 cr = cradle(ro, rd, tO);
-    if (cr.w < tO) { col = cr.rgb; tO = cr.w; }
-  }
-  // the point of light and the shafts it throws through the gaps
-  if (uPI > 0.001) {
-    float tc = clamp(dot(uP - ro, rd), 0.0, tO);
-    float d = length(ro + rd * tc - uP);
-    col += uPI * (C_BONE * exp(-d * d / 0.00015) * 5.0 + C_EMBER * exp(-d * 24.0) * 1.3 + C_SIGNAL * exp(-d * 10.0) * 0.15);
-    if (dot(uP, uP) < 0.9) {
-      vec2 hb = raySphere(ro, rd, 3.4);
-      float a0 = max(hb.x, 0.0), a1 = min(hb.y, tO);
-      if (a1 > a0) {
-        const int N = 22;
-        float dt = (a1 - a0) / float(N);
-        float j = hash12(fc);
-        float acc = 0.0;
-        for (int i = 0; i < N; i++) {
-          vec3 x = ro + rd * (a0 + (float(i) + j) * dt);
-          float r = length(x);
-          if (r < 1.0) { acc += 0.05 * exp(-length(x - uP) * 4.0); continue; }
-          vec3 dir = normalize(x - uP);
-          float b = dot(uP, dir), cc = dot(uP, uP) - 1.0;
-          vec3 e = uP + dir * (-b + sqrt(max(b * b - cc, 0.0)));
-          Cell c = cellAt(e);
-          float open = c.d > 0.5 * c.k - 0.024 ? (c.k < 0.9 ? 1.0 : 0.03) : 0.0;
-          float cone = uSpill + uRay.w * pow(max(dot(dir, uRay.xyz), 0.0), 14.0);
-          acc += open * cone / (1.0 + 4.0 * (r - 1.0) * (r - 1.0));
-        }
-        col += (C_SIGNAL * 0.8 + C_EMBER * 0.2) * acc * dt * uPI * 0.22;
-      }
-    }
-  }
-  fragColor = vec4(max(col, 0.0), 1.0);
-}
-`;
+// ------------------------------------------------------------------ dancheong vault geometry
+const ZEN: V = [0, 1, 0], EX: V = [1, 0, 0], EZ: V = [0, 0, 1];
+const A0 = 0.12;         // medallion half-angle (rad)
+const DR = 0.105;        // ring width (rad)
+const NR = 24;           // rings out from the medallion
+const CLOSE = 6;         // rings 1..CLOSE are open at the first frame and lock one per beat
+const BEAMS = new Set([7, 11]); // ring beams (painted bands) instead of panel rings
+const ringTh = (r: number) => A0 + (r - 0.5) * DR;
+const ringN = (r: number) => Math.max(6, Math.round((TAU * Math.sin(ringTh(r))) / (DR * 1.02) / 6) * 6);
+/** Motif per panel: a fixed order per ring, with a few panels swapped so the vault never mirrors itself. */
+const motifOf = (r: number, i: number) => ([0, 2, 1, 3][r % 4]! + (hash(r, i, 7) > 0.86 ? 2 : 0)) % 4;
 
-// ------------------------------------------------------------------ scene
-type Pin = { dir: V; t: number };
+// ------------------------------------------------------------------ pullback geometry
+const SAX: V = norm([0.18, 0.3, 1]);            // the sealed sphere's pole (the medallion) faces the first camera
+const SE1: V = norm(cross(SAX, [0, 1, 0]));
+const SE2: V = cross(SAX, SE1);
+const SA0 = 0.2, SDR = 0.14;
+const KEY: V = norm([-0.65, 0.55, 0.52]);       // cold key light, upper left, in front
+const D0 = 4;                                   // first-frame distance: sphere radius on screen = R_SEAL
+
+type Ctx2 = CanvasRenderingContext2D;
 
 export default class Shell extends Scene {
-  private pass!: FSPass;
   private layer!: Layer2D;
   private list: Shot[] = [];
   private plate!: PlateInfo;
-  private lines: Line[] = [];
-  private kicks: number[] = [];
+  private P!: NamedPalette;
   private beats: number[] = [];
-  private lay: LineLayout | null = null;
-  /** seal: the last gap and its cell; partial: the gap the camera looks through. */
-  private G: V = [0, 0, 1];
-  private gapCell = { cx: 0, cy: 0, f: 4, dir: [0, 0, 1] as V };
-  private ring: Pin[] = [];
-  private loose: Pin[] = [];
-  private hero: { dir: V; te: number; sx: number; sy: number }[] = [];
+  private sprites: HTMLCanvasElement[] = [];
+  private medal!: HTMLCanvasElement;
+  private fUp = 700;
+  private fSeal = 1600;
+  private fOut = 520;
+  private stars: { X: V; b: number; tOff: number; hero: boolean; rw: number }[] = [];
 
   override init() {
     this.plate = this.ctx.params as PlateInfo;
+    this.P = palette(this.ctx.params.look?.palette ?? (this.plate.variant === 'dancheong' ? 'dancheong' : 'pullback'));
     this.list = shots(this.plate, this.ctx.audio);
-    this.lines = ownedLines(this.ctx);
+    this.beats = beatTimes(this.ctx.audio, this.ctx.start, this.ctx.end);
     this.layer = new Layer2D();
-    const au = this.ctx.audio, { start, end } = this.ctx;
-    this.beats = au.beats.filter((b) => b >= start - 1e-3 && b < end);
-    // kicks inside the plate, thinned to >= 90 ms apart (one pin per kick)
-    for (const [t, s] of au.onsets.kick ?? []) {
-      if (t < start || t >= end || s < 0.25) continue;
-      if (this.kicks.length && t - this.kicks[this.kicks.length - 1]! < 0.09) continue;
-      this.kicks.push(t);
+    if (this.plate.variant === 'dancheong') this.initVault();
+    else this.initOut();
+  }
+
+  // ================================================================== dancheong
+  private initVault() {
+    // focal lengths solved from the geometry: the open ring edge at ~330 px in the first frame; the medallion at
+    // exactly R_SEAL in the seal shot (camera on the zenith axis, so it projects as a circle)
+    const up = this.vaultCam('up', 0, 0, 0, 1);
+    let acc = 0;
+    for (let k = 0; k < 12; k++) {
+      const p = proj(up, sph(A0 + CLOSE * DR, (k / 12) * TAU, ZEN, EX, EZ))!;
+      acc += Math.hypot(p[0] - AX, p[1] - AY);
     }
-    const v = this.plate.variant;
-    this.G = v === 'partial' ? norm([-0.36, 0.3, 0.88]) : norm([0.42, 0.3, 0.86]);
-    this.gapCell = cellOf(this.G);
-    this.G = this.gapCell.dir; // aim at the centre of the gap panel
-    this.buildPins();
-    this.buildStars();
-
-    const u: Record<string, THREE.IUniform> = {
-      uRes: { value: new THREE.Vector2(W, H) }, uT: { value: 0 },
-      uRo: { value: new THREE.Vector3() }, uU: { value: new THREE.Vector3() }, uV: { value: new THREE.Vector3() }, uW: { value: new THREE.Vector3() }, uF: { value: 2 },
-      uMode: { value: 0 }, uCover: { value: 1 }, uSoft: { value: 0.03 },
-      uGapDir: { value: new THREE.Vector3(...this.G) }, uGapCell: { value: new THREE.Vector3(this.gapCell.cx, this.gapCell.cy, this.gapCell.f) },
-      uGapOn: { value: 0 }, uGapOpen: { value: 0 },
-      uP: { value: new THREE.Vector3() }, uPI: { value: 0 },
-      uRay: { value: new THREE.Vector4(0, 0, 1, 0) }, uSpill: { value: 0 },
-      uCut: { value: new THREE.Vector4(0, 1, 0, 0) }, uCutAmb: { value: 0 },
-      uSeam: { value: 0 }, uSection: { value: 0 }, uLeak: { value: 0 }, uShowQ: { value: 0 }, uDissolve: { value: 0 }, uCradle: { value: 0 },
-      uStarFlare: { value: 0 }, uStarDen: { value: 1 }, uCollar: { value: new THREE.Vector2() },
-      uPins: { value: Array.from({ length: MAXPINS }, () => new THREE.Vector4()) },
-      uStars: { value: Array.from({ length: MAXSTARS }, () => new THREE.Vector4()) },
-      uAft: { value: Array.from({ length: MAXAFT }, () => new THREE.Vector4()) },
-    };
-    this.pass = new FSPass(FRAG, u);
+    this.fUp = 330 / (acc / 12);
+    const seal = this.vaultCam('seal', 0, 0, 0, 1);
+    const m = proj(seal, add(ZEN, mul(EX, A0)))!;
+    this.fSeal = R_SEAL / Math.hypot(m[0] - AX, m[1] - AY);
+    this.sprites = [0, 1, 2, 3].map((k) => this.paintSprite(k));
+    this.medal = this.paintMedallion();
   }
 
-  private sb(i: number) {
-    // the shot list's storyboard anchors, by camera name
-    return this.list.find((s) => s.s.cam === (['fingers', 'etch', 'escape', 'pins', 'sealed'] as Cam[])[i])?.t ?? this.ctx.start;
-  }
-
-  /** seal: 18 lock pins on the seams around the last gap (driven one per kick from the pins shot), plus loose
-   * pins on random seams for every other kick; whole: one lock per beat on a random visible panel seam. */
-  private buildPins() {
-    const v = this.plate.variant;
-    const around = (centre: V, spread: number, i: number): V => {
-      const t1 = norm(cross(centre, UP)), t2 = cross(t1, centre);
-      const a = hash(i, 11) * Math.PI * 2, r = Math.sqrt(hash(i, 12)) * spread;
-      const d = norm(add(centre, add(mul(t1, r * Math.cos(a)), mul(t2, r * Math.sin(a)))));
-      // snap to the nearest seam corner of that cell
-      const c = cellOf(d);
-      const k = Math.floor(hash(i, 13) * 6), ang = ((k + 0.5) * Math.PI) / 3;
-      return cubeDir(c.cx + 0.577 * Math.cos(ang), c.cy + 0.577 * Math.sin(ang), c.f);
-    };
-    if (v === 'seal') {
-      const { cx, cy, f } = this.gapCell;
-      const slots: [number, number][] = [];
-      for (let k = 0; k < 6; k++) slots.push([0.577, ((k + 0.5) * Math.PI) / 3]);
-      for (let k = 0; k < 6; k++) slots.push([0.5, (k * Math.PI) / 3]);
-      for (let k = 0; k < 6; k++) slots.push([1.0, ((k + 0.5) * Math.PI) / 3]);
-      const t0 = this.sb(3) - 0.02;
-      const ringKicks = this.kicks.filter((k) => k >= t0);
-      slots.forEach(([r, a], i) => {
-        this.ring.push({ dir: cubeDir(cx + r * Math.cos(a), cy + r * Math.sin(a), f), t: ringKicks[i] ?? 1e6 });
-      });
-      this.kicks.forEach((k, i) => {
-        if (k >= t0 && i - this.kicks.findIndex((x) => x >= t0) < slots.length) return;
-        this.loose.push({ dir: around(norm(add(this.G, [-0.25, -0.15, 0.3])), 0.9, i), t: k });
-      });
-    } else if (v === 'whole') {
-      this.beats.forEach((b, i) => this.loose.push({ dir: around(norm([0.35, 0.4, 0.85]), 0.8, i + 40), t: b }));
-    } else if (v === 'partial') {
-      this.beats.forEach((b, i) => this.loose.push({ dir: around(norm([0.2, 0.35, 0.9]), 0.8, i + 80), t: b }));
-    }
-  }
-
-  /** pullback: 16 named stars placed in the wide shot's frame; one goes out every 2 s. */
-  private buildStars() {
-    if (this.plate.variant !== 'pullback') return;
-    const b = basis(this.camera('wide', this.ctx.start));
-    const pos: [number, number][] = [
-      [-1.25, 0.55], [1.1, -0.45], [-0.62, -0.62], [0.72, 0.66], [1.5, 0.2], [-1.55, -0.2], [0.3, -0.78], [-0.28, 0.8],
-      [1.38, 0.75], [-1.1, 0.12], [0.95, 0.05], [-0.9, -0.78], [1.62, -0.72], [-1.62, 0.78], [0.5, 0.42], [-0.45, 0.4],
-    ];
-    pos.forEach(([sx, sy], i) => {
-      const dir = norm(add(add(mul(b.u, sx), mul(b.v, sy)), mul(b.w, b.f)));
-      const te = i < 5 ? this.ctx.start + 1.0 + 2.0 * i : 1e6;
-      this.hero.push({ dir, te, sx, sy });
-    });
-  }
-
-  private camera(cam: Cam, t: number): CamS {
-    const G = this.G, lt = t - this.ctx.start;
-    const east = norm(cross(UP, G));
+  /** Camera per shot. u = 0..1 through the shot (slow drift), f1 = focal override (solving). */
+  private vaultCam(cam: Cam, u: number, bp: number, t: number, f1 = 0): Cam3 {
+    const REF: V = [0, 0, -1];
+    const f = (k: number) => (f1 || this.fUp) * k;
+    const d = 0.02 * u;
     switch (cam) {
-      // partial
-      case 'wideA': return { ro: [2.3 - 0.05 * lt, 1.05, 3.1], ta: [0, 0.05, 0], f: 2.25, roll: 0.06 };
-      case 'wideB': return { ro: [-2.9, -0.95, 2.1 + 0.05 * lt], ta: [0.1, 0.1, 0], f: 2.9, roll: -0.12 };
-      case 'inA': return { ro: add(mul(G, -0.45), [0.05 * Math.sin(lt), 0.1, 0]), ta: G, f: 1.25, roll: 0 };
-      case 'inB': return { ro: [0.5, -0.45, -0.25], ta: add(G, [0.1, 0.05, 0]), f: 1.6, roll: 0.35 };
-      case 'slamIn': return { ro: add(mul(G, 1.5), mul(east, 0.12)), ta: G, f: 1.8, roll: -0.08 };
-      // seal
-      case 'fingers': return { ro: mul(norm([-0.45, 0.2, 1.0]), 3.7 - 0.12 * lt), ta: [0.1, 0, 0], f: 2.7, roll: 0.04 };
-      case 'etch': return { ro: add(mul(G, 1.42), add(mul(east, -0.2), [0, -0.12, 0])), ta: add(mul(G, 0.98), add(mul(east, -0.12), [0, -0.1, 0])), f: 1.7, roll: 0.05 };
-      case 'escape': return { ro: add(mul(G, 1.62), add(mul(east, 0.5), [0, 0.08, 0])), ta: add(sub(mul(G, 1.02), mul(east, 0.3)), [0, 0.04, 0]), f: 1.6, roll: -0.08 };
-      case 'slam': return { ro: add(mul(G, 1.9), [0, 0.05, 0]), ta: G, f: 1.9, roll: 0.12 };
-      case 'pins': return { ro: add(mul(G, 1.4), [0, -0.06, 0]), ta: add(G, [0, -0.06, 0]), f: 1.55, roll: -0.04 };
-      case 'pins2': return { ro: add(mul(G, 1.25), mul(east, 0.08)), ta: add(G, mul(east, 0.02)), f: 1.9, roll: 0.42 };
-      case 'sealed': return { ro: [2.6, 0.9, 2.3], ta: [-0.12, 0, 0], f: 2.5, roll: 0 };
-      // whole
-      case 'ext': return { ro: [2.7 - 0.06 * lt, 1.35, 2.4], ta: [0, -0.05, 0], f: 3.0, roll: 0.05 };
-      case 'extLow': return { ro: [-1.3, -0.32, 3.3], ta: [0, 0.05, 0], f: 3.0, roll: -0.16 };
-      case 'cutSide': return { ro: [3.0, 1.9, 1.5], ta: [0, -0.1, 0], f: 2.45, roll: 0 };
-      case 'cutSeam': return { ro: [1.45, 0.42, 0.85], ta: [0.86, -0.02, 0.42], f: 2.1, roll: 0.1 };
-      case 'empty': return { ro: [0.55, 1.35, 0.95], ta: [0, -0.02, 0], f: 1.9, roll: 0 };
-      case 'overhead': return { ro: [0.02, 3.7, 0.35], ta: [0, 0, 0], f: 2.3, roll: 0.3 };
-      // pullback
-      case 'close': return { ro: [1.05, 0.5, 1.85 - 0.03 * lt], ta: [0.25, 0.12, 0], f: 1.9, roll: 0.04 };
-      case 'graze': return { ro: [-1.35, 0.1, 0.62], ta: [0.2, 0.25, -0.5], f: 2.0, roll: -0.2 };
-      case 'wide': return { ro: [0, 0.3, 9.0 + 0.25 * (t - 207.3)], ta: [0, 0, 0], f: 2.4, roll: 0 };
-      case 'screen': return { ro: [0, 0.2, 3.3], ta: [0, 0, 0], f: 2.35, roll: 0 };
+      case 'tilt': // off-axis, looking obliquely across the vault: the rings run as perspective ellipses
+        return lookAt([-0.5 + d, -0.45, 0.4], norm([0.55, 0.72, -0.42]), REF, 0.38, f(0.85), 820, 600);
+      case 'close': // standing near the far wall, film plane level: rings crowd on one side, rafters fan out
+        return this.shiftCam([-0.55 + d, -0.42, 0.42], f(1.55 * (1 + 0.05 * u)), 0.5);
+      case 'rake': // a low raking angle from the far side: the last rings stacked up in depth
+        return lookAt([0.55, -0.62 + d, -0.35], norm([-0.5, 0.78, 0.36]), REF, -0.45, f(0.95), 1120, 600);
+      case 'seal':
+        return this.shiftCam([0.42, -0.3, -0.36], f1 || this.fSeal, -0.3);
+      default: // up
+        return this.shiftCam([0.62 + d, -0.46, 0.3], f(1 + 0.004 * bp), 0.05 * Math.sin(t * 0.7));
     }
   }
 
-  /** seal: where the point of light is. */
-  private point(t: number): V {
-    const t0 = this.sb(2) + 0.02, t1 = this.sb(2) + 0.45;
-    if (t < t0) return [0, 0, 0];
-    if (t < t1) return mul(this.G, ease.inOutCubic((t - t0) / (t1 - t0)));
-    return this.outPath(t - t1);
+  /**
+   * An off-axis view with a level film plane (setViewOffset-style lens shift): the camera stands away from the
+   * vault's axis and looks straight up, the principal point shifted so the zenith lands on the anchor. Everything
+   * near the zenith (the Sun, the medallion) stays a true circle there, while the rings and rafters around it run
+   * eccentric, crowding on the far side where the vault curves down.
+   */
+  private shiftCam(C: V, f: number, roll: number): Cam3 {
+    const c = lookAt(C, add(C, [0, 1, 0]), [0, 0, -1], roll, f, 0, 0);
+    const z = proj(c, ZEN)!;
+    return { ...c, px: AX - z[0], py: AY - z[1] };
   }
-  private outPath(tau: number): V { return add(add(mul(this.G, 1 + 1.6 * tau), mul(norm(cross(UP, this.G)), -1.4 * tau)), [0, 0.5 * tau * tau, 0]); }
 
-  override render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
-    const { renderer, audio: au } = this.ctx;
-    const t = f.t, v = this.plate.variant;
-    const { shot, t0: s0 } = shotAt(this.list, t);
-    const st = shot.s, cam = st.cam as Cam, since = t - s0;
-    const camS = this.camera(cam, t);
-    const b = basis(camS);
-    const u = this.pass.u;
-    const set3 = (k: string, x: V) => (u[k]!.value as THREE.Vector3).set(x[0], x[1], x[2]);
-    set3('uRo', b.ro); set3('uU', b.u); set3('uV', b.v); set3('uW', b.w);
-    u.uF!.value = b.f; u.uT!.value = t;
-
-    const bp = beatPulse(au, t, 0.14), kp = kickPulse(au, t, 0.1), dp = downbeatPulse(au, t, 0.12);
-    const bi = beatIndex(au, t), lastBeat = au.beats[bi] ?? 0;
-    // defaults: sealed complete sphere, no light inside
-    let mode = 0, cover = 1.2, soft = 0.02, gapOn = 0, gapOpen = 0, P: V = [0, 0, 0], PI = 0;
-    let ray: [number, number, number, number] = [0, 0, 1, 0], spill = 0, cut: [number, number, number, number] = [0, 1, 0, 0];
-    let cutAmb = 0, seam = 0, section = 0, leak = 0, showQ = 0, dissolve = 0, cradle = 0, starFlare = kp, starDen = 1;
-    let collar: [number, number] = [0, 0];
-    let aft: [V, number][] = [];
-    const post: PostOverrides = { bloom: 0, shake: [0, 0], zoom: 1, flash: 0, fade: 0 };
-    const jolt = (amp: number, seed: number, k: number) => {
-      post.shake = [amp * k * (hash(seed, 1) < 0.5 ? -1 : 1), amp * 0.6 * k * (hash(seed, 2) < 0.5 ? -1 : 1)];
+  /** One hex panel design, painted once into a sprite (sprite space [-1, 1], pointy along +y = radial). */
+  private paintSprite(kind: number): HTMLCanvasElement {
+    const S = 256;
+    const cv = document.createElement('canvas');
+    cv.width = S; cv.height = S;
+    const c = cv.getContext('2d')!;
+    c.setTransform(S / 2, 0, 0, S / 2, S / 2, S / 2);
+    const P = this.P;
+    const hex = (r: number, fill: string) => {
+      c.beginPath();
+      for (let k = 0; k < 6; k++) { const a = Math.PI / 2 + (k * Math.PI) / 3; c.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+      c.closePath(); c.fillStyle = fill; c.fill();
     };
-
-    if (v === 'partial') {
-      const di = barIndex(au, t), dStart = au.downbeats.findIndex((d) => d >= this.ctx.start - 1e-3);
-      const steps = Math.max(0, di - dStart), lastDown = au.downbeats[di] ?? 0;
-      // per downbeat a few panels clamp shut (70 ms clamp)
-      cover = 0.5 + 0.035 * (steps - 1 + clamp((t - lastDown) / 0.07));
-      soft = 0.012; gapOn = 1; gapOpen = 1; PI = 2.6; spill = 0.28; leak = 0.25;
-      // per beat the blast leaves through a different gap: its direction sweeps 30° per beat
-      const a = (bi * Math.PI) / 6, ax = norm([0.2, 1, 0.15]);
-      const b0 = norm([0.55, 0.35, 0.75]);
-      const rot = add(add(mul(b0, Math.cos(a)), mul(cross(ax, b0), Math.sin(a))), mul(ax, dot(ax, b0) * (1 - Math.cos(a))));
-      ray = [rot[0], rot[1], rot[2], 3.2 * beatPulse(au, t, 0.2)];
-      if (cam === 'slamIn') {
-        const k = clamp(since / 0.085);
-        gapOpen = 1 - ease.outBack(k);
-        PI = 2.6 * (1 - smoothstep(0.02, 0.1, since));
-        post.zoom = 1 + 0.14 * Math.exp(-since / 0.12);
-        jolt(22, 97, Math.exp(-since / 0.07));
-        post.fade = smoothstep(this.ctx.end - 0.33, this.ctx.end - 0.02, t);
-      } else {
-        post.zoom = 1 + 0.07 * beatPulse(au, t, 0.1);
-        if (t - lastDown < 0.25) jolt(18, di, Math.exp(-(t - lastDown) / 0.06));
+    const disc = (r: number, fill: string) => { c.beginPath(); c.arc(0, 0, r, 0, TAU); c.fillStyle = fill; c.fill(); };
+    const petals = (n: number, r0: number, r1: number, wd: number, fill: string, rot = 0) => {
+      c.fillStyle = fill;
+      for (let i = 0; i < n; i++) {
+        const a = rot + (i / n) * TAU;
+        c.beginPath();
+        c.ellipse(Math.cos(a) * (r0 + r1) / 2, Math.sin(a) * (r0 + r1) / 2, (r1 - r0) / 2, wd, a, 0, TAU);
+        c.fill();
       }
-      post.flash = 0.1 * beatPulse(au, t, 0.06);
-      post.bloom = 0.4; post.bloomThreshold = 0.95;
-      this.setPins(t, this.loose.filter((p) => p.t <= t).slice(-6), []);
-    } else if (v === 'seal') {
-      mode = 1; gapOn = 1; soft = 0.05;
-      const sb = [0, 1, 2, 3, 4].map((i) => this.sb(i));
-      // fingers: the shell closes toward the last gap in steps, one per beat
-      const nb = this.beats.filter((x) => x <= t).length;
-      const lb = this.beats.filter((x) => x <= t).pop() ?? this.ctx.start;
-      const stepped = nb - 1 + clamp((t - lb) / 0.08);
-      cover = t >= sb[1]! ? 1.3 : Math.min(1.0, 0.6 + 0.1 * Math.max(0, stepped));
-      const slamT = this.list.find((s) => s.s.cam === 'slam')?.t ?? sb[3]!;
-      gapOpen = t < slamT ? 1 : 1 - ease.outBack(clamp((t - slamT) / 0.09));
-      P = this.point(t);
-      PI = 3.2 * (1 - smoothstep(slamT - 0.2, slamT + 0.4, t));
-      const inside = len(P) < 0.95;
-      leak = inside ? 0.35 + 0.4 * kp : 0;
-      spill = inside ? 0.45 : 0;
-      const ki = this.kicks.filter((k) => k <= t).length;
-      const rd = norm([hash(ki, 3) - 0.3, hash(ki, 4) - 0.4, 0.8]);
-      ray = [rd[0], rd[1], rd[2], inside ? 3.0 * kickPulse(au, t, 0.14) : 0];
-      showQ = cam === 'pins' || cam === 'pins2' ? 1 : 0;
-      this.setPins(t, this.loose.filter((p) => p.t <= t && t < sb[3]!).slice(-6), this.ring);
-      if (cam === 'sealed') { cut = [1, 0, 0, 1]; cutAmb = 1; cradle = 1; PI = 0; }
-      // hits
-      post.bloom = inside || PI > 0.1 ? 0.45 : 0.3; post.bloomThreshold = 0.85;
-      post.zoom = 1 + 0.06 * dp + 0.03 * bp;
-      jolt(cam === 'pins' || cam === 'pins2' ? 12 : 7, ki, kickPulse(au, t, 0.05));
-      if (cam === 'fingers') post.flash = 0.35 * Math.exp(-since / 0.12);
-      if (cam === 'escape') post.zoom = (post.zoom ?? 1) * (1 + 0.1 * Math.exp(-since / 0.15));
-      if (cam === 'slam') { post.zoom = 1 + 0.16 * Math.exp(-since / 0.1); jolt(26, 7, Math.exp(-since / 0.08)); post.flash = 0.2 * Math.exp(-since / 0.05); }
-      if (cam === 'sealed') post.zoom = 1 + 0.08 * Math.exp(-since / 0.1);
-      post.fade = smoothstep(this.ctx.end - 0.3, this.ctx.end - 0.02, t);
-    } else if (v === 'whole') {
-      // collar lugs ratchet half a lug per beat (the silhouette changes), 1-frame camera jolt on the beat
-      const k = clamp((t - lastBeat) / 0.06);
-      collar = [1, (bi + ease.outBack(k)) / 64];
-      if (t - lastBeat < 1 / 60 + 1e-3) post.shake = [hash(bi, 5) < 0.5 ? -16 : 16, hash(bi, 6) < 0.5 ? -10 : 10];
-      post.zoom = 1 + 0.05 * dp;
-      this.setPins(t, this.loose.filter((p) => p.t <= t).slice(-6), []);
-      if (st.cut) { cut = [0, 1, 0, 1]; cutAmb = 1; cradle = 1; }
-      const exit = smoothstep(this.ctx.end - 0.9, this.ctx.end - 0.05, t);
-      section = 0.12 * bp + 1.6 * exit;
-      seam = 0.8 * exit;
-      post.bloom = 0.2 + 0.6 * exit; post.bloomThreshold = 0.85;
+    };
+    const ink = pcss(P, 'text'), white = pcss(P, 'ground');
+    // graded bands (휘): base, white line, lighter tint, base, black line, field
+    const bands: [Role, Role, Role, Role][] = [['deep', 'mid', 'hi', 'mid'], ['mid', 'deep', 'ground', 'hi'], ['deep', 'hi', 'mid', 'deep'], ['text', 'deep', 'hi', 'mid']];
+    const [base, field, pet, core] = bands[kind]!;
+    const baseCss = kind === 3 ? pmix(P, 'deep', 'text', 0.55) : pcss(P, base);
+    hex(1, ink);
+    hex(0.93, baseCss);
+    hex(0.84, white);
+    hex(0.79, kind === 3 ? pmix(P, 'deep', 'ground', 0.35) : pmix(P, base === 'text' ? 'deep' : base, 'ground', 0.45));
+    hex(0.72, baseCss);
+    hex(0.66, ink);
+    hex(0.63, pcss(P, field));
+    if (kind === 2) {
+      // four-petal cross flower
+      petals(4, 0.08, 0.56, 0.17, ink, Math.PI / 4);
+      petals(4, 0.1, 0.52, 0.13, pcss(P, pet), Math.PI / 4);
+      petals(4, 0.1, 0.4, 0.09, white, Math.PI / 4);
     } else {
-      // pullback
-      seam = 0.14 + 1.3 * beatPulse(au, t, 0.16);
-      starFlare = kickPulse(au, t, 0.1);
-      post.shake = [3 * kp * (bi % 2 ? 1 : -1), 0];
-      post.zoom = 1 + 0.015 * dp;
-      post.bloom = 0.35; post.bloomThreshold = 0.8;
-      if (cam === 'screen') {
-        const sb = b;
-        let k = 0;
-        for (const h of this.hero) {
-          if (h.te > this.ctx.end) continue;
-          const n = norm(add(add(mul(sb.u, h.sx * 0.52), mul(sb.v, h.sy * 0.62)), mul(sb.w, -0.75)));
-          aft.push([n, Math.max(h.te + 0.1, s0 + 0.2 + 0.4 * k)]);
-          k++;
+      const n = kind === 1 ? 6 : 8;
+      petals(n, 0.12, 0.58, kind === 1 ? 0.17 : 0.13, ink);
+      petals(n, 0.14, 0.54, kind === 1 ? 0.14 : 0.105, pcss(P, pet));
+      petals(n, 0.16, 0.42, kind === 1 ? 0.08 : 0.06, kind === 1 ? pcss(P, 'mid') : white);
+      petals(n, 0.3, 0.5, 0.04, pcss(P, field === 'hi' ? 'mid' : 'hi'), Math.PI / n);
+    }
+    disc(0.17, ink);
+    disc(0.14, pcss(P, core));
+    disc(0.06, white);
+    return cv;
+  }
+
+  /** The lotus medallion that closes the oculus (sprite space [-1, 1], a circle of radius 1). */
+  private paintMedallion(): HTMLCanvasElement {
+    const S = 512;
+    const cv = document.createElement('canvas');
+    cv.width = S; cv.height = S;
+    const c = cv.getContext('2d')!;
+    c.setTransform(S / 2, 0, 0, S / 2, S / 2, S / 2);
+    const P = this.P;
+    const disc = (r: number, fill: string) => { c.beginPath(); c.arc(0, 0, r, 0, TAU); c.fillStyle = fill; c.fill(); };
+    const petals = (n: number, r0: number, r1: number, wd: number, fill: string, rot = 0) => {
+      c.fillStyle = fill;
+      for (let i = 0; i < n; i++) {
+        const a = rot + (i / n) * TAU;
+        c.beginPath();
+        c.ellipse(Math.cos(a) * (r0 + r1) / 2, Math.sin(a) * (r0 + r1) / 2, (r1 - r0) / 2, wd, a, 0, TAU);
+        c.fill();
+      }
+    };
+    disc(1, pcss(P, 'text'));
+    disc(0.96, pcss(P, 'mid'));
+    disc(0.9, pcss(P, 'ground'));
+    disc(0.86, pcss(P, 'deep'));
+    // outer ring of gold stamps on green
+    c.fillStyle = pcss(P, 'hi');
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * TAU;
+      c.beginPath();
+      c.moveTo(Math.cos(a) * 0.72, Math.sin(a) * 0.72);
+      c.lineTo(Math.cos(a + 0.09) * 0.79, Math.sin(a + 0.09) * 0.79);
+      c.lineTo(Math.cos(a) * 0.84, Math.sin(a) * 0.84);
+      c.lineTo(Math.cos(a - 0.09) * 0.79, Math.sin(a - 0.09) * 0.79);
+      c.fill();
+    }
+    disc(0.7, pcss(P, 'text'));
+    disc(0.67, pcss(P, 'mid'));
+    petals(12, 0.2, 0.66, 0.13, pcss(P, 'text'));
+    petals(12, 0.22, 0.63, 0.11, pcss(P, 'hi'));
+    petals(12, 0.25, 0.5, 0.055, pcss(P, 'ground'));
+    petals(8, 0.1, 0.4, 0.1, pcss(P, 'text'), Math.PI / 12);
+    petals(8, 0.11, 0.38, 0.085, pcss(P, 'deep'), Math.PI / 12);
+    disc(0.16, pcss(P, 'text'));
+    disc(0.13, pcss(P, 'hi'));
+    disc(0.06, pcss(P, 'mid'));
+    return cv;
+  }
+
+  /** Lock time of ring r (1..CLOSE: beats 1..6, outer first; 0 = the medallion, beat 7). */
+  private lockT(r: number) {
+    const k = r === 0 ? 7 : CLOSE + 1 - r;
+    return this.beats[k] ?? this.ctx.start + k * 0.5827;
+  }
+
+  private renderVault(t: number, cam: Cam, u: number): PostOverrides {
+    const { audio } = this.ctx;
+    const P = this.P, L = this.layer, c = L.ctx;
+    const bp = beatPulse(audio, t, 0.14), db = downbeatPulse(audio, t, 0.3), kp = kickPulse(audio, t, 0.1);
+    const C3 = this.vaultCam(cam, u, bp, t);
+    const spin = 0.035 * (t - this.ctx.start); // the vault turns slowly about the zenith
+    const start = this.ctx.start, end = this.ctx.end;
+
+    L.clear(pcss(P, 'ground'));
+
+    // ---- the Sun beyond the oculus (continues p41's disc: r = R_SUN at the anchor in the first frame)
+    const zp = proj(C3, ZEN);
+    const tMed = this.lockT(0);
+    if (zp && t < tMed + 0.05) {
+      const k = C3.f / this.fUp;
+      const rc = R_SUN * k; // the disc itself holds its size (match cut); the glare carries the beat
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      // the glare: flat rings stepping down toward the sunlit white
+      for (let i = 4; i >= 1; i--) {
+        c.beginPath(); c.arc(zp[0], zp[1], rc * (1 + 0.28 * i + 0.25 * bp), 0, TAU);
+        c.fillStyle = pmix(P, 'ground', 'hi', 0.18 * (5 - i) * (0.8 + 0.4 * bp)); c.fill();
+      }
+      c.beginPath(); c.arc(zp[0], zp[1], rc, 0, TAU); c.fillStyle = pcss(P, 'signal'); c.fill();
+      c.beginPath(); c.arc(zp[0], zp[1], rc * 0.8, 0, TAU); c.fillStyle = pmix(P, 'signal', 'hi', 0.7); c.fill();
+    }
+
+    // ---- the medallion: lowered over the Sun, landing on beat 7
+    if (t > tMed - 0.34) {
+      const tl = tMed;
+      const pre = clamp((t - (tl - 0.34)) / 0.34);
+      const s = t < tl ? lerp(0.25, 1, ease.inCubic(pre)) : 1 + 0.06 * Math.sin(Math.min(Math.PI, ((t - tl) / 0.12) * Math.PI)) * Math.exp(-(t - tl) / 0.14);
+      const P0 = proj(C3, ZEN), P1 = proj(C3, add(ZEN, mul(EX, A0 * s))), P2 = proj(C3, add(ZEN, mul(EZ, A0 * s)));
+      if (P0 && P1 && P2) {
+        const rot = spin * 2;
+        const ax = [P1[0] - P0[0], P1[1] - P0[1]], ay = [P2[0] - P0[0], P2[1] - P0[1]];
+        const cs = Math.cos(rot), sn = Math.sin(rot);
+        const bx = [ax[0]! * cs + ay[0]! * sn, ax[1]! * cs + ay[1]! * sn], by = [ay[0]! * cs - ax[0]! * sn, ay[1]! * cs - ax[1]! * sn];
+        c.setTransform(bx[0]!, bx[1]!, by[0]!, by[1]!, P0[0], P0[1]);
+        const paint = t < tl ? 0 : clamp((t - tl) / 0.16);
+        if (paint < 1) { c.beginPath(); c.arc(0, 0, 1, 0, TAU); c.fillStyle = pcss(P, 'text'); c.fill(); c.beginPath(); c.arc(0, 0, 0.95, 0, TAU); c.fillStyle = pcss(P, 'ground'); c.fill(); }
+        c.globalAlpha = paint;
+        c.drawImage(this.medal, -1, -1, 2, 2);
+        c.globalAlpha = 1;
+        const fl = t < tl ? 0 : Math.exp(-(t - tl) / 0.09);
+        if (fl > 0.01) { c.beginPath(); c.arc(0, 0, 1, 0, TAU); c.fillStyle = pcss(P, 'hi', 0.85 * fl); c.fill(); }
+      }
+    }
+
+    // ---- rings, inner to outer (an incoming ring slides in under the ring outside it)
+    for (let r = 1; r <= NR; r++) {
+      if (BEAMS.has(r)) { this.drawBeam(c, C3, r, spin, r === CLOSE + 1 ? bp : 0); continue; }
+      const tl = r <= CLOSE ? this.lockT(r) : -Infinity;
+      if (t < tl - 0.3) continue;
+      let th = ringTh(r), twist = 0, paint = 1, flash = 0;
+      if (r <= CLOSE) {
+        if (t < tl) {
+          const pu = ease.inCubic(clamp((t - (tl - 0.3)) / 0.3)); // accelerate INTO the beat, land exactly on it
+          th += DR * 0.95 * (1 - pu);
+          twist = 0.22 * (1 - pu);
+          paint = 0;
+        } else {
+          const a = t - tl;
+          th -= DR * 0.14 * Math.sin(Math.min(Math.PI, (a / 0.1) * Math.PI)) * Math.exp(-a / 0.12); // overshoot
+          paint = clamp(a / 0.15);
+          flash = Math.exp(-a / 0.1);
         }
       }
-      dissolve = smoothstep(this.ctx.end - 0.85, this.ctx.end - 0.1, t);
-      starDen = 1 - 0.8 * dissolve;
+      const n = ringN(r);
+      const rho = DR * 0.53;
+      for (let i = 0; i < n; i++) {
+        const ph = ((i + (r % 2) * 0.5) / n) * TAU + spin + twist + r * 0.05;
+        const X = sph(th, ph, ZEN, EX, EZ);
+        const eTh: V = [Math.cos(th) * Math.cos(ph), -Math.sin(th), Math.cos(th) * Math.sin(ph)];
+        const ePh: V = [-Math.sin(ph), 0, Math.cos(ph)];
+        const p0 = proj(C3, X);
+        if (!p0) continue;
+        const p1 = proj(C3, add(X, mul(ePh, rho))), p2 = proj(C3, add(X, mul(eTh, rho)));
+        if (!p1 || !p2) continue;
+        const jx = [p1[0] - p0[0], p1[1] - p0[1]], jy = [p2[0] - p0[0], p2[1] - p0[1]];
+        const sz = Math.hypot(jx[0]!, jx[1]!) + Math.hypot(jy[0]!, jy[1]!);
+        if (sz > 2600 || p0[0] < -sz || p0[0] > W + sz || p0[1] < -sz || p0[1] > H + sz) continue;
+        c.setTransform(jx[0]!, jx[1]!, jy[0]!, jy[1]!, p0[0], p0[1]);
+        if (paint < 1) this.bareHex(c);
+        if (paint > 0) {
+          c.globalAlpha = paint;
+          c.drawImage(this.sprites[motifOf(r, i)]!, -1, -1, 2, 2);
+          c.globalAlpha = 1;
+        }
+        if (flash > 0.01) {
+          this.hexPath(c, 1);
+          c.fillStyle = pcss(P, i % 2 ? 'hi' : 'signal', 0.9 * flash);
+          c.fill();
+        }
+      }
     }
-
-    u.uMode!.value = mode; u.uCover!.value = cover; u.uSoft!.value = soft;
-    u.uGapOn!.value = gapOn; u.uGapOpen!.value = gapOpen;
-    set3('uP', P); u.uPI!.value = PI;
-    (u.uRay!.value as THREE.Vector4).set(...ray); u.uSpill!.value = spill;
-    (u.uCut!.value as THREE.Vector4).set(...cut); u.uCutAmb!.value = cutAmb;
-    u.uSeam!.value = seam; u.uSection!.value = section; u.uLeak!.value = leak; u.uShowQ!.value = showQ;
-    u.uDissolve!.value = dissolve; u.uCradle!.value = cradle; u.uStarFlare!.value = starFlare; u.uStarDen!.value = starDen;
-    (u.uCollar!.value as THREE.Vector2).set(...collar);
-    const stars = u.uStars!.value as THREE.Vector4[];
-    for (let i = 0; i < MAXSTARS; i++) {
-      const h = this.hero[i];
-      if (h) stars[i]!.set(h.dir[0], h.dir[1], h.dir[2], h.te); else stars[i]!.set(0, 0, 0, 0);
-    }
-    const av = u.uAft!.value as THREE.Vector4[];
-    for (let i = 0; i < MAXAFT; i++) {
-      const a = aft[i];
-      if (a) av[i]!.set(a[0][0], a[0][1], a[0][2], a[1]); else av[i]!.set(0, 0, 0, 0);
-    }
-    this.pass.render(renderer, out);
-
-    // ---- the etched lyric (seal): drawn over the shader through the same camera, glyph by glyph on the shell
-    const L = this.layer, c = L.ctx;
-    L.clear();
-    if (this.lines.length) this.drawEtch(c, t, cam, b);
+    this.drawRafters(c, C3, t, spin);
+    c.setTransform(1, 0, 0, 1, 0, 0);
     L.upload();
-    this.ctx.comp.draw(renderer, L.texture, out, { mode: 'normal' });
+
+    // hits: on each lock a luminance bump and a small punch; the cut frames stay exactly on the anchor
+    const locks = [1, 2, 3, 4, 5, 6, 0].map((r) => this.lockT(r));
+    let hit = 0;
+    for (const tl of locks) if (t >= tl) hit = Math.max(hit, Math.exp(-(t - tl) / 0.1));
+    const edge = t - start < 2.5 / 60 || end - t < 2.5 / 60;
+    const med = t >= tMed ? Math.exp(-(t - tMed) / 0.14) : 0;
+    return {
+      bloom: 0,
+      exposure: 1 + 0.06 * hit + 0.04 * db + 0.03 * kp,
+      flash: 0.1 * med,
+      zoom: edge ? 1 : 1 + 0.012 * hit + 0.02 * med,
+      shake: edge ? [0, 0] : [3 * hit * Math.sin(t * 91), 2 * hit * Math.cos(t * 77)],
+      vignette: 0.1,
+      ca: 0.2,
+      grain: 0.03,
+    };
+  }
+
+  /** Painted rafters: timber ribs over the locked vault, converging on the oculus; their inner ends follow the closing. */
+  private drawRafters(c: Ctx2, C3: Cam3, t: number, spin: number) {
+    const P = this.P;
+    let rmin = CLOSE + 1;
+    for (let r = CLOSE; r >= 1; r--) if (t >= this.lockT(r)) rmin = r;
+    const th0 = t >= this.lockT(0) ? A0 * 0.98 : A0 + (rmin - 1) * DR;
+    const th1 = A0 + NR * DR;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    const strip = (ph: number, a: number, b: number, hw: number, fill: string) => {
+      const L: [number, number][] = [], R: [number, number][] = [];
+      const n = 28;
+      for (let i = 0; i <= n; i++) {
+        const th = lerp(a, b, i / n), dp = hw / Math.max(0.05, Math.sin(th));
+        const p = proj(C3, sph(th, ph - dp, ZEN, EX, EZ)), q = proj(C3, sph(th, ph + dp, ZEN, EX, EZ));
+        if (!p || !q) continue;
+        L.push([p[0], p[1]]); R.push([q[0], q[1]]);
+      }
+      if (L.length < 2) return;
+      c.beginPath();
+      for (const p of L) c.lineTo(p[0], p[1]);
+      for (let i = R.length - 1; i >= 0; i--) c.lineTo(R[i]![0], R[i]![1]);
+      c.closePath(); c.fillStyle = fill; c.fill();
+    };
+    const NRAF = 16;
+    for (let k = 0; k < NRAF; k++) {
+      const ph = (k / NRAF) * TAU + spin + 0.11;
+      strip(ph, th0, th1, 0.034, pcss(P, 'text'));
+      strip(ph, th0 + 0.004, th1, 0.028, pmix(P, 'deep', 'text', 0.2));
+      strip(ph, th0 + 0.004, th1, 0.006, pcss(P, 'hi'));
+      // the painted head (머리초) at the inner end: red, white, gold, white bands
+      const hd: [number, number, Role][] = [[0, 0.05, 'mid'], [0.05, 0.062, 'ground'], [0.062, 0.09, 'hi'], [0.09, 0.1, 'ground'], [0.1, 0.13, 'mid']];
+      for (const [a, b, role] of hd) strip(ph, th0 + 0.004 + a, th0 + 0.004 + b, 0.028, pcss(P, role));
+    }
+  }
+
+  private hexPath(c: Ctx2, r: number) {
+    c.beginPath();
+    for (let k = 0; k < 6; k++) { const a = Math.PI / 2 + (k * Math.PI) / 3; c.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+    c.closePath();
+  }
+  /** An unpainted panel: black rim, white plaster face. */
+  private bareHex(c: Ctx2) {
+    this.hexPath(c, 1); c.fillStyle = pcss(this.P, 'text'); c.fill();
+    this.hexPath(c, 0.9); c.fillStyle = pcss(this.P, 'ground'); c.fill();
+  }
+
+  /** A painted ring beam: graded bands with white lines, gold stamps every 7.5°. */
+  private drawBeam(c: Ctx2, C3: Cam3, r: number, spin: number, bp: number) {
+    const P = this.P;
+    const t0 = A0 + (r - 1) * DR, t1 = A0 + r * DR;
+    const N = 120;
+    const ring = (th: number) => {
+      const out: [number, number][] = [];
+      for (let i = 0; i <= N; i++) {
+        const p = proj(C3, sph(th, (i / N) * TAU, ZEN, EX, EZ));
+        if (p) out.push([p[0], p[1]]);
+      }
+      return out;
+    };
+    const bands: [number, number, string][] = [
+      [0, 0.08, pcss(P, 'text')], [0.08, 0.28, pcss(P, 'deep')], [0.28, 0.34, pcss(P, 'ground')], [0.34, 0.66, pcss(P, 'mid')],
+      [0.66, 0.72, pcss(P, 'ground')], [0.72, 0.92, pmix(P, 'deep', 'text', 0.4)], [0.92, 1, pcss(P, 'text')],
+    ];
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    for (const [a, b, col] of bands) {
+      const inner = ring(lerp(t0, t1, a)), outer = ring(lerp(t0, t1, b));
+      if (inner.length < 3 || outer.length < 3) continue;
+      c.beginPath();
+      c.moveTo(outer[0]![0], outer[0]![1]);
+      for (const p of outer) c.lineTo(p[0], p[1]);
+      for (let i = inner.length - 1; i >= 0; i--) c.lineTo(inner[i]![0], inner[i]![1]);
+      c.closePath();
+      c.fillStyle = col; c.fill();
+    }
+    // gold stamps (diamonds) along the red band, alternating with white; they flash on the beat on the oculus beam
+    const tm = lerp(t0, t1, 0.5), hw = (t1 - t0) * 0.15;
+    const M = 48;
+    for (let i = 0; i < M; i++) {
+      const ph = (i / M) * TAU + spin * 0.5 + r * 0.1;
+      const dp = (TAU / M) * 0.3;
+      const q = [proj(C3, sph(tm - hw, ph, ZEN, EX, EZ)), proj(C3, sph(tm, ph + dp, ZEN, EX, EZ)), proj(C3, sph(tm + hw, ph, ZEN, EX, EZ)), proj(C3, sph(tm, ph - dp, ZEN, EX, EZ))];
+      if (q.some((p) => !p)) continue;
+      c.beginPath();
+      for (const p of q) c.lineTo(p![0], p![1]);
+      c.closePath();
+      c.fillStyle = i % 2 ? pcss(P, 'ground') : pmix(P, 'hi', 'signal', 0.6 * bp);
+      c.fill();
+    }
+  }
+
+  // ================================================================== pullback
+  private initOut() {
+    this.fOut = R_SEAL / Math.tan(Math.asin(1 / D0));
+    // stars: placed by unprojecting chosen screen points through the camera of the moment they matter
+    const au = this.ctx.audio;
+    const bs = this.beats;
+    const heroes: [number, number, number, number][] = [
+      // beat, screen x, y, depth
+      [1, 520, 300, 30], [2, 1560, 250, 26], [3, 620, 230, 24], [4, 1580, 760, 22], [5, 360, 700, 40], [6, 830, 250, 70], [7, 1500, 610, 90],
+    ];
+    for (const [k, x, y, d] of heroes) {
+      const tb = bs[k] ?? this.ctx.start + k * 0.58;
+      const cam = stateAt(this.list, tb).cam as Cam;
+      const sh = shotAt(this.list, tb);
+      const C3 = this.outCam(cam, this.shotU(tb, sh.t0, sh.t1));
+      this.stars.push({ X: this.unproj(C3, x, y, d), b: 1, tOff: tb, hero: true, rw: (20 * d) / C3.f });
+    }
+    // the field: sparse, placed for the wide shot; each goes dark on one of the last four beats
+    const wide = this.outCam('wide', 0);
+    for (let i = 0; i < 46; i++) {
+      const x = 60 + hash(i, 1) * 1800, y = 50 + hash(i, 2) * 980;
+      if (Math.hypot(x - AX, y - AY) < 90) continue;
+      const k = 4 + (i % 4);
+      this.stars.push({ X: this.unproj(wide, x, y, 60 + 180 * hash(i, 3)), b: 0.35 + 0.65 * hash(i, 4) ** 2, tOff: (bs[k] ?? this.ctx.start + k * 0.58) + 0.04 * hash(i, 5), hero: false, rw: 0.12 });
+    }
+    void au;
+  }
+
+  private unproj(c: Cam3, x: number, y: number, z: number): V {
+    return add(c.C, add(mul(c.w, z), add(mul(c.u, ((x - c.px) / c.f) * z), mul(c.v, (-(y - c.py) / c.f) * z))));
+  }
+
+  private shotU(t: number, t0: number, t1: number) {
+    const e = t1 === Infinity ? this.ctx.end : t1;
+    return clamp((t - t0) / Math.max(0.05, e - t0));
+  }
+
+  private outCam(cam: Cam, u: number): Cam3 {
+    const Y: V = [0, 1, 0];
+    const dir0: V = norm([0.18, 0.3, 1]);
+    switch (cam) {
+      case 'graze': { // skimming the sealed surface: the horizon of panels curves across the lower frame
+        const C: V = [0.15 - 0.25 * u, 1.3, 0.78 + 0.1 * u];
+        return lookAt(C, [-0.6, 0.55, -6], Y, 0.12, this.fOut * 1.55, 960, 520);
+      }
+      case 'pull': { // the pull-back: fast off the mark, then easing out
+        const D = lerp(5, 17, ease.outCubic(u) * 0.7 + 0.3 * u);
+        return lookAt(mul(norm([0.3, 0.26, 1]), D), [0, 0, 0], Y, 0, this.fOut, AX, AY);
+      }
+      case 'wide': {
+        const D = lerp(30, 46, u);
+        return lookAt(mul(norm([0.34, 0.24, 1]), D), [0, 0, 0], Y, 0, this.fOut, AX, AY);
+      }
+      default: // close: the first frame at D0 exactly (sphere r = R_SEAL at the anchor), then a slow push
+        return lookAt(mul(dir0, D0 - 0.25 * u), [0, 0, 0], Y, 0, this.fOut, AX, AY);
+    }
+  }
+
+  private renderOut(t: number, cam: Cam, u: number): PostOverrides {
+    const { audio } = this.ctx;
+    const P = this.P, L = this.layer, c = L.ctx;
+    const start = this.ctx.start, end = this.ctx.end;
+    const bp = beatPulse(audio, t, 0.14), kp = kickPulse(audio, t, 0.12), db = downbeatPulse(audio, t, 0.3);
+    const C3 = this.outCam(cam, u);
+    L.clear(pcss(P, 'ground'));
+    c.setTransform(1, 0, 0, 1, 0, 0);
+
+    // ---- stars (and the shells that close over them), far to near
+    const sorted = this.stars
+      .map((s) => ({ s, p: proj(C3, s.X) }))
+      .filter((o) => o.p && o.p[0] > -60 && o.p[0] < W + 60 && o.p[1] > -60 && o.p[1] < H + 60)
+      .sort((a, b) => b.p![2] - a.p![2]);
+    for (const { s, p } of sorted) this.drawStar(c, s, p!, C3, t, kp);
+
+    // ---- the sealed sphere
+    this.drawSphere(c, C3, t, kp);
+    L.upload();
+
+    const edge = t - start < 2.5 / 60 || end - t < 2.5 / 60;
+    let hit = 0;
+    for (let k = 1; k < this.beats.length; k++) if (t >= this.beats[k]!) hit = Math.max(hit, Math.exp(-(t - this.beats[k]!) / 0.1));
+    return {
+      bloom: 0,
+      exposure: 1 + 0.05 * hit + 0.03 * db,
+      zoom: edge ? 1 : 1 + 0.01 * hit,
+      shake: edge ? [0, 0] : [2 * hit * Math.sin(t * 83), 2 * hit * Math.cos(t * 71)],
+      vignette: 0.22,
+      ca: 0.3,
+      grain: 0.04,
+      flash: 0,
+      fade: 0.25 * clamp((t - (end - 0.35)) / 0.35),
+    } satisfies PostOverrides;
+  }
+
+  private drawStar(c: Ctx2, s: { X: V; b: number; tOff: number; hero: boolean; rw: number }, p: [number, number, number], C3: Cam3, t: number, kp: number) {
+    const P = this.P;
+    const [x, y, z] = p;
+    const rs = Math.max(s.hero ? 5 : 1.6, (C3.f * s.rw) / z); // the star's own shell, on screen
+    const close = s.hero ? 0.36 : 0.18;
+    const u = clamp((t - (s.tOff - close)) / close); // 0 open .. 1 shut (lands on its beat)
+    const lit = t < s.tOff;
+    const tw = 0.85 + 0.15 * Math.sin(t * 9 + s.X[0] * 3) + 0.3 * kp * s.b;
+    if (lit) {
+      // the star: stepped glow + core
+      const g = rs * (s.hero ? 2.4 : 2.6);
+      for (let i = 3; i >= 1; i--) {
+        c.beginPath(); c.arc(x, y, g * (i / 3) * (1 + 0.2 * kp), 0, TAU);
+        c.fillStyle = pcss(P, i === 1 ? 'hi' : 'mid', (i === 1 ? 0.9 : 0.12) * s.b * tw); c.fill();
+      }
+      if (u > 0) {
+        // the iris of panels closing over it: a dark disc with a shrinking wedge of light
+        const gap = Math.PI * 2 * (1 - ease.inCubic(u));
+        const a0 = hash(s.tOff) * TAU;
+        c.beginPath(); c.moveTo(x, y); c.arc(x, y, rs, a0 + gap / 2, a0 - gap / 2 + TAU); c.closePath();
+        c.fillStyle = pcss(P, 'deep'); c.fill();
+        c.beginPath(); c.arc(x, y, rs, a0 + gap / 2, a0 - gap / 2 + TAU);
+        c.strokeStyle = pcss(P, 'mid', 0.9); c.lineWidth = Math.max(1, rs * 0.12); c.stroke();
+      }
+    } else {
+      const a = t - s.tOff;
+      // locked: a dark sphere, key-lit crescent, and a ring flash on the lock
+      c.beginPath(); c.arc(x, y, rs, 0, TAU); c.fillStyle = pmix(P, 'mid', 'deep', 0.35); c.fill();
+      c.beginPath(); c.arc(x + rs * 0.22, y + rs * 0.18, rs * 0.94, 0, TAU); c.fillStyle = pcss(P, 'deep'); c.fill();
+      if (a < 0.5) {
+        const fl = Math.exp(-a / 0.12);
+        c.beginPath(); c.arc(x, y, rs * (1.2 + 3 * a / 0.5), 0, TAU);
+        c.strokeStyle = pmix(P, 'hi', 'signal', 0.3 * fl, fl * (s.hero ? 0.9 : 0.5)); c.lineWidth = Math.max(1.5, rs * 0.25 * (1 - a)); c.stroke();
+      }
+    }
+  }
+
+  private drawSphere(c: Ctx2, C3: Cam3, t: number, kp: number) {
+    const P = this.P;
+    const start = this.ctx.start;
+    const cp = proj(C3, [0, 0, 0]);
+    if (!cp) return;
+    // the true silhouette: the circle of tangency seen from the camera, projected (exact off-axis and up close)
+    const Dc = Math.hypot(...C3.C);
+    const cn = norm(C3.C), s1 = norm(cross(cn, Math.abs(cn[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0])), s2 = cross(cn, s1);
+    const sc = mul(cn, 1 / Dc), sr = Math.sqrt(Math.max(0, 1 - 1 / (Dc * Dc)));
+    const sil: [number, number][] = [];
+    for (let i = 0; i < 72; i++) {
+      const a = (i / 72) * TAU;
+      const q = proj(C3, add(sc, add(mul(s1, sr * Math.cos(a)), mul(s2, sr * Math.sin(a)))));
+      if (q) sil.push([q[0], q[1]]);
+    }
+    const silPath = () => { c.beginPath(); for (const q of sil) c.lineTo(q[0], q[1]); c.closePath(); };
+    const R = (C3.f / cp[2]) * (1 / Math.sqrt(Math.max(1e-4, 1 - 1 / (Dc * Dc))));
+    // the trapped Sun leaks through the seams, and dies within the first bar; kicks re-ignite it faintly
+    const age = t - start;
+    const leak = Math.exp(-age / 0.55) + 0.35 * kp * Math.exp(-age / 1.4);
+    const seam = leak > 0.06 ? pmix(P, 'ground', 'signal', clamp(leak * (0.75 + 0.25 * kp))) : pmix(P, 'ground', 'mid', 0.25 + 0.6 * kp);
+    silPath(); c.fillStyle = seam; c.fill();
+    if (R < 3) return;
+    const V2C = norm(C3.C);
+    const spin = 0.05 * age;
+    const rings = Math.ceil((Math.PI - SA0) / SDR);
+    const drawFacet = (n: V, e1: V, e2: V, rho: number, sides: number, rot: number) => {
+      const X = n; // unit sphere
+      const toCam = norm(sub(C3.C, X));
+      if (dot(n, toCam) < 0.02) return;
+      const pts: [number, number][] = [];
+      for (let k = 0; k < sides; k++) {
+        const a = rot + (k / sides) * TAU;
+        const q = proj(C3, add(X, add(mul(e1, Math.cos(a) * rho), mul(e2, Math.sin(a) * rho))));
+        if (!q) return;
+        pts.push([q[0], q[1]]);
+      }
+      const lam = Math.max(0, dot(n, KEY));
+      const fres = Math.pow(1 - clamp(dot(n, toCam)), 3);
+      const h = norm(add(KEY, toCam));
+      const spec = Math.pow(Math.max(0, dot(n, h)), 40);
+      c.beginPath();
+      for (const q of pts) c.lineTo(q[0], q[1]);
+      c.closePath();
+      c.fillStyle = pmix(P, 'deep', 'mid', clamp(0.04 + 0.9 * Math.pow(lam, 1.3) + 0.25 * fres * lam));
+      c.fill();
+      if (spec > 0.04) { c.fillStyle = pcss(P, 'hi', clamp(spec * 0.8)); c.fill(); }
+    };
+    // pole medallion (faces the first camera)
+    drawFacet(SAX, SE1, SE2, SA0 * 0.9, 24, 0);
+    for (let r = 1; r <= rings; r++) {
+      const th = SA0 + (r - 0.5) * SDR;
+      if (th > Math.PI - 0.05) break;
+      const n = Math.max(6, Math.round((TAU * Math.sin(th)) / (SDR * 1.02)));
+      for (let i = 0; i < n; i++) {
+        const ph = ((i + (r % 2) * 0.5) / n) * TAU + spin;
+        const nn = sph(th, ph, SAX, SE1, SE2);
+        const eTh = norm(sub(sph(th + 0.01, ph, SAX, SE1, SE2), nn));
+        const ePh = norm(cross(nn, eTh));
+        if (dot(nn, V2C) < -0.2) continue;
+        drawFacet(nn, ePh, eTh, SDR * 0.5, 6, Math.PI / 2);
+      }
+    }
+    // the terminator side: the cold rim light on the silhouette
+    silPath();
+    c.strokeStyle = pcss(P, 'hi', 0.14 + 0.2 * kp); c.lineWidth = Math.max(1, R * 0.012); c.stroke();
+  }
+
+  // ================================================================== frame
+  override render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
+    const t = f.t;
+    const cam = stateAt(this.list, t).cam as Cam;
+    const sh = shotAt(this.list, t);
+    const u = this.shotU(t, sh.t0, sh.t1);
+    const post = this.plate.variant === 'dancheong' ? this.renderVault(t, cam, u) : this.renderOut(t, cam, u);
+    clearRT(this.ctx.renderer, out, plin(this.P, 'ground'));
+    this.ctx.comp.draw(this.ctx.renderer, this.layer.texture, out, { mode: 'normal' });
     return post;
   }
 
-  private setPins(_t: number, loose: Pin[], ring: Pin[]) {
-    const pv = this.pass.u.uPins!.value as THREE.Vector4[];
-    const all = [...ring, ...loose].slice(0, MAXPINS);
-    for (let i = 0; i < MAXPINS; i++) {
-      const p = all[i];
-      if (p) pv[i]!.set(p.dir[0], p.dir[1], p.dir[2], p.t); else pv[i]!.set(0, 0, 0, 0);
-    }
-  }
-
-  /** Line 31 engraved on the panels: each glyph sits on the sphere (great-circle wrap from an anchor), hot
-   * when its syllable is sung, cooling to bone; the 'could not hold' words slip out through the last gap. */
-  private drawEtch(c: CanvasRenderingContext2D, t: number, cam: Cam, b: Basis) {
-    const line = this.lines[0]!;
-    const SIZE = 100;
-    if (!this.lay) this.lay = layoutLine(c, line, F.slam(), SIZE);
-    const lay = this.lay;
-    const wc = (i: number) => { const w = lay.words[Math.min(i, lay.words.length - 1)]!; return w.x + w.w / 2; };
-    const span = (i: number, j: number) => (lay.words[i]!.x + lay.words[j]!.x + lay.words[j]!.w) / 2;
-    const G = this.G, east = norm(cross(UP, G));
-    const sb = [0, 1, 2, 3, 4].map((i) => this.sb(i));
-    // anchor per shot: a direction on the shell, the text position that sits on it, radians per text px
-    let A: V, uA: number, sc: number;
-    switch (cam) {
-      case 'fingers': A = norm([-0.52, -0.3, 1]); uA = span(0, 1); sc = 0.0019; break;
-      case 'etch': A = norm(add(G, add(mul(east, -0.14), [0, -0.13, 0]))); uA = wc(2); sc = 0.001; break;
-      case 'escape': A = norm(add(G, add(mul(east, -0.1), [0, -0.2, 0]))); uA = wc(3); sc = 0.0016; break;
-      case 'slam': A = norm(add(G, [0, -0.22, 0])); uA = wc(4); sc = 0.0011; break;
-      case 'pins': A = norm(add(G, [0, -0.12, 0])); uA = wc(4); sc = 0.00056; break;
-      case 'pins2': {
-        A = norm(add(G, [0, -0.09, 0]));
-        const w4 = lay.words[4]!, w5 = lay.words[5]!;
-        const p = smoothstep(line.words[4]!.start, line.words[5]!.end, t);
-        uA = lerp(w4.x + w4.w * 0.3, w5.x + w5.w * 0.5, p); sc = 0.00048; break;
-      }
-      default: A = norm([-0.2, 0.02, 1]); uA = span(4, 5); sc = 0.0016; break;
-    }
-    const T = norm(cross(UP, A));
-    const onShell = (uu: number): V => { const th = (uu - uA) * sc; return mul(add(mul(A, Math.cos(th)), mul(T, Math.sin(th))), 1.004); };
-    const slipSet = new Set([2, 3]);
-    const gapS = project(b, G);
-    let slipK = 0;
-    const slipOrder = new Map<number, number>();
-    lay.chars.forEach((ch) => { if (slipSet.has(ch.word)) slipOrder.set(ch.index, slipK++); });
-    const cutOn = cam === 'sealed';
-
-    drawLyric(c, line, t, {
-      x: 0, y: 0, size: SIZE, family: F.slam(), align: 'left',
-      sungColor: 'bone', unsungColor: 'graphite', unsungAlpha: 0.55, lead: 0.3,
-      charTransform: (_ch, idx, s) => {
-        const cxT = s.box.x + s.box.w / 2;
-        const X = onShell(cxT), X2 = onShell(cxT + 4);
-        const P1 = project(b, X), P2 = project(b, X2);
-        const facing = dot(X, norm(sub(b.ro, X)));
-        let alpha = smoothstep(0.04, 0.3, facing) * (P1.z > 0.05 ? 1 : 0);
-        if (cutOn && X[0] > 0) alpha = 0;
-        let x = P1.x, y = P1.y;
-        let rot = Math.atan2(P2.y - P1.y, P2.x - P1.x);
-        let scale = Math.hypot(P2.x - P1.x, P2.y - P1.y) / 4;
-        // the words that could not hold: after the escape they slide into the last gap and out after the point
-        const k = slipOrder.get(idx);
-        if (k !== undefined && t >= sb[2]!) {
-          const w = line.words[s.word]!, syl = (w.syl ?? [[w.start, w.end]])[s.syl]!;
-          const ts = Math.max(sb[2]! + 0.08 * k, syl[0] + 0.18);
-          const age = t - ts;
-          if (age > 0) {
-            const a1 = clamp(age / 0.35);
-            if (age < 0.35) {
-              const e = ease.inCubic(a1);
-              x = lerp(x, gapS.x, e); y = lerp(y, gapS.y, e); scale *= 1 - 0.1 * e;
-            } else {
-              const q = project(b, this.outPath((age - 0.35) * 0.9));
-              x = q.x; y = q.y; scale *= 0.95 * (1 - 0.3 * clamp(age - 0.35));
-              rot += (age - 0.35) * (hash(idx, 9) - 0.5) * 4;
-            }
-            alpha = 1 - smoothstep(0.7, 1.5, age);
-          }
-        }
-        return { dx: x - cxT, dy: y + SIZE * 0.35, rot, scale, alpha };
-      },
-      drawChar: (cc, ch, s) => {
-        if (!s.sung) {
-          cc.lineWidth = 2.2;
-          cc.strokeStyle = rgba('graphite', 1);
-          cc.strokeText(ch, 0, 0);
-          return;
-        }
-        const w = line.words[s.word]!, syl = (w.syl ?? [[w.start, w.end]])[s.syl]!;
-        const heat = 1 - smoothstep(syl[0], syl[0] + 1.1, t);
-        // the groove: a dark offset under the cut, then the cut metal, then the hot etch on top
-        cc.fillStyle = rgba('ink', 0.9);
-        cc.fillText(ch, 3, 4);
-        cc.fillStyle = rgba('bone', 1);
-        cc.fillText(ch, 0, 0);
-        if (heat > 0.01) {
-          cc.shadowColor = rgba('signal', heat);
-          cc.shadowBlur = 26 * heat;
-          cc.fillStyle = rgba('ember', heat);
-          cc.fillText(ch, 0, 0);
-          cc.shadowBlur = 0;
-        }
-      },
-    });
-  }
-
-  override dispose() { this.layer?.texture.dispose(); this.pass?.mat.dispose(); }
+  override dispose() { this.layer?.texture.dispose(); }
 }

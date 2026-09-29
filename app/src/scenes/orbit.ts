@@ -9,12 +9,21 @@
 //            star flares.
 //   capture (p24, T2, line 24)  a cage of panel rings around the line: rings swing in and clang shut on the beats
 //            (2 px jolt, 1-frame hold) -> inside the cage, the words pressed to the bars -> the cage spins to a blur.
+//   swarm   (p41, outro, T1, no lyric; palette `swarm`)  AI launches the swarm. Every beat a volley of collectors is
+//            fired from the camera's own vantage (the AI's eye of p40 has just become the Sun): tracers streak in,
+//            accelerate, and SNAP into a new inclined orbit ring exactly on the beat (the tracer turns into a lit panel
+//            facing the Sun, a radial spring and a heat flash; the whole swarm answers with a ripple). Shots: a
+//            lateral track in orbit near the ring plane (near panels whip past as dark silhouettes) -> a high 3/4 wide
+//            where the swarm rings the Sun -> on the last beat every ring widens into a closed band (the shell to
+//            come). Match-circle: the Sun is pinned to the storyboard anchor (1187,413) by an off-axis view offset, and
+//            its photosphere radius is set by camera distance: SUN_R0 px on the first frame (continues p40's eye),
+//            SUN_R1 px on the last frame (p42's oculus).
 // The line is drawn with drawLyric onto a Canvas2D layer that is a plane INSIDE the cage (depth-tested: the front
 // bars pass over the words). Everything is a pure function of song time: panel pose = f(index, t).
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../engine/scene';
 import { Layer2D, FSPass, clearRT, makeRT } from '../engine/gl';
-import { LIN } from '../engine/palette';
+import { LIN, palette, plin, type NamedPalette } from '../engine/palette';
 import { drawLyric, layoutLine, ownedLines, F } from '../engine/lyric';
 import { beatPulse, kickPulse, downbeatPulse, beatIndex } from '../engine/beat';
 import { stateAt, beatTimes, type PlateInfo, type Shot } from '../engine/shots';
@@ -31,6 +40,14 @@ const col = (k: keyof typeof LIN, s = 1) => new THREE.Color().setRGB(LIN[k][0] *
 /** Storyboard hit envelope: full for 2 frames, then outExpo decay over ~6 frames. dt = seconds since the hit. */
 const env = (dt: number) => (dt < 0 ? 0 : dt < 2 * FR ? 1 : Math.pow(2, (-10 * (dt - 2 * FR)) / (6 * FR)));
 const easeOut = (x: number) => 1 - Math.pow(1 - clamp(x), 3);
+
+// swarm match-circle contract (1920x1080 logical px): Sun centre = storyboard anchor, photosphere radius at the cuts
+const ANCHOR: [number, number] = [1187, 413];
+const SUN_R0 = 76; // first frame: p40's eye (the animatic eye ring: r 70 + half its 18 px stroke)
+const SUN_R1 = 110; // last frame: p42's oculus (the animatic vault oculus radius on its first frame)
+const FLIGHT = 0.4; // s: a volley is fired this long before its beat and snaps into orbit on the beat
+/** Camera distance (in Sun radii) that gives the Sun a photosphere radius of rPx at vertical fov (deg). */
+const distFor = (rPx: number, fov: number) => 1 / Math.sin(Math.atan((rPx * Math.tan(((fov / 2) * Math.PI) / 180)) / 540));
 
 const STAR_VERT = /* glsl */ `
 varying vec3 vN; varying vec3 vP; varying vec3 vW;
@@ -87,7 +104,7 @@ void main() {
   fragColor = vec4(mix(c, neg, uNeg), 1.0);
 }`;
 
-interface Pose { p: THREE.Vector3; n: THREE.Vector3; u: THREE.Vector3; s: [number, number, number]; heat: number }
+interface Pose { p: THREE.Vector3; n: THREE.Vector3; u: THREE.Vector3; s: [number, number, number]; heat: number; sig?: number }
 
 export default class Orbit extends Scene {
   private list: Shot[] = [];
@@ -112,6 +129,11 @@ export default class Orbit extends Scene {
   private grade!: FSPass;
   private m4 = new THREE.Matrix4();
   private tmpC = new THREE.Color();
+  private base = col('paper2');
+  private hot = col('paper2', 6);
+  private sigC = col('signal');
+  private sigTmp = new THREE.Color();
+  private P?: NamedPalette;
 
   override init() {
     this.plate = this.ctx.params as PlateInfo;
@@ -123,14 +145,21 @@ export default class Orbit extends Scene {
     const S = this.scene3;
     this.rt = makeRT();
     this.grade = new FSPass(NEG_FRAG, { tex: { value: this.rt.texture }, uNeg: { value: 0 } });
-    const mat = new THREE.MeshStandardMaterial({ color: col('paper2'), roughness: 0.42, metalness: 0.35 });
+    const sw = this.v === 'swarm';
+    const P = sw ? palette((this.plate as PlateInfo & { look: { palette: string } }).look.palette) : undefined;
+    this.P = P;
+    const pc = (r: 'ground' | 'deep' | 'mid' | 'hi' | 'signal', k = 1) => { const c = plin(P!, r); return new THREE.Color().setRGB(c[0] * k, c[1] * k, c[2] * k); };
+    if (P) { this.base = pc('mid'); this.hot = pc('hi', 3); this.sigC = pc('signal'); }
+    const mat = new THREE.MeshStandardMaterial({ color: P ? new THREE.Color(1, 1, 1) : col('paper2'), roughness: 0.42, metalness: 0.35 });
     this.panels = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, MAXN);
     this.panels.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.panels.setColorAt(0, col('bone'));
     this.panels.frustumCulled = false;
     S.add(this.panels);
 
-    const cu = { uSig: { value: col('signal') }, uEmb: { value: col('ember') }, uBone: { value: col('bone') }, uInk2: { value: col('ink2') }, uT: { value: 0 }, uExpo: { value: 1 }, uSil: { value: 0 } };
+    const cu = P
+      ? { uSig: { value: pc('signal') }, uEmb: { value: pc('hi') }, uBone: { value: pc('hi') }, uInk2: { value: pc('deep') }, uT: { value: 0 }, uExpo: { value: 1 }, uSil: { value: 0 } }
+      : { uSig: { value: col('signal') }, uEmb: { value: col('ember') }, uBone: { value: col('bone') }, uInk2: { value: col('ink2') }, uT: { value: 0 }, uExpo: { value: 1 }, uSil: { value: 0 } };
     this.starMat = new THREE.ShaderMaterial({ uniforms: cu, vertexShader: STAR_VERT, fragmentShader: STAR_FRAG });
     this.star = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 64), this.starMat);
     S.add(this.star);
@@ -142,11 +171,11 @@ export default class Orbit extends Scene {
     this.corona = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), this.coronaMat);
     S.add(this.corona);
 
-    this.light = new THREE.PointLight(col('ember'), 5, 0, 0);
+    this.light = new THREE.PointLight(P ? pc('hi') : col('ember'), 5, 0, 0);
     S.add(this.light);
-    this.amb = new THREE.AmbientLight(col('graphite'), 0.18);
+    this.amb = new THREE.AmbientLight(P ? pc('deep') : col('graphite'), 0.18);
     S.add(this.amb);
-    this.fill = new THREE.DirectionalLight(col('bone'), 0.12);
+    this.fill = new THREE.DirectionalLight(P ? pc('mid') : col('bone'), 0.12);
     S.add(this.fill, this.fill.target);
 
     // orbit traces (hairlines): unit circles in the xz plane, placed per ring each frame
@@ -155,6 +184,9 @@ export default class Orbit extends Scene {
     const lg = new THREE.BufferGeometry().setFromPoints(circ);
     const lm = new THREE.LineBasicMaterial({ color: col('graphite'), transparent: true, opacity: 0.55 });
     for (let k = 0; k < 12; k++) { const l = new THREE.LineLoop(lg, lm); l.visible = false; this.traces.push(l); S.add(l); }
+
+    // swarm: the Sun sits on the optical axis, and an off-axis window moves it to the anchor (an exact circle there)
+    if (sw) this.cam.setViewOffset(1920, 1080, 960 - ANCHOR[0], 540 - ANCHOR[1], 1920, 1080);
 
     if (this.lines.length) {
       this.layer = new Layer2D();
@@ -306,9 +338,80 @@ export default class Orbit extends Scene {
     }
   }
 
+  // ------------------------------------------------------------------ swarm
+  /** The swarm's rings: 3 sparse rings already in orbit, then one ring per volley (beats 1..7 of the plate). */
+  private swarmRings(): { r: number; inc: number; node: number; n: number; snap: number; w: number }[] {
+    const vb = this.beats.filter((b) => b > this.plate.start + 0.05 && b < this.plate.end - 0.05);
+    const R = [7.6, 2.4, 5.2, 3.3, 8.4, 4.2, 6.2], I = [0.18, -0.5, 0.9, -0.25, 0.35, -1.0, 0.6];
+    const out = [3.1, 5.0, 6.6].map((r, k) => ({ r, inc: [0.3, -0.7, 0.5][k]!, node: hash(k, 31) * TAU, n: 36, snap: -Infinity, w: 2.2 * Math.pow(r, -1.5) }));
+    vb.forEach((snap, k) => {
+      const r = R[k % R.length]!;
+      out.push({ r, inc: I[k % I.length]!, node: hash(k, 17) * TAU, n: Math.round(r * 26), snap, w: 2.2 * Math.pow(r, -1.5) * (k % 2 ? -1 : 1) });
+    });
+    return out;
+  }
+
+  private posesSwarm(t: number, topo: string, out: Pose[]) {
+    const cp = this.cam.position, fwd = V(), right = V(), up = V();
+    this.cam.getWorldDirection(fwd);
+    right.crossVectors(fwd, this.cam.up).normalize();
+    up.crossVectors(right, fwd).normalize();
+    const lock = topo === 'lock' ? this.list[this.list.length - 1]!.t : Infinity;
+    const lk = t >= lock ? easeOut((t - lock) / 0.12) : 0;
+    const bt = this.sinceBeat(t);
+    const lt = t - this.plate.start;
+    const rn = V();
+    // the Sun's disc stays clean (match-circle at both cuts): near-side panels on the line of sight to it fold away
+    const sunD = cp.length(), sunA = Math.asin(1 / sunD), toSun = cp.clone().negate().normalize(), rel = V();
+    const clear = (p: THREE.Vector3) => {
+      rel.subVectors(p, cp);
+      const dd = rel.length();
+      if (dd > sunD) return 1;
+      return smoothstep(sunA * 1.05, sunA * 1.7, Math.acos(clamp(rel.dot(toSun) / dd, -1, 1)));
+    };
+    for (const g of this.swarmRings()) {
+      if (t < g.snap - FLIGHT) continue;
+      this.ringNormal(g.inc, g.node, rn);
+      const w = (TAU * g.r) / g.n;
+      const a = t - g.snap;
+      for (let j = 0; j < g.n; j++) {
+        const th = (j / g.n) * TAU + g.w * lt + hash(j, g.n) * 0.02;
+        if (a < 0) {
+          // in flight: a tracer fired from the camera's vantage, accelerating onto its slot; every tracer of a
+          // volley arrives on the beat (the launch is staggered, the snap is not)
+          const fl = FLIGHT * (0.65 + 0.35 * hash(j, 7, g.n));
+          const u = 1 - -a / fl;
+          if (u < 0) continue;
+          const e = Math.pow(u, 2.4);
+          const tgt = this.onRing(g.r, th, g.inc, g.node, V());
+          const p0 = cp.clone().addScaledVector(right, (hash(j, 3) - 0.5) * 3.2).addScaledVector(up, -0.9 + (hash(j, 4) - 0.5) * 1.4).addScaledVector(fwd, -0.4);
+          const dir = tgt.clone().sub(p0);
+          const len = dir.length();
+          const p = p0.addScaledVector(dir, e);
+          const toCam = cp.clone().sub(p).normalize();
+          dir.normalize();
+          out.push({ p, n: toCam, u: dir, s: [0.04 + len * 0.055 * Math.pow(u, 1.4), 0.014, 0.014], heat: 0.35, sig: 0.25 + 0.4 * e });
+          continue;
+        }
+        // in orbit: the radial spring of the snap, then a lit collector facing the Sun
+        const spring = Number.isFinite(a) ? 0.07 * Math.exp(-a / 0.09) * Math.cos(a * 38) : 0;
+        const p = this.onRing(g.r * (1 + spring), th, g.inc, g.node, V());
+        const radial = p.clone().normalize();
+        const tang = V().crossVectors(rn, radial).normalize();
+        // every beat the swarm answers the snap: a heat ripple running outward ring by ring
+        const ripple = 0.45 * env(bt - g.r * 0.018);
+        const snapHeat = Number.isFinite(a) ? 2.4 * decay(a, 0.1) : 0;
+        const lockHeat = t >= lock ? 1.0 * decay(t - lock, 0.16) : 0;
+        const k = clear(p);
+        if (k <= 0) continue;
+        out.push({ p, n: radial, u: tang, s: [w * (0.6 + 0.37 * lk) * k, (0.3 + 0.28 * lk) * k, 0.025], heat: snapHeat + ripple + lockHeat });
+      }
+    }
+  }
+
   private upload(poses: Pose[]) {
     const m = this.m4, v2 = V(), v3 = V();
-    const base = col('paper2');
+    const base = this.base;
     let k = 0;
     for (const q of poses) {
       if (k >= MAXN) break;
@@ -321,7 +424,9 @@ export default class Orbit extends Scene {
         0, 0, 0, 1,
       );
       this.panels.setMatrixAt(k, m);
-      this.tmpC.copy(base).multiplyScalar(1 + 5 * q.heat);
+      // base + (hot - base) * heat (capture: hot = 6 x base, i.e. base * (1 + 5 heat)); swarm tracers add signal
+      this.tmpC.copy(this.hot).sub(base).multiplyScalar(q.heat).add(base);
+      if (q.sig) this.tmpC.add(this.sigTmp.copy(this.sigC).multiplyScalar(4 * q.sig));
       this.panels.setColorAt(k, this.tmpC);
       k++;
     }
@@ -464,6 +569,32 @@ export default class Orbit extends Scene {
       ov.bloom = camK === 'behind' ? 0.7 : 0.45; ov.bloomThreshold = 1.1;
       // extreme wide: the rings are small in frame, so the beat blooms the burning rings (glowing signal only)
       if (camK === 'wide') { ov.bloom = 0.45 + 1.1 * hit; ov.bloomThreshold = 1.1 - 0.4 * hit; }
+    } else if (this.v === 'swarm') {
+      // camera first: the volleys are fired from its vantage. The Sun stays on the optical axis (anchor via the
+      // view offset); its photosphere radius is continuous from SUN_R0 (the eye) and lands on SUN_R1 (the oculus).
+      const s0 = this.plate.start, s1 = this.list[1]!.t, end = this.plate.end;
+      let fov: number, rPx: number, el: number, phi: number, roll: number;
+      if (camK === 'track') {
+        fov = 70; rPx = lerp(SUN_R0, 86, clamp((f.t - s0) / (s1 - s0)));
+        el = 0.1 + 0.02 * lt; phi = 0.6 + 0.19 * lt; roll = -0.06;
+      } else {
+        const x = clamp((f.t - s1) / (end - FR - s1));
+        fov = 55; rPx = lerp(92, SUN_R1, x);
+        el = 0.62 - 0.05 * x; phi = 1.25 + 0.19 * lt; roll = 0.04;
+      }
+      const d = distFor(rPx, fov);
+      this.setCam(V(d * Math.cos(el) * Math.sin(phi), d * Math.sin(el), d * Math.cos(el) * Math.cos(phi)), V(0, 0, 0), fov, roll);
+      this.posesSwarm(t, topo, poses);
+      this.placeTraces(false, []);
+      // the flare on the beat stays inside the T1 cap (1.4x)
+      expo = 1.5 * (1 + 0.4 * hit) * (1 + 0.1 * kick);
+      gain = 1.2 * (1 + 0.35 * hit);
+      const lock = topo === 'lock' ? decay(f.t - this.list[this.list.length - 1]!.t, 0.2) : 0;
+      if (lock) { expo *= 1 + 0.3 * lock; gain *= 1 + 0.3 * lock; }
+      // no punch on the cut itself: the first frame's disc must sit exactly on p40's eye
+      if (this.beatNo(f.t) > 0) ov.zoom = 1 + 0.02 * hit;
+      if (bt < 2 * FR && this.beatNo(f.t) > 0) ov.shake = [0, 5 * (bt < FR ? 1 : -1)]; // the snap's recoil (T1: <= 6 px)
+      ov.bloom = 0.5; ov.bloomThreshold = 1.1;
     } else {
       // capture: the star is far behind the cage, backlighting it; the line sits inside
       this.star.position.set(-15, 7.5, -19); starScale = 2.8;
@@ -505,7 +636,7 @@ export default class Orbit extends Scene {
     this.corona.scale.setScalar(starScale * coronaR * (1 + 0.08 * hit));
     this.coronaMat.uniforms.uR!.value = 3 * coronaR * (1 + 0.08 * hit); // radius in star radii across the scaled plane
     this.corona.quaternion.copy(this.cam.quaternion);
-    this.light.intensity = this.v === 'capture' ? 4 : 3.2 * (1 + 0.8 * hit + 0.3 * db);
+    this.light.intensity = this.v === 'capture' ? 4 : this.v === 'swarm' ? 3.6 * (1 + 0.35 * hit) : 3.2 * (1 + 0.8 * hit + 0.3 * db);
     const fillDir = V().subVectors(this.cam.position, this.star.position).normalize();
     this.fill.position.copy(this.cam.position).addScaledVector(fillDir, 0);
     this.fill.target.position.copy(this.star.position);
@@ -514,7 +645,7 @@ export default class Orbit extends Scene {
     this.amb.intensity = dark ? 0.05 : 0.18;
 
     this.upload(poses);
-    clearRT(renderer, this.rt, LIN.ink);
+    clearRT(renderer, this.rt, this.P ? plin(this.P, 'ground') : LIN.ink);
     renderer.setRenderTarget(this.rt);
     renderer.render(this.scene3, this.cam);
     this.grade.u.uNeg!.value = neg;

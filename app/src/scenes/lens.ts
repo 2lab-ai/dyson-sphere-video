@@ -1,18 +1,20 @@
-// LENS — optical instruments. Irises are mechanical aperture diaphragms: n blades pivoting in an engraved,
-// knurled housing over a disc of lens glass. Not a human eye, not a sci-fi eye: a machine that looks.
-//   GL pass (EYE_GLSL ring helpers): housing metal, knurl, engraved rings and scale ticks, the glass and the star
-//   Canvas2D: the blades (projected wedge polygons), wall/beams, and every lyric line via drawLyric
-// Variants (data/edit.json):
-//   gaze  (p11) two irises face each other across a closed room's wall. Line 11 is engraved on the left ring;
-//         line 12 exists only where the two eyes' light overlaps inside the wall. Beat: blades step 1/12 turn.
-//   ai    (p20) one machine eye swallows line 18 into its aperture; the stolen words float inside the pupil as
-//         evidence while line 19 is reflected on the front glass. Beat: blades step and snap. Exit: a glint flares.
-//   star  (p37) an observation eye over the star. Beats 1-2: the latch preloads (click); beats 3-8: the six blades
-//         close one per beat to aperture 0; the last ray is cut.
+// LENS — optical instruments. Irises are mechanical aperture diaphragms: n blades pivoting in a turned housing over
+// a disc of lens glass. Not a human eye, not a sci-fi eye: a machine that looks. v3: each plate its own material.
+//   GL pass: the ground (film stock / studio cyclorama), the housing metal (brass / chrome), the glass
+//   Canvas2D: the blades (projected wedge polygons), the wall and beams, and every lyric line via drawLyric
+// Variants (data/edit.json; colours = the plate's named palette, look.palette):
+//   gaze (p11, `film`)       bright, overexposed film stock: two brass irises face each other across a sunlit
+//         plaster wall. Warm blown highlights, lifted milky shadows, a light leak that flares on downbeats, gate
+//         weave and heavy grain. Line 11 is engraved on the left ring; line 12 exists only where the two eyes'
+//         light overlaps inside the wall (burned to white). Beat: blades step 1/12 turn + an exposure pump.
+//   ai   (p22, `chrome-eye`) a chrome machine iris on a white studio cyclorama: hard chrome reflections (softbox
+//         strips, a dark horizon band), a black pupil. Line 18 rides the outer ring and is pulled, spiralling,
+//         into the aperture; in the macros the pupil holds the stolen words and line 19 is the reflection on its
+//         front glass. Beat: blades step + the softbox reflection snaps across the chrome. Exit: a glint flares.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../engine/scene';
 import { FSPass, Layer2D, W, H } from '../engine/gl';
-import { rgba, type PaletteKey } from '../engine/palette';
+import { palette, pcss, plin, pmix, type NamedPalette } from '../engine/palette';
 import { drawLyric, layoutLine, ownedLines, F, type CharState, type CharXform } from '../engine/lyric';
 import { beatPulse, kickPulse, downbeatPulse, beatIndex } from '../engine/beat';
 import { stateAt, shotAt, type PlateInfo, type Shot } from '../engine/shots';
@@ -25,7 +27,8 @@ type P = { x: number; y: number };
 type Cam = { s: number; fx: number; fy: number; rot: number };
 /** A ring/iris in world px: centre, radius, and the squash of a disc turned away from the camera. */
 type Ring = { c: P; R: number; sx: number; sy: number };
-type Iris = Ring & { n: number; ap: number; phi: number; hot: number; edge: number; side?: boolean };
+type Iris = Ring & { n: number; ap: number; phi: number; hot: number; edge: number };
+type Ink = { sung: string; unsung: string; unsungAlpha?: number; alpha?: number; lip?: string };
 
 const proj = (cam: Cam, q: P): P => {
   const x = (q.x - cam.fx) * cam.s, y = (q.y - cam.fy) * cam.s;
@@ -34,42 +37,106 @@ const proj = (cam: Cam, q: P): P => {
 };
 const onRing = (r: Ring, th: number, k = 1): P => ({ x: r.c.x + Math.cos(th) * r.R * k * r.sx, y: r.c.y + Math.sin(th) * r.R * k * r.sy });
 
-// ------------------------------------------------------------------ GL: housing, glass, star
+// ------------------------------------------------------------------ GL: ground, housing, glass
 const FRAG = /* glsl */ `
 uniform vec2 uRes;
-uniform vec4 uI[2];   // iris: screen centre xy, blade-circle radii xy (px)
-uniform vec4 uJ[2];   // x ellipse rotation, y index-ring rotation, z glass glow, w present
-uniform vec4 uStar;   // screen xy, radius px, intensity
-uniform float uTick;  // beat: the engraving catches light
+uniform vec4 uI[2];     // iris: screen centre xy, housing radii xy (px)
+uniform vec4 uJ[2];     // x ellipse rotation, y index-ring rotation, z glass glow, w present
+uniform float uMode;    // 0 = film stock (gaze), 1 = chrome on a cyclorama (ai)
+uniform float uBeat;    // beat pulse: the engraving / the rim catch the light
+uniform float uExpo;    // film: exposure pump; chrome: softbox strip position (-1..1, snaps per beat)
+uniform float uLeak;    // film: light-leak strength; chrome: floor-shadow strength
+uniform vec4 uCyc;      // chrome: x horizon (screen y px), y px per world px, zw floor-shadow centre (screen px)
+uniform float uGrainT;  // film: frame index for the stock's dye clouds
+uniform vec3 uG, uD, uM, uHi, uSg;   // the plate's named palette (linear)
 ${EYE_GLSL}
+float lensNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash12(i), hash12(i + vec2(1.0, 0.0)), f.x), mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+vec3 filmGround(vec2 fc) {
+  vec2 uv = fc / uRes;
+  // the sun pours in from the upper left: warm stock, blown toward white where it lands
+  vec2 q = (fc - vec2(0.36, 0.30) * uRes) / (uRes * vec2(0.62, 0.72));
+  float hot = exp(-dot(q, q));
+  vec3 col = mix(uG, uHi, 0.75 * hot + 0.5 * uExpo);
+  // lower right falls toward the brass of the stock's shoulder (still light: this is overexposed film)
+  col = mix(col, mix(uG, uM, 0.55), 0.35 * smoothstep(0.35, 1.2, length(uv * vec2(1.0, 0.9))) * (1.0 - hot));
+  // dye clouds: low-frequency density breathing, a new cloud every film frame
+  col *= 0.97 + 0.06 * lensNoise(fc / 140.0 + uGrainT * 3.1);
+  // light leak: the edge of the roll fogged orange, flaring on downbeats
+  float lk = uLeak * exp(-fc.x / 300.0) * (0.55 + 0.45 * lensNoise(vec2(fc.y / 180.0, uGrainT * 0.7)));
+  lk += 0.6 * uLeak * exp(-(uRes.x - fc.x) / 160.0) * smoothstep(0.4, 1.0, uv.y);
+  col = mix(col, mix(uSg, uHi, 0.1 + 0.45 * lk * lk), sat(lk * 1.2));
+  return col;
+}
+vec3 cycGround(vec2 fc) {
+  // a seamless white cyclorama: wall -> cove -> floor, lit from above; the eye's soft contact shadow on the floor
+  float y = fc.y, hz = uCyc.x, k = uCyc.y;
+  vec3 wall = mix(uHi, uG, 0.35 + 0.45 * sat(y / uRes.y));
+  vec3 floorC = mix(uG, uM, 0.22);
+  vec3 col = mix(wall, floorC, smoothstep(hz - 140.0 * k, hz + 180.0 * k, y));
+  col = mix(col, uHi, 0.25 * exp(-pow((y - hz + 40.0 * k) / (70.0 * k), 2.0)));   // the cove catches the key light
+  vec2 d = (fc - uCyc.zw) / vec2(380.0 * k, 60.0 * k);
+  col = mix(col, uD, uLeak * 0.30 * exp(-dot(d, d)));
+  return col;
+}
+// chrome: reflect a studio (white wall above, grey floor below, a dark camera band at the horizon, softbox strips)
+vec3 chromeEnv(vec2 n) {
+  float ny = n.y;
+  vec3 sky = mix(uHi, uG, sat(0.5 + 0.8 * ny));
+  vec3 flo = mix(uM, uG, sat(ny - 0.2));
+  vec3 e = ny < 0.08 ? sky : flo;
+  e = mix(e, uD * 0.35, smoothstep(0.02, 0.06, ny) * smoothstep(0.26, 0.2, ny));      // the horizon: the dark crew band
+  float strip = exp(-pow((n.x - uExpo) / 0.07, 2.0)) * smoothstep(0.2, -0.3, ny);       // the key softbox
+  float strip2 = exp(-pow((n.x + 0.55) / 0.05, 2.0)) * smoothstep(0.1, -0.5, ny);       // the fill
+  return e + uHi * (1.6 * strip + 0.7 * strip2);
+}
 void main() {
   vec2 fc = vec2(vUv.x, 1.0 - vUv.y) * uRes;
-  vec3 col = C_INK;
-  // star (behind the glass): a hot core, an ember body, a long signal falloff
-  vec2 sd = fc - uStar.xy; float sr = length(sd) / max(uStar.z, 1.0);
-  col += uStar.w * (C_BONE * 3.0 * exp(-sr * sr * 40.0) + C_EMBER * 1.6 * exp(-sr * sr * 3.0) + C_SIGNAL * 0.45 * exp(-sr * 1.4));
+  bool film = uMode < 0.5;
+  vec3 col = film ? filmGround(fc) : cycGround(fc);
   for (int i = 0; i < 2; i++) {
     if (uJ[i].w < 0.5) continue;
     vec2 d = rot2(uJ[i].x) * (fc - uI[i].xy);
     vec2 q = d / uI[i].zw;
     float r = length(q), a = atan(q.y, q.x);
     float aa = 1.6 / min(uI[i].z, uI[i].w);
-    // housing annulus 1.0 .. 1.32: turned metal (fine concentric lathe marks), knurled outer band
     float hous = smoothstep(1.0 - aa, 1.0, r) * smoothstep(1.32 + aa, 1.32, r);
     float lathe = 0.5 + 0.5 * sin(r * 900.0 + hash11(floor(r * 60.0)) * 6.0);
-    vec3 metal = C_INK2 * (1.15 + 0.35 * lathe) + C_GRAPHITE * 0.06 * sat(0.5 - 0.5 * sin(a - 0.9));
+    vec3 metal;
+    if (film) {
+      // brass, lit from the upper left, shadows lifted milky by the overexposure
+      float lit = sat(0.5 - 0.5 * sin(a + 0.8));
+      metal = mix(mix(uM, uD, 0.12), mix(uM, uHi, 0.45), lit) * (0.92 + 0.14 * lathe);
+      metal = mix(metal, uD, 0.30 * segRing(r, a, 1.255, 1.315, 180.0, 0.42, uJ[i].y, aa));
+      metal = mix(metal, uD, 0.45 * ringMask(r, 1.24, aa * 0.5, aa));
+      metal = mix(metal, uHi, (0.35 + 0.6 * uBeat) * ringMask(r, 1.012, aa * 0.8, aa));
+    } else {
+      // chrome: a torus bevel across the annulus, reflecting the studio
+      float b = clamp((r - 1.16) / 0.16, -1.0, 1.0);
+      vec2 n = vec2(cos(a), sin(a)) * b * 0.92;
+      metal = chromeEnv(n) * (0.97 + 0.05 * lathe);
+      metal = mix(metal, uD * 0.3, 0.55 * segRing(r, a, 1.27, 1.315, 120.0, 0.5, uJ[i].y, aa));
+      metal = mix(metal, uD * 0.2, 0.8 * ringMask(r, 1.012, aa * 0.6, aa));
+      metal += uHi * 0.8 * uBeat * ringMask(r, 1.3, aa * 0.8, aa);
+    }
     col = mix(col, metal, hous);
-    col += C_GRAPHITE * 0.55 * segRing(r, a, 1.255, 1.315, 180.0, 0.42, uJ[i].y, aa);
-    col += C_BONE * (0.28 + 0.5 * uTick) * ringMask(r, 1.012, aa * 0.7, aa);
-    col += C_GRAPHITE * 0.9 * ringMask(r, 1.24, aa * 0.5, aa);
-    col += C_BONE * (0.30 + 0.35 * uTick) * segRing(r, a, 1.022, 1.058, 72.0, 0.10, uJ[i].y, aa);
-    col += C_BONE * 0.45 * segRing(r, a, 1.022, 1.085, 12.0, 0.012, uJ[i].y, aa);
-    // lens glass: darker than the room, faint coating rings, the eye's own light
+    // outside the housing: film halation (red-orange bleeding off the bright brass)
+    if (film) col = mix(col, uSg, 0.18 * smoothstep(1.32, 1.34, r) * exp(-(r - 1.32) * 14.0));
+    // glass
     float glass = smoothstep(1.0, 1.0 - aa, r);
-    vec3 g = col * 0.55 + C_INK * 0.25 + C_GRAPHITE * 0.10 * ringMask(r, 0.62, 0.003, aa) + C_GRAPHITE * 0.07 * ringMask(r, 0.83, 0.002, aa);
-    g += uJ[i].z * (C_BONE * 1.4 * exp(-r * r * 260.0) + C_EMBER * 0.8 * exp(-r * r * 45.0) + C_SIGNAL * 0.16 * exp(-r * 5.0));
-    // coating tint: a faint graphite bowl, lighter toward the rim of the glass
-    g += C_GRAPHITE * 0.05 * smoothstep(0.2, 1.0, r);
+    vec3 g;
+    if (film) {
+      g = mix(uD, uG, 0.38) + (uHi - uD) * 0.18 * smoothstep(0.3, 1.0, r);
+      g += uJ[i].z * (uHi * 1.6 * exp(-r * r * 22.0) + uSg * 0.35 * exp(-r * r * 5.0));
+    } else {
+      g = uD * 0.12 + uD * 0.1 * smoothstep(0.4, 1.0, r);
+      // the front glass reflects the softbox: a curved window, upper left
+      vec2 w = (q - vec2(-0.34, -0.4)) / vec2(0.26, 0.13);
+      g += uHi * 0.1 * smoothstep(1.0, 0.6, length(w)) * smoothstep(0.95, 0.9, r);
+      g += uJ[i].z * (uHi * 1.2 * exp(-r * r * 90.0) + uSg * 0.05 * exp(-r * r * 14.0));
+    }
     col = mix(col, g, glass);
   }
   fragColor = vec4(max(col, 0.0), 1.0);
@@ -82,19 +149,27 @@ export default class Lens extends Scene {
   private list: Shot[] = [];
   private plate!: PlateInfo;
   private lines: Line[] = [];
+  private P!: NamedPalette;
 
   override init() {
     this.plate = this.ctx.params as PlateInfo;
+    this.P = palette(this.ctx.params.look.palette);
     this.list = shots(this.plate, this.ctx.audio);
     this.lines = ownedLines(this.ctx);
     this.layer = new Layer2D();
     const v4 = () => new THREE.Vector4();
+    const v3 = (role: 'ground' | 'deep' | 'mid' | 'hi' | 'signal') => ({ value: new THREE.Vector3(...plin(this.P, role)) });
     this.pass = new FSPass(FRAG, {
       uRes: { value: new THREE.Vector2(W, H) },
       uI: { value: [v4(), v4()] },
       uJ: { value: [v4(), v4()] },
-      uStar: { value: v4() },
-      uTick: { value: 0 },
+      uMode: { value: this.plate.variant === 'ai' ? 1 : 0 },
+      uBeat: { value: 0 },
+      uExpo: { value: 0 },
+      uLeak: { value: 0 },
+      uCyc: { value: v4() },
+      uGrainT: { value: 0 },
+      uG: v3('ground'), uD: v3('deep'), uM: v3('mid'), uHi: v3('hi'), uSg: v3('signal'),
     });
   }
 
@@ -106,14 +181,10 @@ export default class Lens extends Scene {
     if (i < 0) return 0;
     return i - i0 + fn(clamp((t - au.beats[i]!) / snap)) - 1;
   }
-  /** Integer beat count since the plate start (0 on the first beat at/after start... -1 before it). */
-  private beatNo(t: number) {
-    const au = this.ctx.audio;
-    return beatIndex(au, t) - beatIndex(au, this.ctx.start + 1e-3);
-  }
 
   // ---------------------------------------------------------------- drawing: iris blades
-  private blades(c: CanvasRenderingContext2D, cam: Cam, ir: Iris) {
+  private blades(c: CanvasRenderingContext2D, cam: Cam, ir: Iris, chrome: boolean) {
+    const P = this.P;
     const n = ir.n, al = TAU / n, R = ir.R, a = Math.max(ir.ap, 0);
     const S = (u: number, v: number) => proj(cam, { x: ir.c.x + u * ir.sx, y: ir.c.y + v * ir.sy });
     const unit = (k: number) => ({ x: Math.cos(ir.phi + k * al), y: Math.sin(ir.phi + k * al) });
@@ -136,27 +207,39 @@ export default class Lens extends Scene {
       q = S(e.x, e.y); c.lineTo(q.x, q.y);
       for (let j = 1; j <= 10; j++) { const th = thE - (al * j) / 10; q = S(Math.cos(th) * R, Math.sin(th) * R); c.lineTo(q.x, q.y); }
       c.closePath();
-      c.fillStyle = rgba('ink2');
-      c.fill();
-      const g = c.createRadialGradient(C.x, C.y, 0, C.x, C.y, rs);
-      const tone = k % 2 ? 0.16 : 0.26;
-      g.addColorStop(0, rgba('graphite', tone * 1.6));
-      g.addColorStop(0.55, rgba('graphite', tone * 0.7));
-      g.addColorStop(1, rgba('graphite', tone * 0.25));
-      c.fillStyle = g;
-      c.fill();
-      // leading edge (V_k -> E_k): the machined hairline that catches the beat
+      if (chrome) {
+        // polished steel: a hard horizon across each blade (sky above, the dark band, the floor below)
+        const mid = S((v0.x + e.x) / 2, (v0.y + e.y) / 2);
+        const up = k % 2 ? 1 : -1;
+        const g = c.createLinearGradient(mid.x, mid.y - up * rs * 0.45, mid.x, mid.y + up * rs * 0.45);
+        g.addColorStop(0, pcss(P, 'hi'));
+        g.addColorStop(0.42, pmix(P, 'hi', 'mid', 0.55));
+        g.addColorStop(0.47, pmix(P, 'deep', 'mid', 0.2));
+        g.addColorStop(0.56, pcss(P, 'deep'));
+        g.addColorStop(1, pmix(P, 'mid', 'ground', 0.4));
+        c.fillStyle = g; c.fill();
+      } else {
+        // blackened steel shot on overexposed stock: milky, lifted, warm toward the rim
+        c.fillStyle = pmix(P, 'deep', 'ground', 0.34); c.fill();
+        const g = c.createRadialGradient(C.x, C.y, 0, C.x, C.y, rs);
+        const tone = k % 2 ? 0.1 : 0.2;
+        g.addColorStop(0, pcss(P, 'hi', tone * 0.4));
+        g.addColorStop(0.6, pcss(P, 'hi', tone));
+        g.addColorStop(1, pcss(P, 'mid', tone * 1.6));
+        c.fillStyle = g; c.fill();
+      }
+      // leading edge (V_k -> E_k): the machined edge that catches the beat
       const hot = k === ir.hot;
       c.lineCap = 'round';
-      c.strokeStyle = hot ? rgba('signal', 0.95) : rgba('bone', 0.22 + 0.55 * ir.edge);
-      c.lineWidth = hot ? 3.2 : 1 + 2.2 * ir.edge;
+      c.strokeStyle = hot ? pcss(P, 'signal', 0.95) : pcss(P, 'hi', 0.45 + 0.5 * ir.edge);
+      c.lineWidth = hot ? 3.2 : 1.2 + 2.6 * ir.edge;
       c.beginPath(); q = S(v0.x, v0.y); c.moveTo(q.x, q.y); q = S(e.x, e.y); c.lineTo(q.x, q.y); c.stroke();
       // pivot pin near the housing
       const thp = thE - al * 0.55, pin = S(Math.cos(thp) * R * 0.9, Math.sin(thp) * R * 0.9);
       const pr = Math.max(1.5, 4.5 * cam.s * Math.min(1, ir.sx * 3));
-      c.fillStyle = rgba('ink');
+      c.fillStyle = chrome ? pcss(P, 'deep') : pcss(P, 'mid');
       c.beginPath(); c.arc(pin.x, pin.y, pr, 0, TAU); c.fill();
-      c.strokeStyle = rgba('bone', 0.35 + 0.5 * ir.edge); c.lineWidth = 1;
+      c.strokeStyle = pcss(P, 'hi', 0.6 + 0.4 * ir.edge); c.lineWidth = 1;
       c.stroke();
     }
   }
@@ -184,10 +267,10 @@ export default class Lens extends Scene {
   /**
    * Draw a lyric line along a ring (world), centred at angle th0, reading in direction dir (+1 = clockwise on
    * screen, the top arc; -1 = the bottom arc). Glyphs keep their size; positions and tangents follow the ellipse.
+   * `ink.lip` engraves: a lit lip offset under each glyph, the cut face over it.
    */
   private ringLyric(c: CanvasRenderingContext2D, line: Line, t: number, cam: Cam, ring: Ring, k: number, th0: number, dir: number,
-    sizeW: number, colors: { sung: PaletteKey; unsung: PaletteKey; unsungAlpha?: number; alpha?: number },
-    extra?: (st: CharState, p: P, ang: number) => CharXform | null, engraved = true) {
+    sizeW: number, ink: Ink, extra?: (st: CharState, p: P, ang: number) => CharXform | null) {
     const fam = F.slam();
     const layW = layoutLine(c, line, fam, sizeW);
     // arc-length table over a full turn centred on th0
@@ -207,8 +290,7 @@ export default class Lens extends Scene {
     };
     const sizeS = sizeW * cam.s;
     drawLyric(c, line, t, {
-      x: 0, y: 0, align: 'left', size: sizeS, family: fam,
-      sungColor: colors.sung, unsungColor: colors.unsung, unsungAlpha: colors.unsungAlpha ?? 0.3, alpha: colors.alpha ?? 1,
+      x: 0, y: 0, align: 'left', size: sizeS, family: fam, unsungAlpha: ink.unsungAlpha ?? 0.3, alpha: ink.alpha ?? 1,
       charTransform: (_ch, _i, st) => {
         const b = st.box;
         const a = at(s0 + (b.x + b.w / 2) / cam.s);
@@ -219,31 +301,12 @@ export default class Lens extends Scene {
         if (!x) return base;
         return { dx: (base.dx ?? 0) + (x.dx ?? 0), dy: (base.dy ?? 0) + (x.dy ?? 0), rot: x.rot ?? ang, scale: x.scale, alpha: x.alpha };
       },
-      drawChar: engraved ? (cc, ch) => {
-        // engraved: a dark cut first, the lit face over it
-        const fs = cc.fillStyle;
-        cc.fillStyle = rgba('ink', 0.85);
-        cc.fillText(ch, sizeS * 0.035, sizeS * 0.035);
-        cc.fillStyle = fs;
+      drawChar: (cc, ch, st) => {
+        if (ink.lip) { cc.fillStyle = ink.lip; cc.fillText(ch, sizeS * 0.035, sizeS * 0.035); }
+        cc.fillStyle = st.sung ? ink.sung : ink.unsung;
         cc.fillText(ch, 0, 0);
-      } : undefined,
+      },
     });
-  }
-
-  /** Latin furniture engraved on a ring: aperture numbers (not a lyric). */
-  private ringScale(c: CanvasRenderingContext2D, cam: Cam, ring: Ring, th0: number, span: number, alpha: number) {
-    const marks = ['1.4', '2', '2.8', '4', '5.6', '8', '11', '16', '22'];
-    c.save();
-    c.font = `${Math.round(13 * cam.s)}px "${F.mono()}"`;
-    c.textAlign = 'center'; c.textBaseline = 'middle';
-    marks.forEach((m, i) => {
-      const a = th0 - span / 2 + (span * i) / (marks.length - 1);
-      const p = proj(cam, onRing(ring, a, 1.18)), p2 = proj(cam, onRing(ring, a + 0.01, 1.18));
-      c.save(); c.translate(p.x, p.y); c.rotate(Math.atan2(p2.y - p.y, p2.x - p.x));
-      c.fillStyle = rgba(i === 4 ? 'signal' : 'bone', alpha); c.fillText(m, 0, 0);
-      c.restore();
-    });
-    c.restore();
   }
 
   // ---------------------------------------------------------------- variants
@@ -258,60 +321,65 @@ export default class Lens extends Scene {
       tightR: { s: 1.6, fx: 1230, fy: 540, rot: 0 },
       shut: { s: 0.82, fx: 960, fy: 560, rot: 0 },
       // ai
-      full: { s: 1.0, fx: 960, fy: 540, rot: 0 },
+      full: { s: 1.0, fx: 960, fy: 480, rot: 0 },
       pupil: { s: 2.4, fx: 960, fy: 540, rot: 0 },
-      reflect: { s: 3.3, fx: 935, fy: 470, rot: 0.14 },
-      // star
-      face: { s: 1.0, fx: 960, fy: 540, rot: 0 },
-      push: { s: 1.9, fx: 990, fy: 515, rot: 0.3 },
-      side: { s: 1.0, fx: 960, fy: 540, rot: 0 },
-      sideMacro: { s: 2.8, fx: 1170, fy: 540, rot: 0 },
+      reflect: { s: 3.3, fx: 945, fy: 520, rot: 0.14 },
     };
     const k = C[frame] ?? C.two!;
     return { ...k, s: k.s * drift };
   }
 
   private gaze(c: CanvasRenderingContext2D, f: Frame, frame: string, cam: Cam): PostOverrides {
-    const au = this.ctx.audio, t = f.t;
+    const au = this.ctx.audio, t = f.t, P = this.P;
     const [l11, l12] = this.lines;
     const face = frame === 'two' || frame === 'shut' ? 0.84 : 1;
     const shutT = this.list.find((s) => s.s.frame === 'shut')?.t ?? this.ctx.end;
     const close = smoothstep(shutT, shutT + 0.45, t);
-    const bp = beatPulse(au, t, 0.14);
+    const bp = beatPulse(au, t, 0.14), db = downbeatPulse(au, t, 0.35);
     const turn = (TAU / 12) * this.step(t);
     const ap = 230 * (0.4 + 0.03 * Math.sin(t * 1.3)) * (1 - close);
     const L: Iris = { c: { x: 470, y: 540 }, R: 230, sx: face, sy: 1, n: 9, ap, phi: 0.2 + turn, hot: -1, edge: bp };
     const Rr: Iris = { c: { x: 1450, y: 540 }, R: 230, sx: face, sy: 1, n: 9, ap, phi: 0.5 - turn, hot: -1, edge: bp };
-    const glow = 0.55 * (1 - close) + 0.35 * bp * (1 - close);
+    const glow = 0.8 * (1 - close) + 0.5 * bp * (1 - close);
     this.setIrisGL(0, cam, L, glow, turn * 0.25);
     this.setIrisGL(1, cam, Rr, glow, -turn * 0.25);
+    const u = this.pass.u;
+    u.uExpo!.value = 0.55 * bp;
+    u.uLeak!.value = 0.12 + 0.75 * db;
+    u.uGrainT!.value = Math.floor(t * 24);
 
-    // the closed room's wall: a brick slab between the eyes
-    const w0 = proj(cam, { x: 925, y: -400 }), w1 = proj(cam, { x: 995, y: -400 }), w2 = proj(cam, { x: 995, y: 1500 }), w3 = proj(cam, { x: 925, y: 1500 });
-    c.beginPath(); c.moveTo(w0.x, w0.y); c.lineTo(w1.x, w1.y); c.lineTo(w2.x, w2.y); c.lineTo(w3.x, w3.y); c.closePath();
-    c.fillStyle = rgba('ink2'); c.fill();
-    c.strokeStyle = rgba('graphite', 0.9); c.lineWidth = 1.2; c.stroke();
-    c.save(); c.clip();
-    c.strokeStyle = rgba('graphite', 0.35); c.lineWidth = 1;
-    for (let y = -400; y < 1500; y += 34) {
-      const a = proj(cam, { x: 925, y }), b = proj(cam, { x: 995, y });
-      c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
-      const jx = 925 + ((Math.round(y / 34) % 2 === 0) ? 23 : 47);
-      const j0 = proj(cam, { x: jx, y }), j1 = proj(cam, { x: jx, y: y + 34 });
-      c.beginPath(); c.moveTo(j0.x, j0.y); c.lineTo(j1.x, j1.y); c.stroke();
-    }
-    c.restore();
+    // the closed room's wall: a sunlit plaster slab between the eyes, its shadow raking to the right
+    const quad = (x0: number, x1: number) => {
+      const w0 = proj(cam, { x: x0, y: -400 }), w1 = proj(cam, { x: x1, y: -400 }), w2 = proj(cam, { x: x1, y: 1500 }), w3 = proj(cam, { x: x0, y: 1500 });
+      c.beginPath(); c.moveTo(w0.x, w0.y); c.lineTo(w1.x, w1.y); c.lineTo(w2.x, w2.y); c.lineTo(w3.x, w3.y); c.closePath();
+      return [w0, w1] as const;
+    };
+    let [a0, a1] = quad(995, 1150);
+    const sh = c.createLinearGradient(a0.x, a0.y, a1.x, a1.y);
+    sh.addColorStop(0, pcss(P, 'deep', 0.22)); sh.addColorStop(1, pcss(P, 'deep', 0));
+    c.fillStyle = sh; c.fill();
+    [a0, a1] = quad(925, 995);
+    const pl = c.createLinearGradient(a0.x, a0.y, a1.x, a1.y);
+    pl.addColorStop(0, pcss(P, 'hi')); pl.addColorStop(0.25, pmix(P, 'ground', 'hi', 0.5)); pl.addColorStop(1, pmix(P, 'ground', 'mid', 0.45));
+    c.fillStyle = pl; c.fill();
 
     // the irises
-    this.blades(c, cam, L);
-    this.blades(c, cam, Rr);
-    this.ringScale(c, cam, Rr, -Math.PI / 2, 1.9, 0.55);
-    this.ringScale(c, cam, L, -Math.PI / 2, 1.9, 0.4);
+    this.blades(c, cam, L, false);
+    this.blades(c, cam, Rr, false);
 
-    // line 11 engraved around the left ring (bottom arc reads left to right)
-    // (kept on the ring only while the ring is the surface; after that the frame belongs to line 12)
+    // halation: the blown aperture bleeds red-orange onto the blades (the film's own glow), pulsing with the beat
+    for (const ir of [L, Rr]) {
+      if (ir.ap < 1) continue;
+      const C = proj(cam, ir.c), r0 = ir.ap * cam.s * 0.8, r1 = ir.ap * cam.s * (1.9 + 0.3 * bp);
+      const hg = c.createRadialGradient(C.x, C.y, r0, C.x, C.y, r1);
+      hg.addColorStop(0, pcss(P, 'signal', 0.55 * (1 - close))); hg.addColorStop(0.35, pcss(P, 'signal', 0.22 * (1 - close))); hg.addColorStop(1, pcss(P, 'signal', 0));
+      c.fillStyle = hg; c.beginPath(); c.arc(C.x, C.y, r1, 0, TAU); c.fill();
+    }
+
+    // line 11 engraved around the left ring (bottom arc reads left to right), in the brass
     const onRingL = stateAt(this.list, t).surface === 'ringL';
-    this.ringLyric(c, l11!, t, cam, L, 1.16, Math.PI / 2, -1, 44, { sung: 'bone', unsung: 'graphite', unsungAlpha: 0.7, alpha: onRingL ? 1 : 0 });
+    this.ringLyric(c, l11!, t, cam, L, 1.16, Math.PI / 2, -1, 44,
+      { sung: pcss(P, 'text'), unsung: pcss(P, 'deep'), unsungAlpha: 0.4, alpha: onRingL ? 1 : 0, lip: pcss(P, 'hi', 0.8) });
 
     // each eye's light: a cone that reaches just past the wall; the words live only where both cones meet
     const lit = (1 - close) * (0.75 + 0.25 * bp);
@@ -321,241 +389,119 @@ export default class Lens extends Scene {
       c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.lineTo(d.x, d.y); c.closePath();
       return { a, b: proj(cam, { x: xEnd, y: 540 }) };
     };
-    c.save();
-    c.globalCompositeOperation = 'lighter';
     for (const [ir, xe] of [[L, 1000], [Rr, 920]] as const) {
       const g = beam(ir, xe);
       const gr = c.createLinearGradient(g.a.x, g.a.y, g.b.x, g.b.y);
-      gr.addColorStop(0, rgba('ember', 0.0));
-      gr.addColorStop(0.35, rgba('ember', 0.05 * lit));
-      gr.addColorStop(1, rgba('bone', 0.11 * lit));
+      gr.addColorStop(0, pcss(P, 'hi', 0));
+      gr.addColorStop(0.3, pcss(P, 'hi', 0.22 * lit));
+      gr.addColorStop(1, pcss(P, 'hi', 0.5 * lit));
       c.fillStyle = gr; c.fill();
     }
-    c.restore();
-    // the overlap: clip to both cones
+    // the overlap: clip to both cones, burned to white; line 12 is printed only there
     c.save();
     beam(L, 1000); c.clip();
     beam(Rr, 920); c.clip();
-    c.globalCompositeOperation = 'lighter';
-    c.fillStyle = rgba('ember', 0.16 * lit + 0.1 * bp * lit);
-    c.fillRect(0, 0, W, H);
-    c.globalCompositeOperation = 'source-over';
+    c.fillStyle = pcss(P, 'hi', 0.92 * lit); c.fillRect(0, 0, W, H);
+    c.fillStyle = pcss(P, 'signal', 0.12 * bp * lit); c.fillRect(0, 0, W, H);
     const lay = layoutLine(c, l12!, F.slam(), 50, undefined, true);
     const top = proj(cam, { x: 960, y: 540 - lay.height / 2 });
     drawLyric(c, l12!, t, {
-      x: top.x, y: top.y, size: 50 * cam.s, vertical: true, rotation: cam.rot, family: F.slam(),
-      sungColor: 'bone', unsungColor: 'ember', unsungAlpha: 0.3, alpha: lit,
+      x: top.x, y: top.y, size: 50 * cam.s, vertical: true, rotation: cam.rot, family: F.slam(), unsungAlpha: 0.3, alpha: lit,
       charTransform: (_ch, _i, st) => ({ scale: st.sung ? 1 + 0.12 * (1 - st.frac) : 1 }),
+      drawChar: (cc, ch, st) => { cc.fillStyle = st.sung ? pcss(P, 'text') : pcss(P, 'mid'); cc.fillText(ch, 0, 0); },
     });
     c.restore();
 
-    const db = downbeatPulse(au, t, 0.18);
-    const l12t = l12!.start;
+    // gate weave: the film frame wanders a pixel or two, a new offset each film frame
+    const fr = Math.floor(t * 24);
+    const weave: [number, number] = [(hash(fr, 3) - 0.5) * 3, (hash(fr, 7) - 0.5) * 4];
     return {
-      zoom: 1 + 0.055 * db,
-      shake: [0, 5 * bp * (1 - close)],
-      flash: 0.06 * Math.exp(-Math.max(0, t - l12t) / 0.08) * (t >= l12t ? 1 : 0),
-      bloom: 0.22, bloomThreshold: 0.95, bloomRadius: 0.35,
-      fade: smoothstep(this.ctx.end - 0.25, this.ctx.end, t) * 0.6,
+      zoom: 1 + 0.05 * db,
+      shake: [weave[0], weave[1] + 5 * bp * (1 - close)],
+      flash: 0.07 * bp * (1 - close),
+      bloom: 0.3, bloomThreshold: 0.9, bloomRadius: 0.5,
+      halation: 0.45,
+      grain: 0.09,
+      vignette: 0,
     };
   }
 
   private ai(c: CanvasRenderingContext2D, f: Frame, frame: string, cam: Cam): PostOverrides {
-    const au = this.ctx.audio, t = f.t;
+    const au = this.ctx.audio, t = f.t, P = this.P;
     const [l18, l19] = this.lines;
     const bp = beatPulse(au, t, 0.12), kp = kickPulse(au, t, 0.1);
     // a gulp per syllable of line 18: the aperture dilates as it takes each word in
     let gulp = 0;
     for (const w of l18!.words) for (const [a] of w.syl ?? [[w.start, w.end]]) if (t >= a) gulp = Math.max(gulp, Math.exp(-(t - a) / 0.25));
-    const R = 310;
-    const ap = R * (0.36 + 0.14 * gulp - 0.035 * bp);
+    const R = 280;
+    const full = frame === 'full';
+    const ap = R * (full ? 0.34 + 0.14 * gulp - 0.035 * bp : 0.62 - 0.035 * bp);
     const ir: Iris = { c: { x: 960, y: 540 }, R, sx: 1, sy: 1, n: 7, ap, phi: (TAU / 14) * this.step(t, 0.09), hot: -1, edge: bp };
     const glint = smoothstep(this.ctx.end - 0.5, this.ctx.end - 0.05, t);
-    this.setIrisGL(0, cam, ir, (frame === 'full' ? 0.35 : 0.16) + 0.4 * gulp + 0.8 * glint, this.step(t) * 0.12);
+    this.setIrisGL(0, cam, ir, (full ? 0.3 : 0.12) + 0.35 * gulp + 0.9 * glint, this.step(t) * 0.12);
     this.setIrisGL(1, cam, null, 0, 0);
-    this.blades(c, cam, ir);
-    this.ringScale(c, cam, ir, Math.PI / 2, 1.6, 0.4);
+    // the cyc: horizon (world y 880) and the eye's soft contact shadow on the floor
+    const hz = proj(cam, { x: 960, y: 880 }), shc = proj(cam, { x: 960, y: 960 });
+    const u = this.pass.u;
+    (u.uCyc!.value as THREE.Vector4).set(hz.y, cam.s, shc.x, shc.y);
+    u.uLeak!.value = 1;
+    // the key softbox's reflection snaps to a new place on the chrome every beat
+    const bi = beatIndex(au, t);
+    u.uExpo!.value = lerp(-0.2 + 0.9 * (hash(bi, 5) - 0.5), 0.35 + 0.5 * (hash(bi + 1, 5) - 0.5), 1 - ease.outExpo(clamp((t - (au.beats[bi] ?? t)) / 0.09)));
+    this.blades(c, cam, ir, true);
 
     const suck = (st: CharState): number => {
       const w = l18!.words[st.word]!, a0 = (w.syl ?? [[w.start, w.end]])[st.syl]![0];
       return ease.inCubic(clamp((t - a0 - 0.2) / 0.55));
     };
-    if (frame === 'full') {
-      // line 18 on the upper ring; each word, once sung, is pulled spiralling into the aperture
-      this.ringLyric(c, l18!, t, cam, ir, 1.2, -Math.PI / 2, 1, 100, { sung: 'bone', unsung: 'graphite', unsungAlpha: 0.8 }, (st, p, ang) => {
-        const u = suck(st);
-        if (u <= 0) return null;
+    if (full) {
+      // line 18 on the cyc just outside the chrome rim; each word, once sung, is pulled spiralling into the aperture
+      this.ringLyric(c, l18!, t, cam, ir, 1.45, -Math.PI / 2, 1, 84, { sung: pcss(P, 'text'), unsung: pcss(P, 'mid'), unsungAlpha: 0.6 }, (st, p, ang) => {
+        const k = suck(st);
+        if (k <= 0) return null;
         const C = proj(cam, ir.c);
-        const dx = p.x - C.x, dy = p.y - C.y, r = Math.hypot(dx, dy) * (1 - u), th = Math.atan2(dy, dx) + 1.6 * u;
-        return { dx: C.x + Math.cos(th) * r - p.x, dy: C.y + Math.sin(th) * r - p.y, rot: ang + 2.2 * u, scale: 1 - 0.8 * u, alpha: 1 - smoothstep(0.75, 1, u) };
-      }, true);
+        const dx = p.x - C.x, dy = p.y - C.y, r = Math.hypot(dx, dy) * (1 - k), th = Math.atan2(dy, dx) + 1.6 * k;
+        return { dx: C.x + Math.cos(th) * r - p.x, dy: C.y + Math.sin(th) * r - p.y, rot: ang + 2.2 * k, scale: 1 - 0.8 * k, alpha: 1 - smoothstep(0.75, 1, k) };
+      });
     } else {
-      // inside the pupil: the stolen words drift in the glass, kept as evidence
+      // inside the pupil: the stolen words drift in the black glass, and line 19 is the reflection on its front
       c.save();
       this.aperturePath(c, cam, ir, 1.001); c.clip();
       const C = proj(cam, ir.c);
-      const size = 34 * cam.s;
+      const size = 15 * cam.s;
       drawLyric(c, l18!, t, {
-        x: C.x, y: C.y, size, align: 'center', family: F.slam(), sungColor: 'ember', unsungColor: 'ember',
-        charTransform: (_ch, i, st) => {
+        x: C.x, y: C.y + ap * cam.s * 0.42, size, align: 'center', family: F.slam(),
+        charTransform: (_ch, i) => {
           // kept in reading order, suspended in the glass: a slow bob and tilt, a twitch on the kick
           const ph = hash(i, 11) * TAU, lt = t - this.ctx.start;
-          return { dx: 6 * cam.s * Math.sin(lt * 1.3 + ph), dy: 9 * cam.s * Math.sin(lt * 1.7 + ph) + (i - 1) * size * 0.18, rot: 0.12 * Math.sin(lt * 1.1 + ph), scale: 0.95 + 0.2 * kp };
+          return { dx: 6 * cam.s * Math.sin(lt * 1.3 + ph), dy: 7 * cam.s * Math.sin(lt * 1.7 + ph), rot: 0.12 * Math.sin(lt * 1.1 + ph), scale: 0.95 + 0.25 * kp };
         },
+        drawChar: (cc, ch) => { cc.fillStyle = pcss(P, 'signal'); cc.fillText(ch, 0, 0); },
       });
-      // an evidence bracket around the pupil's contents
-      c.strokeStyle = rgba('ember', 0.5); c.lineWidth = 1.2;
-      const e = ap * cam.s * 0.62, m = e * 0.25;
-      for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
-        c.beginPath(); c.moveTo(C.x + sx * e, C.y + sy * (e - m)); c.lineTo(C.x + sx * e, C.y + sy * e); c.lineTo(C.x + sx * (e - m), C.y + sy * e); c.stroke();
-      }
+      // the reflection: line 19 on a shallow arc across the pupil glass (a big ring centred below)
+      const glass: Ring = { c: { x: 960, y: 540 + ap * 2.6 }, R: ap * 2.75, sx: 1, sy: 1 };
+      this.ringLyric(c, l19!, t, cam, glass, 1, -Math.PI / 2, 1, 30, { sung: pcss(P, 'hi'), unsung: pcss(P, 'hi'), unsungAlpha: 0.25, alpha: 0.96 }, (st) => (
+        st.sung ? { scale: 1 + 0.15 * (1 - st.frac) } : null));
       c.restore();
-
-      // the front glass reflects line 19 along a large curved highlight (in front of everything)
-      const glass: Ring = { c: { x: 960, y: 1250 }, R: 800, sx: 1, sy: 1 };
-      c.save();
-      c.globalCompositeOperation = 'lighter';
-      const G = proj(cam, glass.c);
-      c.strokeStyle = rgba('bone', 0.05 + 0.04 * bp);
-      c.lineWidth = 64 * cam.s;
-      c.beginPath(); c.arc(G.x, G.y, glass.R * cam.s, -Math.PI / 2 - 0.35 + cam.rot, -Math.PI / 2 + 0.35 + cam.rot); c.stroke();
-      c.restore();
-      this.ringLyric(c, l19!, t, cam, glass, 1, -Math.PI / 2, 1, 34, { sung: 'bone', unsung: 'bone', unsungAlpha: 0.22, alpha: 0.95 }, (st) => (
-        st.sung ? { scale: 1 + 0.15 * (1 - st.frac) } : null), false);
     }
     // exit: a glint in the pupil flares
     if (glint > 0) {
-      const g = proj(cam, { x: 960 + 38, y: 540 - 42 });
-      c.save(); c.globalCompositeOperation = 'lighter';
+      const g = proj(cam, { x: 960 + 0.2 * ap, y: 540 - 0.24 * ap });
       for (const a of [0, Math.PI / 2, Math.PI / 4, -Math.PI / 4]) {
         const Lg = (a === 0 || a === Math.PI / 2 ? 520 : 170) * glint * cam.s;
         const gr = c.createLinearGradient(g.x - Math.cos(a) * Lg, g.y - Math.sin(a) * Lg, g.x + Math.cos(a) * Lg, g.y + Math.sin(a) * Lg);
-        gr.addColorStop(0, rgba('ember', 0)); gr.addColorStop(0.5, rgba('bone', 0.9 * glint)); gr.addColorStop(1, rgba('ember', 0));
-        c.strokeStyle = gr; c.lineWidth = 2.5 * cam.s;
+        gr.addColorStop(0, pcss(P, 'hi', 0)); gr.addColorStop(0.5, pcss(P, 'hi', glint)); gr.addColorStop(1, pcss(P, 'hi', 0));
+        c.strokeStyle = gr; c.lineWidth = 3 * cam.s;
         c.beginPath(); c.moveTo(g.x - Math.cos(a) * Lg, g.y - Math.sin(a) * Lg); c.lineTo(g.x + Math.cos(a) * Lg, g.y + Math.sin(a) * Lg); c.stroke();
       }
-      c.restore();
     }
     return {
-      zoom: 1 + 0.02 * kp,
+      zoom: 1 + 0.025 * kp,
       shake: [0, -4 * bp],
       flash: 0.05 * glint * glint,
-      bloom: 0.15 + 0.25 * glint, bloomThreshold: 0.95, bloomRadius: 0.35,
-    };
-  }
-
-  private star(c: CanvasRenderingContext2D, f: Frame, frame: string, cam: Cam): PostOverrides {
-    const au = this.ctx.audio, t = f.t;
-    const bn = this.beatNo(t);
-    const tb = au.beats[beatIndex(au, t)] ?? t;
-    const snap = ease.outExpo(clamp((t - tb) / 0.08));
-    const bp = beatPulse(au, t, 0.1), kp = kickPulse(au, t, 0.1);
-    const clicks = clamp(bn + 1, 0, 2) - (bn >= 0 && bn < 2 ? 1 - snap : 0);
-    const done = clamp(bn - 1, 0, 6), closing = bn >= 2 && bn <= 7;
-    const closed = done - (closing ? 1 - snap : 0);
-    const R = 360, a0 = R * 0.46;
-    const ap = a0 * (1 - closed / 6);
-    const side = frame === 'side' || frame === 'sideMacro';
-    const ir: Iris = {
-      c: side ? { x: 1150, y: 540 } : { x: 960, y: 540 }, R, sx: side ? 0.16 : 1, sy: 1, n: 6, ap,
-      phi: 0.25 - 0.17 * clicks + 0.5 * (closed / 6), hot: closing ? (done - 1) % 6 : -1, edge: bn < 2 ? Math.min(1.4, 1.6 * bp) : bp, side,
-    };
-    const tCut = au.beats[beatIndex(au, this.ctx.start + 1e-3) + 7] ?? this.ctx.end;
-    const cut = t >= tCut;
-    const light = ap / a0;
-    this.setIrisGL(1, cam, null, 0, 0);
-    const uStar = this.pass.u.uStar!.value as THREE.Vector4;
-
-    if (!side) {
-      const C = proj(cam, ir.c);
-      uStar.set(C.x, C.y, R * 0.55 * cam.s, 0.35 + 0.9 * light);
-      this.setIrisGL(0, cam, ir, 0.2 * light, 0.26 * clicks);
-      this.blades(c, cam, ir);
-      // diffraction spikes of a six-bladed aperture: one per edge normal, their length is the light still passing
-      if (light > 0.001) {
-        c.save(); c.globalCompositeOperation = 'lighter';
-        for (let k = 0; k < 6; k++) {
-          const a = ir.phi + (k + 0.5) * (TAU / 6) + cam.rot, Ls = (240 + 820 * light) * cam.s * (0.85 + 0.3 * kp);
-          const gr = c.createLinearGradient(C.x, C.y, C.x + Math.cos(a) * Ls, C.y + Math.sin(a) * Ls);
-          gr.addColorStop(0, rgba('bone', 0.85 * light)); gr.addColorStop(0.3, rgba('ember', 0.4 * light)); gr.addColorStop(1, rgba('signal', 0));
-          c.strokeStyle = gr; c.lineWidth = (1.5 + 2.5 * bp) * Math.min(2, cam.s);
-          c.beginPath(); c.moveTo(C.x, C.y); c.lineTo(C.x + Math.cos(a) * Ls, C.y + Math.sin(a) * Ls); c.stroke();
-        }
-        c.restore();
-      }
-      // the latch: a pawl on the housing that clicks twice to preload the spring
-      const th = -0.85 + 0.0;
-      const piv = { x: ir.c.x + Math.cos(th) * R * 1.4, y: ir.c.y + Math.sin(th) * R * 1.4 };
-      const la = th + Math.PI * 0.55 + 0.42 * clicks;
-      const tip = { x: piv.x + Math.cos(la) * R * 0.52, y: piv.y + Math.sin(la) * R * 0.52 };
-      const P0 = proj(cam, piv), P1 = proj(cam, tip);
-      c.lineCap = 'round';
-      c.strokeStyle = rgba('graphite'); c.lineWidth = 26 * cam.s;
-      c.beginPath(); c.moveTo(P0.x, P0.y); c.lineTo(P1.x, P1.y); c.stroke();
-      c.strokeStyle = rgba(bn < 2 ? 'signal' : 'bone', bn < 2 ? 0.5 + 0.5 * bp : 0.5); c.lineWidth = (2 + 5 * (bn < 2 ? bp : 0)) * cam.s;
-      c.beginPath(); c.moveTo(P0.x, P0.y); c.lineTo(P1.x, P1.y); c.stroke();
-      c.fillStyle = rgba('ink'); c.beginPath(); c.arc(P0.x, P0.y, 9 * cam.s, 0, TAU); c.fill();
-      c.strokeStyle = rgba('bone', 0.7); c.lineWidth = 1.5; c.stroke();
-    } else {
-      // side view: the star at left, the housing edge-on, the beam that squeezes through the slit
-      const S = proj(cam, { x: 250, y: 540 });
-      const dark = cut ? Math.exp(-(t - tCut) / 0.1) : 1;
-      uStar.set(S.x, S.y, 170 * cam.s, 0.15 + 0.85 * dark);
-      this.setIrisGL(0, cam, null, 0, 0);
-      const C = proj(cam, ir.c);
-      c.save(); c.globalCompositeOperation = 'lighter';
-      // incoming light: the star floods the front face
-      const top = proj(cam, { x: ir.c.x, y: 540 - R * 1.3 }), bot = proj(cam, { x: ir.c.x, y: 540 + R * 1.3 });
-      const gi = c.createLinearGradient(S.x, S.y, C.x, C.y);
-      gi.addColorStop(0, rgba('ember', (0.25 / cam.s) * dark)); gi.addColorStop(1, rgba('signal', (0.08 / cam.s) * dark));
-      c.fillStyle = gi;
-      c.beginPath(); c.moveTo(S.x, S.y - 40 * cam.s); c.lineTo(top.x, top.y); c.lineTo(bot.x, bot.y); c.lineTo(S.x, S.y + 40 * cam.s); c.closePath(); c.fill();
-      c.restore();
-      // housing as a short cylinder: back rim, body, front face
-      const depth = 70, rx = R * 1.32 * ir.sx * cam.s, ry = R * 1.32 * cam.s;
-      const B = proj(cam, { x: ir.c.x + depth, y: 540 });
-      c.fillStyle = rgba('ink2');
-      c.beginPath(); c.ellipse(B.x, B.y, rx, ry, cam.rot, 0, TAU); c.fill();
-      c.fillRect(Math.min(C.x, B.x), C.y - ry, Math.abs(B.x - C.x), 2 * ry);
-      c.strokeStyle = rgba('graphite', 0.8); c.lineWidth = 1.2;
-      c.beginPath(); c.moveTo(C.x, C.y - ry); c.lineTo(B.x, B.y - ry); c.moveTo(C.x, C.y + ry); c.lineTo(B.x, B.y + ry); c.stroke();
-      // knurl on the cylinder body
-      c.strokeStyle = rgba('graphite', 0.45); c.lineWidth = 1;
-      for (let i = 0; i < 26; i++) {
-        const y = C.y - ry + ((i + 0.5 + 0.35 * clicks) / 26) * 2 * ry;
-        c.beginPath(); c.moveTo(C.x + 4, y); c.lineTo(B.x - 4, y); c.stroke();
-      }
-      c.fillStyle = rgba('ink2');
-      c.beginPath(); c.ellipse(C.x, C.y, rx, ry, cam.rot, 0, TAU); c.fill();
-      c.strokeStyle = rgba('bone', 0.4 + 0.5 * bp); c.lineWidth = 1.5; c.stroke();
-      this.blades(c, cam, ir);
-      // the slit of light and the outgoing ray
-      c.save(); c.globalCompositeOperation = 'lighter';
-      if (!cut && ap > 0.5) {
-        this.aperturePath(c, cam, ir); c.fillStyle = rgba('bone', 0.95); c.fill();
-      }
-      const tail = cut ? (t - tCut) * 3200 : 0;
-      const x0 = proj(cam, { x: ir.c.x + tail, y: 540 });
-      const hb = Math.max(ap, cut ? a0 / 6 * 0.25 : 0) * cam.s;
-      if (x0.x < W + 10) {
-        const go = c.createLinearGradient(x0.x, 0, W, 0);
-        go.addColorStop(0, rgba('bone', 0.9)); go.addColorStop(1, rgba('ember', 0.45));
-        c.fillStyle = go;
-        c.fillRect(x0.x, C.y - hb * 0.35, W - x0.x, hb * 0.7);
-        c.fillStyle = rgba('signal', 0.25);
-        c.fillRect(x0.x, C.y - hb, W - x0.x, hb * 2);
-      }
-      c.restore();
-    }
-    // T3: every beat is a big hit — the latch jolts the frame, each blade slam punches in
-    const shakeDir = bn % 2 ? 1 : -1;
-    const hitAmp = bn < 2 ? 18 : 11;
-    const cutHit = cut ? Math.exp(-(t - tCut) / 0.12) : 0;
-    return {
-      zoom: 1 + 0.08 * bp + 0.05 * cutHit,
-      shake: [shakeDir * hitAmp * bp, (bn < 2 ? hitAmp : 5) * bp],
-      flash: 0,
-      bloom: 0.55, bloomThreshold: 0.9, halation: 0.2,
+      bloom: 0.1 + 0.3 * glint, bloomThreshold: 1.0, bloomRadius: 0.35,
+      grain: 0.02,
+      vignette: 0,
     };
   }
 
@@ -567,10 +513,8 @@ export default class Lens extends Scene {
     const cam = this.cam(frame, sh.t0, f.t);
     const L = this.layer, c = L.ctx;
     L.clear();
-    (this.pass.u.uStar!.value as THREE.Vector4).set(0, 0, 1, 0);
-    this.pass.u.uTick!.value = beatPulse(this.ctx.audio, f.t, 0.15);
-    const v = this.plate.variant;
-    const post = v === 'ai' ? this.ai(c, f, frame, cam) : v === 'star' ? this.star(c, f, frame, cam) : this.gaze(c, f, frame, cam);
+    this.pass.u.uBeat!.value = beatPulse(this.ctx.audio, f.t, 0.15);
+    const post = this.plate.variant === 'ai' ? this.ai(c, f, frame, cam) : this.gaze(c, f, frame, cam);
     L.upload();
     this.pass.render(renderer, out);
     this.ctx.comp.draw(renderer, L.texture, out, { mode: 'normal' });

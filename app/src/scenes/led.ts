@@ -321,7 +321,7 @@ vec3 plate(vec2 p) {
     let pos: V3, tgt: V3, fov: number;
     if (cam === 'wide') {
       fc = this.xp(this.plate.start) + 48;
-      pos = [0, 21, R - 125 + 8 * lt];
+      pos = [0, 21, R - 98 + 7 * lt];
       tgt = [0, 24, R];
       fov = 40;
     } else if (cam === 'low') {
@@ -356,8 +356,9 @@ vec3 plate(vec2 p) {
     u.uGain!.value = 0.78 + 0.55 * bp + 0.6 * cut + 0.6 * agiHit;
     u.uUnlit!.value = 0.7 + 1.2 * db;
     return {
-      bloom: 0.55,
-      bloomThreshold: 0.6,
+      // bloom only past the resting emitters (~2 linear): the hot cream cores, the cut and 'AGI' surges
+      bloom: 0.4,
+      bloomThreshold: 2.2,
       bloomRadius: 0.55,
       halation: 0.18,
       zoom: 1 + 0.035 * db + 0.05 * agiHit,
