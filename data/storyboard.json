@@ -736,10 +736,10 @@
    ]
   },
   {
-   "id": "p13-cosmos-bigbang",
+   "id": "p13-bigbang-bang",
    "n": 13,
-   "module": "cosmos",
-   "variant": "bigbang",
+   "module": "bigbang",
+   "variant": "bang",
    "start": 65.12,
    "end": 69.781,
    "lines": [],
@@ -777,9 +777,9 @@
    ]
   },
   {
-   "id": "p14-cosmos-web",
+   "id": "p14-cosmicweb-web",
    "n": 14,
-   "module": "cosmos",
+   "module": "cosmicweb",
    "variant": "web",
    "start": 69.781,
    "end": 74.443,
@@ -818,9 +818,9 @@
    ]
   },
   {
-   "id": "p15-cosmos-sun",
+   "id": "p15-solar-sun",
    "n": 15,
-   "module": "cosmos",
+   "module": "solar",
    "variant": "sun",
    "start": 74.443,
    "end": 79.105,
@@ -859,10 +859,10 @@
    ]
   },
   {
-   "id": "p16-cosmos-impact",
+   "id": "p16-impact-theia",
    "n": 16,
-   "module": "cosmos",
-   "variant": "impact",
+   "module": "impact",
+   "variant": "theia",
    "start": 79.105,
    "end": 83.766,
    "lines": [],
@@ -900,10 +900,10 @@
    ]
   },
   {
-   "id": "p17-cosmos-moon",
+   "id": "p17-moon-sumuk",
    "n": 17,
-   "module": "cosmos",
-   "variant": "moon",
+   "module": "moon",
+   "variant": "sumuk",
    "start": 83.766,
    "end": 86.097,
    "lines": [],

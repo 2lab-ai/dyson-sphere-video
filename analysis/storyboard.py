@@ -161,7 +161,7 @@ SB = {
                ("+12b", "flat", "the whole scope bezel; the beam collapses to one dot before the drop")],
         exit="the beam collapses to a point (the singularity before the drop)"),
     # ------------------------------------------------------------------ drop 1: origin
-    ("cosmos", "bigbang"): dict(
+    ("bigbang", "bang"): dict(
         tier="T3", beat="per beat the whole frame's temperature steps down one notch (white → gold → red) and every curl "
                         "grows (space expanding everywhere at once, no centre)",
         lyric="none",
@@ -169,7 +169,7 @@ SB = {
         shots=[("s", "flat", "the drop hits: the WHOLE frame is white-hot at once, uniform, no centre, no edge"),
                ("+1B", "close", "it cools into gold ink-in-water curls filling the frame; every curl drifts apart from every other")],
         exit="the curls thin out into filaments"),
-    ("cosmos", "web"): dict(
+    ("cosmicweb", "web"): dict(
         tier="T3", beat="each beat the spacing between the nodes grows one step while every node keeps its size "
                         "(metric expansion, not a zoom)",
         lyric="none",
@@ -177,21 +177,21 @@ SB = {
         shots=[("s", "wide", "the cosmic web: nodes and filaments; the gaps between them grow per beat"),
                ("+1B", "tilt", "re-framed at the next power of ten: clusters of galaxies inside the filaments, still separating")],
         exit="one node brightens (a nebula)"),
-    ("cosmos", "sun"): dict(
+    ("solar", "sun"): dict(
         tier="T3", beat="granulation pulses on the kick; a prominence arcs out on each downbeat",
         lyric="none",
         subject=subj("sun", CX, CY, 0.62), lyr=NOLYR,
         shots=[("s", "wide", "a nebula collapses to a point at the anchor"),
                ("+1B", "close", "the Sun ignites, SDO 304 false colour, granulation boiling on the kick")],
         exit="the Sun's limb flares"),
-    ("cosmos", "impact"): dict(
+    ("impact", "theia"): dict(
         tier="T3", beat="the clay planets move stepped at 12 fps; each beat one clay lump accretes onto the proto-Earth",
         lyric="none",
         subject=subj("planets", 900, 560, 0.45), lyr=NOLYR,
         shots=[("s", "wide", "a clay proto-Earth accreting lumps; a smaller clay planet (Theia) approaches"),
                ("+1B", "close", "the impact on the downbeat: clay splashes, a ring of debris flies out")],
         exit="debris spreads into a ring"),
-    ("cosmos", "moon"): dict(
+    ("moon", "sumuk"): dict(
         tier="T3", beat="each beat one ink stroke of the ring gathers into the moon disc",
         lyric="none",
         subject=subj("moon", CX, CY, 0.4), lyr=NOLYR,

@@ -68,7 +68,7 @@ const BUILT = new Set([
 /** Idioms allowed to repeat, with their max count. Everything else: at most once. */
 const IDIOM_REPEAT: Record<string, number> = { 'pop-up': 3, demoscene: 3, 'light-trace': 3, aperture: 2, '3d-lit': 3 };
 /** Idioms allowed only on named plates (M3 fluid: #5 ocean and #13 Big Bang). */
-const IDIOM_PLATES: Record<string, string[]> = { 'fluid-cosmos': ['p05-wave-ocean', 'p13-cosmos-bigbang'] };
+const IDIOM_PLATES: Record<string, string[]> = { 'fluid-cosmos': ['p05-wave-ocean', 'p13-bigbang-bang'] };
 /** Banned idioms (the retired drawing / UI-chrome looks). */
 const IDIOM_BANNED = ['blueprint', 'drawing', 'technical-drawing', 'screen-ui', 'dial-chrome', 'silhouette', 'liquid-chrome'];
 /** Plate-ID-scoped sequences: the only places the same idiom may sit on adjacent plates. */

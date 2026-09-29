@@ -132,7 +132,7 @@ Hit envelope: kick = frames 0-2 at full amplitude, decays over 6 frames (outExpo
 - `  64.537` (+12b, cam `flat`) the whole scope bezel; the beam collapses to one dot before the drop
 - Exit: the beam collapses to a point (the singularity before the drop)
 
-## #13 p13-cosmos-bigbang  65.12–69.78 s · fluid-cosmos (M) · dark · palette `cosmos-gold` · T3
+## #13 p13-bigbang-bang  65.12–69.78 s · fluid-cosmos (M) · dark · palette `cosmos-gold` · T3
 - Event: Big Bang: the drop hits and the whole frame is white-hot at once (space itself expands everywhere, no centre); the plasma cools into gold ink-in-water curls
 - Subject: flood at (960, 540), scale 1.0
 - Beat: per beat the whole frame's temperature steps down one notch (white → gold → red) and every curl grows (space expanding everywhere at once, no centre)
@@ -141,7 +141,7 @@ Hit envelope: kick = frames 0-2 at full amplitude, decays over 6 frames (outExpo
 - `  67.451` (+1B, cam `close`) it cools into gold ink-in-water curls filling the frame; every curl drifts apart from every other
 - Exit: the curls thin out into filaments
 
-## #14 p14-cosmos-web  69.78–74.44 s · powers-of-ten (A) · dark · palette `web` · T3
+## #14 p14-cosmicweb-web  69.78–74.44 s · powers-of-ten (A) · dark · palette `web` · T3
 - Event: expansion: the cosmic web grows; the distances between structures grow per beat (metric expansion) while the structures keep their size, a power of ten per bar
 - Subject: lattice at (960, 540), scale 1.0
 - Beat: each beat the spacing between the nodes grows one step while every node keeps its size (metric expansion, not a zoom)
@@ -150,7 +150,7 @@ Hit envelope: kick = frames 0-2 at full amplitude, decays over 6 frames (outExpo
 - `  72.112` (+1B, cam `tilt`) re-framed at the next power of ten: clusters of galaxies inside the filaments, still separating
 - Exit: one node brightens (a nebula)
 
-## #15 p15-cosmos-sun  74.44–79.11 s · sdo-solar (S) · dark · palette `sdo` · T3
+## #15 p15-solar-sun  74.44–79.11 s · sdo-solar (S) · dark · palette `sdo` · T3
 - Event: the Sun ignites: a nebula collapses into the Sun in SDO false colour, granulation pulsing on the kick
 - Subject: sun at (1187, 413), scale 0.62
 - Beat: granulation pulses on the kick; a prominence arcs out on each downbeat
@@ -159,7 +159,7 @@ Hit envelope: kick = frames 0-2 at full amplitude, decays over 6 frames (outExpo
 - `  76.774` (+1B, cam `close`) the Sun ignites, SDO 304 false colour, granulation boiling on the kick
 - Exit: the Sun's limb flares
 
-## #16 p16-cosmos-impact  79.11–83.77 s · claymation (M) · light · palette `clay` · T3
+## #16 p16-impact-theia  79.11–83.77 s · claymation (M) · light · palette `clay` · T3
 - Event: Earth accretes; Theia strikes: molten clay planets, stepped 12 fps, the impact on the downbeat
 - Subject: planets at (900, 560), scale 0.45
 - Beat: the clay planets move stepped at 12 fps; each beat one clay lump accretes onto the proto-Earth
@@ -168,7 +168,7 @@ Hit envelope: kick = frames 0-2 at full amplitude, decays over 6 frames (outExpo
 - `  81.435` (+1B, cam `close`) the impact on the downbeat: clay splashes, a ring of debris flies out
 - Exit: debris spreads into a ring
 
-## #17 p17-cosmos-moon  83.77–86.10 s · ink-wash (H) · light · palette `sumuk` · T3
+## #17 p17-moon-sumuk  83.77–86.10 s · ink-wash (H) · light · palette `sumuk` · T3
 - Event: the Moon forms: the debris ring gathers into a full moon in Korean ink wash (sumuk)
 - Subject: moon at (1187, 413), scale 0.4
 - Beat: each beat one ink stroke of the ring gathers into the moon disc
