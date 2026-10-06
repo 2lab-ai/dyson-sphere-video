@@ -246,7 +246,9 @@ export default class Demo extends Scene {
   private accumulator(t: number, t0: number) {
     const au = this.ctx.audio, lt = t - t0, W = this.W, Hh = this.H;
     const n = 1946 + this.nb(t, this.plate.start), bp = beatPulse(au, t, 0.12), kp = kickPulse(au, t, 0.08);
-    const pan = Math.round(-lt * 14 - 3 * this.steps(t, t0)); // slow pan left, a jolt per beat
+    const pan = Math.round(-3 * this.steps(t, t0)); // v4: static camera, only a jolt per beat
+    // residue: until the first beat after the cut every lamp is lit — p37's glowing dot grid — then they settle to digits
+    const grid = t < (au.beats.find((b) => b > this.plate.start + 0.05) ?? this.plate.start + 0.58);
     for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) this.ramp(x, y, 0.32 + 0.12 * Math.sin((x - pan) * 0.02), [G, D]);
     // panel seams
     for (let s = -1; s < 3; s++) { const xs = 8 + s * 150 + pan; this.rect(xs, 0, 3, Hh, G); }
@@ -255,7 +257,7 @@ export default class Demo extends Scene {
     for (let c = 0; c < 10; c++) {
       const x = 30 + c * 26 + pan, d = +dec[c]!;
       for (let r = 0; r < 10; r++) {
-        const y = 14 + r * 10, on = r === d;
+        const y = 14 + r * 10, on = r === d || grid;
         this.disc(x, y, 3.6, on ? H : G);
         if (on) { this.disc(x, y, 1.6, bp > 0.4 ? S : H); if (bp > 0.3) for (const [dx, dy] of [[-6, 0], [6, 0], [0, -6], [0, 6]]) this.put(x + dx!, y + dy!, S); }
         else this.put(x - 1, y - 1, M);

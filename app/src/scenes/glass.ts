@@ -36,6 +36,7 @@ uniform float uT, uLt, uFocal, uSun, uSurge, uHeat, uGlow, uShaft, uWall;
 uniform vec3 uPos, uFwd, uRight, uUp, uL, uWC;
 uniform vec2 uSunQ;
 uniform float uRing[6];
+uniform float uThermal, uMach, uMachX, uSquare;
 uniform vec3 uGround, uDeep, cPalMid, uHi, uText, uSignal;
 
 const float WR = ${WR.toFixed(2)};
@@ -147,6 +148,33 @@ vec3 passed(Pc pc) {
   return c * lit(pc) * (0.62 + 0.6 * pc.h) * uSun * (1.0 + uSurge);
 }
 
+// p36 thermal: machines passing BEHIND the glass (window-plane coords, q in window radii) — a gear train, then a loco
+float gearM(vec2 p, float r, float teeth, float rot) {
+  float a = atan(p.y, p.x) + rot, d = length(p);
+  float rr = r * (0.82 + 0.18 * step(0.0, sin(a * teeth)));
+  return step(d, rr) * step(r * 0.28, d) + step(d, r * 0.12);
+}
+float boxM(vec2 p, vec2 c, vec2 h) { vec2 d = abs(p - c) - h; return step(max(d.x, d.y), 0.0); }
+float machine(vec2 q) {
+  float x = q.x - uMachX;
+  // gears: two meshed wheels counter-rotating as they slide across
+  float g = max(gearM(vec2(x + 0.55, q.y + 0.1), 0.42, 12.0, uMachX * 3.0), gearM(vec2(x + 1.3, q.y - 0.42), 0.3, 9.0, -uMachX * 4.2));
+  // the locomotive, a gear-length behind: boiler, cab, chimney, wheels
+  float lx = x + 3.2;
+  float l = max(boxM(vec2(lx, q.y), vec2(0.0, -0.05), vec2(0.62, 0.2)), boxM(vec2(lx, q.y), vec2(-0.5, 0.18), vec2(0.2, 0.24)));
+  l = max(l, boxM(vec2(lx, q.y), vec2(0.42, 0.28), vec2(0.07, 0.14)));
+  for (int i = 0; i < 3; i++) l = max(l, gearM(vec2(lx + 0.45 - 0.42 * float(i), q.y + 0.34), 0.16, 8.0, uMachX * 6.0));
+  return max(g, l);
+}
+// ironbow: luminance through the thermal palette (ground → deep → mid → hi → text)
+vec3 ironbow(vec3 c) {
+  float x = clamp(pow((0.299 * c.r + 0.587 * c.g + 0.114 * c.b) * 1.6, 0.7), 0.0, 1.0) * 4.0;
+  vec3 a = mix(uGround, uDeep, clamp(x, 0.0, 1.0));
+  a = mix(a, cPalMid, clamp(x - 1.0, 0.0, 1.0));
+  a = mix(a, uHi, clamp(x - 2.0, 0.0, 1.0));
+  return mix(a, uText, clamp(x - 3.0, 0.0, 1.0));
+}
+
 // the rose seen from inside the nave
 vec3 shadeWindow(vec2 q, float pxq) {
   Pc pc = piece(q, true);
@@ -175,6 +203,11 @@ vec3 shadeWindow(vec2 q, float pxq) {
   float hot = exp(-dot(sd, sd) / 0.06);
   vec3 glass = passed(pc) * (0.72 + 0.5 * streak) * (1.0 + 1.3 * hot) * (1.0 - 0.45 * seed) + jewel(pc.cls) * seed * 0.5 * lit(pc) * uSun;
   glass += jewel(pc.cls) * 0.045 * (0.6 + 0.8 * streak);           // unlit: dark glass, just readable
+  // the first pane: the tablet's window light, a lit square at the centre (residue from p34), held until ring 0 takes over
+  float sqD = max(abs(q.x), abs(q.y));
+  glass = mix(glass, uHi * (1.1 + 0.4 * streak) * uSun, uSquare * (1.0 - smoothstep(0.105, 0.115, sqD)));
+  // p36: the machines eclipse the glass from behind (the window stays the subject: the lead and stone stay drawn)
+  glass *= 1.0 - 0.94 * uMach * machine(q);
   // grisaille: the painted shading that darkens each piece toward its lead
   glass *= mix(0.42, 1.0, smoothstep(LW, LW + 0.035, min(pc.leadD, pc.stoneD - SW + LW)));
   vec3 leadC = uGround * 0.35 + uSignal * uHeat * uHeat * 0.9 + passed(pc) * 0.03;
@@ -257,7 +290,9 @@ void main() {
   if (what == 1) col = shadeWall(P, pxw);
   else if (what == 2) col = shadeFloor(P);
   col += shafts(ro, rd, min(tHit, 40.0), fc);
-  fragColor = vec4(max(col, 0.0), 1.0);
+  col = max(col, 0.0);
+  if (uThermal > 0.5) col = ironbow(col);
+  fragColor = vec4(col, 1.0);
 }`;
 
 type Pose = { pos: THREE.Vector3; look: THREE.Vector3; focal: number };
@@ -267,9 +302,12 @@ export default class Glass extends Scene {
   pass!: FSPass;
   private list: Shot[] = [];
   private beats: number[] = [];
+  /** p36 'thermal': the same window, camera and layout under the thermal LUT; machines pass behind it on bar 4. */
+  private thermal = false;
 
   override init() {
     const plate = this.ctx.params as PlateInfo;
+    this.thermal = this.ctx.params.variant === 'thermal';
     this.P = palette(this.ctx.params.look.palette);
     this.list = shots(plate, this.ctx.audio);
     const { start, end } = this.ctx;
@@ -279,6 +317,7 @@ export default class Glass extends Scene {
     this.pass = new FSPass(GLASS_FRAG, {
       uRes: { value: new THREE.Vector2(1920, 1080) },
       uT: { value: 0 }, uLt: { value: 0 }, uFocal: { value: 1.7 }, uSun: { value: 1 }, uSurge: { value: 0 }, uHeat: { value: 0 }, uGlow: { value: 0 }, uShaft: { value: 0.03 }, uWall: { value: 1 },
+      uThermal: { value: this.thermal ? 1 : 0 }, uMach: { value: 0 }, uMachX: { value: 0 }, uSquare: { value: 0 },
       uPos: { value: new THREE.Vector3() }, uFwd: { value: new THREE.Vector3() }, uRight: { value: new THREE.Vector3() }, uUp: { value: new THREE.Vector3() },
       uL: { value: LDIR.clone() }, uWC: { value: v3(WC) }, uSunQ: { value: new THREE.Vector2() },
       uRing: { value: [999, 999, 999, 999, 999, 999] },
@@ -287,17 +326,21 @@ export default class Glass extends Scene {
     });
   }
 
+  // v4 camera = the nave, tilt-up; layout = the rose centred (x = 0 on every framing, no pan)
   private pose(cam: Cam, k: number): Pose {
     const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
     switch (cam) {
-      // the nave: the rose high on the wall, the shafts falling right, the pool on the flagstones
-      case 'wide': return { pos: V(-3.0 + 0.3 * k, 5.6 - 0.1 * k, 24 - 0.9 * k), look: V(2.4, 4.4, 0), focal: 1.7 };
-      // down at the floor: the pool fills the frame, the shaft enters from above
-      case 'floor': return { pos: V(2.2 + 0.3 * k, 4.6 - 0.25 * k, 18.5), look: V(3.7, 0, 12.3), focal: 1.32 + 0.05 * k };
-      // up at the rose from under it, a slow push
-      case 'up': return { pos: V(-0.3, 2.2, 27 - 1.2 * k), look: V(0.05 * k, 11.0, 0), focal: 4.1 };
-      // tight on a lancet head and its roundels: the lead, the seeds, the streaks
-      case 'macro': return { pos: V(1.55, 12.3, 2.6 - 0.12 * k), look: V(1.9 + 0.08 * k, 13.15, 0), focal: 1.9 };
+      // bar 1: tight on the centre of the rose (the first pane), widening as the rings light
+      case 'wide': return { pos: V(0, 2.2, 27), look: V(0, 11, 0), focal: 4.1 + 9.5 * Math.exp(-k / 0.9) };
+      // beat 3: the camera drops to the pool on the flagstones and tilts up the nave to the rose
+      case 'floor': {
+        const e = smoothstep(0, 1.1, k);
+        return { pos: V(0, 2.2, 27), look: V(0, 1.2 + 9.8 * e, 13 - 13 * e), focal: 2.6 + 1.5 * e };
+      }
+      // bar 2: the rose centred, ablaze, a slow push
+      case 'up': return { pos: V(0, 2.2, 27 - 1.2 * k), look: V(0, 11, 0), focal: 4.1 };
+      // beat 7: tight on the centre panes (still centred), the light turning to heat
+      case 'macro': return { pos: V(0, 2.2, 24 - 0.4 * k), look: V(0, 11, 0), focal: 9.0 + 0.6 * k };
     }
   }
 
@@ -309,10 +352,17 @@ export default class Glass extends Scene {
     const B = this.beats;
     const u = this.pass.u;
 
-    // rings 0..5 light on beats 1..6
+    // rose: the plate opens on ONE lit square pane (p34's window light), rings 0..5 then light on beats 2..7 and stay lit;
+    // thermal: rings 0..5 light on beats 1..6 (the same window, re-lit under the LUT)
+    const off = this.thermal ? 0 : 1;
     const ring = u.uRing!.value as number[];
-    for (let i = 0; i < 6; i++) ring[i] = B[i] !== undefined ? B[i]! - start : 999;
-    const litRings = B.slice(0, 6).filter((b) => b <= t).length;
+    for (let i = 0; i < 6; i++) ring[i] = B[i + off] !== undefined ? B[i + off]! - start : 999;
+    const litRings = B.slice(off, off + 6).filter((b) => b <= t).length;
+    u.uSquare!.value = this.thermal ? 0 : 1 - smoothstep((B[1] ?? end) - start, (B[1] ?? end) - start + 0.35, lt);
+    // bar 4 of the plate (its last quarter, beats 7–8): a gear train, then a locomotive, slide behind the panes
+    const tm = B[6] ?? end;
+    u.uMach!.value = this.thermal ? smoothstep(tm, tm + 0.08, t) * (1 - smoothstep(end - 0.08, end, t)) : 0;
+    u.uMachX!.value = -2.0 + 6.6 * clamp((t - tm) / Math.max(0.1, end - tm));
     // the sun behind the glass surges on every beat (the shafts, the pool and the panes flare together)
     const bp = beatPulse(audio, t, 0.14), db = downbeatPulse(audio, t, 0.22), kp = kickPulse(audio, t, 0.08);
     u.uSun!.value = 0.85 + 0.75 * bp + 0.45 * db + 0.15 * kp;

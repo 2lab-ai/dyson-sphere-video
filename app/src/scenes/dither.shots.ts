@@ -35,10 +35,8 @@ export function shots(p: PlateInfo, au: AudioLite): Shot[] {
   if (half !== undefined) out.push({ t: half, s: { id: `${p.id}#x0`, cam: 'close', stage: 'desert' } });
   // extra 2 (exit): the last beat of the plate, the lamps (the off-beat half, so the cloud's last band still lands)
   const last = beatTimes(au, (sb[2] ?? a) + 0.05, p.end - 0.05);
-  const lb = last[last.length - 1];
-  if (lb !== undefined) {
-    const nb = au.beats.find((x) => x > lb + 1e-3) ?? p.end;
-    out.push({ t: lb + 0.5 * (nb - lb), s: { id: `${p.id}#x1`, cam: 'low', stage: 'lamps' } });
-  }
+  // v4: the exit is the last half-bar (beats 7–8): night falls, the dots glow as a grid above the horizon, camera static
+  const lb = last[last.length - 2] ?? last[last.length - 1];
+  if (lb !== undefined) out.push({ t: lb, s: { id: `${p.id}#x1`, cam: 'low', stage: 'lamps' } });
   return out.sort((x, y) => x.t - y.t);
 }

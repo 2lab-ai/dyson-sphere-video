@@ -15,8 +15,8 @@ type Step = { sb?: number; beat?: number; s: ShotState };
 
 const PLAN: Record<string, Step[]> = {
   boot: [
-    { sb: 0, s: { fx: 'eniac', cam: 'wide', stage: 'corridor' } },
-    { beat: 2, s: { fx: 'eniac', cam: 'panel', stage: 'lamps' } },
+    // v4: opens static on p37's glowing dot grid = the accumulator's lamp grid (the corridor dolly is retired here)
+    { sb: 0, s: { fx: 'eniac', cam: 'panel', stage: 'lamps' } },
     { sb: 1, s: { fx: 'c64', cam: 'close', stage: 'ready' } },
     { beat: 6, s: { fx: 'c64', cam: 'close', stage: 'raster' } },
   ],

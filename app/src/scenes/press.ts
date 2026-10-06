@@ -366,9 +366,11 @@ export default class Press extends Scene {
     L.clear(this.css('ground'));
     apply(c, M);
     // the disc: cream, split along the wedge's axis once the wedge pierces it
-    c.fillStyle = this.css('mid');
+    // v4 (palette 'credits'): the disc is the cream 'hi' (the sphere = the disc), drawn with a fine ink rim on the pale card
+    c.fillStyle = this.css('hi');
+    c.strokeStyle = this.css('text'); c.lineWidth = 5;
     if (pk < 0) {
-      c.beginPath(); c.arc(disc.x, disc.y, disc.r, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(disc.x, disc.y, disc.r, 0, Math.PI * 2); c.fill(); c.stroke();
     } else {
       const split = 16 + 14 * pk + 10 * bp;
       for (const sgn of [-1, 1]) {

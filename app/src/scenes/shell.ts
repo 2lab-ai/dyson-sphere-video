@@ -27,6 +27,8 @@ const W = 1920, H = 1080;
 const AX = 1187, AY = 413;
 /** p41's Sun disc at its last frame (orbit/swarm contract) and the p42 medallion = p43 sphere at the p42/p43 cut. */
 const R_SUN = 110, R_SEAL = 135;
+/** p42: brightness of the already-locked vault (painted panels in shadow on the dark ground). */
+const VAULT_DIM = 0.22;
 
 // ------------------------------------------------------------------ vector kit + pinhole camera
 type V = [number, number, number];
@@ -307,7 +309,11 @@ export default class Shell extends Scene {
     }
 
     // ---- rings, inner to outer (an incoming ring slides in under the ring outside it)
+    // v4 (palette 'swarm', dark vault): the already-locked vault stays in shadow (VAULT_DIM over the dark ground);
+    // only the rings that close on this plate's beats are lit, and they stay lit — no light flood
     for (let r = 1; r <= NR; r++) {
+      const base = r > CLOSE ? VAULT_DIM : 1;
+      c.globalAlpha = base;
       if (BEAMS.has(r)) { this.drawBeam(c, C3, r, spin, r === CLOSE + 1 ? bp : 0); continue; }
       const tl = r <= CLOSE ? this.lockT(r) : -Infinity;
       if (t < tl - 0.3) continue;
@@ -342,9 +348,9 @@ export default class Shell extends Scene {
         c.setTransform(jx[0]!, jx[1]!, jy[0]!, jy[1]!, p0[0], p0[1]);
         if (paint < 1) this.bareHex(c);
         if (paint > 0) {
-          c.globalAlpha = paint;
+          c.globalAlpha = paint * base;
           c.drawImage(this.sprites[motifOf(r, i)]!, -1, -1, 2, 2);
-          c.globalAlpha = 1;
+          c.globalAlpha = base;
         }
         if (flash > 0.01) {
           this.hexPath(c, 1);
@@ -353,7 +359,9 @@ export default class Shell extends Scene {
         }
       }
     }
+    c.globalAlpha = VAULT_DIM;
     this.drawRafters(c, C3, t, spin);
+    c.globalAlpha = 1;
     c.setTransform(1, 0, 0, 1, 0, 0);
     L.upload();
 

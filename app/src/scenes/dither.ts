@@ -48,7 +48,7 @@ export interface BombU {
   stage: number; // 0 desert, 1 cloud
   cap: [number, number, number, number]; stem: [number, number, number, number]; boil: number; heat: number;
   white: number; lamp: number;
-  cell: number; dots: number; zoom: number; shift: [number, number];
+  cell: number; dots: number; night: number; zoom: number; shift: [number, number];
   post: PostOverrides;
 }
 
@@ -64,7 +64,8 @@ export function bombFrame(t: number, list: Shot[], au: { beats: number[]; downbe
   const cloud = stageKey !== 'desert';
   const c = CAMS[camKey] ?? CAMS.flat!;
   // the orbit: continuous through the plate; each framing has its own start angle
-  const yaw = c.yaw + OMEGA * (t - sh.t0);
+  // (the exit settles static: the orbit stops at the lamps shot)
+  const yaw = c.yaw + (st.stage === 'lamps' ? 0 : OMEGA * (t - sh.t0));
   const pos: V3 = [Math.sin(yaw) * c.dist, c.h, Math.cos(yaw) * c.dist];
   const f = norm(sub(c.target, pos));
   const r = norm(cross(f, [0, 1, 0]));
@@ -90,6 +91,8 @@ export function bombFrame(t: number, list: Shot[], au: { beats: number[]; downbe
   // exit: 1-bit pixels -> lamps (3 px cells, then 6)
   const lamps = stageKey === 'lamps';
   const cell = lamps ? (t - sh.t0 < 0.13 ? 3 : 6) : 1;
+  // night falls over the first 0.35 s of the exit and stays (the p38 lamp grid's residue)
+  const night = lamps ? ease.outCubic(clamp((t - sh.t0) / 0.35)) : 0;
 
   // hits (cloud only; the desert bar stays still): zoom punch per beat, the shock arrives on the 2nd beat (shake)
   const kp = kickPulse(au, t, 0.1), db = downbeatPulse(au, t, 0.25);
@@ -104,9 +107,9 @@ export function bombFrame(t: number, list: Shot[], au: { beats: number[]; downbe
     stage: cloud ? 1 : 0,
     cap: [S[0]!, S[1]!, S[2]!, S[3]!], stem: [S[4]!, S[5]!, S[6]!, S[7]!], boil: bi * 1.37, heat,
     white, lamp,
-    cell, dots: lamps ? 1 : 0, zoom, shift,
+    cell, dots: lamps ? 1 : 0, night, zoom, shift,
     // 1-bit purity: no grain, no CA, no vignette, no bloom. The whiteout is drawn in pass B (paper -> hi).
-    post: { grain: 0, ca: 0, vignette: 0, bloom: 0, halation: 0, flash: 0, exposure: 1 },
+    post: { grain: 0, ca: 0, vignette: 0, bloom: 0.7 * night, halation: 0, flash: 0, exposure: 1 },
   };
 }
 
@@ -327,7 +330,7 @@ export const GLSL_B = /* glsl */ `
 uniform sampler2D uLo;
 uniform vec3 uInk, uPaper, uHi;
 uniform vec2 uShift;
-uniform float uCell, uDots, uZoom, uWhiteB;
+uniform float uCell, uDots, uZoom, uWhiteB, uNight;
 
 float bayer8(ivec2 p) {
   int x = p.x & 7, y = p.y & 7, xy = x ^ y;
@@ -348,7 +351,11 @@ void main() {
     on = max(on, step(0.38, length(f)));
   }
   vec3 paper = mix(uPaper, uHi, uWhiteB);
-  fragColor = vec4(mix(uInk, paper, on), 1.0);
+  vec3 col = mix(uInk, paper, on);
+  // night (the exit): the ground goes dark; every lit cell of the sky becomes a glowing round dot on the grid
+  float lit = step(bayer8(ivec2(cellC)), lum) * (1.0 - step(0.3, length(fract(g / uCell) - 0.5)));
+  col = mix(col, mix(uInk, uHi * 1.6, lit), uNight);
+  fragColor = vec4(col, 1.0);
 }
 `;
 
@@ -372,7 +379,7 @@ export default class Dither extends Scene {
       uLo: { value: null },
       uInk: v3(plin(P, 'deep')), uPaper: v3(plin(P, 'ground')), uHi: v3(plin(P, 'hi')),
       uShift: { value: new THREE.Vector2() },
-      uCell: { value: 1 }, uDots: { value: 0 }, uZoom: { value: 1 }, uWhiteB: { value: 0 },
+      uCell: { value: 1 }, uDots: { value: 0 }, uZoom: { value: 1 }, uWhiteB: { value: 0 }, uNight: { value: 0 },
     });
     this.rt = makeRT(LW, LH, { pxScale: 1, depthBuffer: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
   }
@@ -391,7 +398,7 @@ export default class Dither extends Scene {
     this.passA.render(this.ctx.renderer, this.rt);
     b.uLo!.value = this.rt.texture;
     (b.uShift!.value as THREE.Vector2).set(...U.shift);
-    b.uCell!.value = U.cell; b.uDots!.value = U.dots; b.uZoom!.value = U.zoom; b.uWhiteB!.value = U.white;
+    b.uCell!.value = U.cell; b.uDots!.value = U.dots; b.uZoom!.value = U.zoom; b.uWhiteB!.value = U.white; b.uNight!.value = U.night;
     this.passB.render(this.ctx.renderer, out);
     return U.post;
   }

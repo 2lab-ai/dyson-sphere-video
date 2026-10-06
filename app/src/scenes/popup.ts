@@ -55,6 +55,8 @@ const CAMS: Record<Cam, CamDef> = {
   overhead: { p0: [0.8, 11.6, 1.9], p1: [0.3, 10.4, 1.2], t0: [0.1, 0, -0.9], t1: [0, 0, -0.8], fov: 42, up: [0.16, 0, -1] },
   slam: { p0: [0.4, 12.6, 7.4], p1: [0.2, 13.4, 8.2], t0: [0, 0, 0.2], t1: [0, 0, 0.2], fov: 40, up: [0, 1, 0] },
 };
+/** The life book's overhead 3/4 camera (p18/p19 'open'), held static for p28. */
+const BOOK_CAM: CamDef = { p0: [0.6, 7.6, 10.6], p1: [0.6, 7.6, 10.6], t0: [0, 0.2, -0.6], t1: [0, 0.2, -0.6], fov: 40, up: [0, 1, 0] };
 interface LightDef { dir: [number, number, number]; key: PaletteKey; I: number; amb: number; glow: number; bloom: number }
 const LIGHT: Record<Cam, LightDef> = {
   threeq: { dir: [-0.55, 0.78, 0.42], key: 'bone', I: 2.9, amb: 1.45, glow: 0.12, bloom: 0 },
@@ -1172,7 +1174,8 @@ export default class Popup extends Scene {
     const au = this.ctx.audio, { start, end } = this.ctx;
     this.rt = makeRT(W, H, { samples: 4 });
     this.beats = beatTimes(au, start - 1e-3, end);
-    this.tOpen = this.beats[0] ?? start;
+    // v4 p28 (nov 2, ref p19): the SAME open spread as the life book — open from the first frame, no opening move
+    this.tOpen = start - 1;
     const slam = this.list.find((s) => s.s.book === 'shut');
     this.tSlam = slam ? slam.t : end - 0.36;
     this.tShut = end - 1.3 / 60;
@@ -1297,7 +1300,9 @@ export default class Popup extends Scene {
     const uE = ease.inOutQuad(u);
 
     // --- camera (slow drift inside each shot; every cut is a new set-up)
-    const cd = CAMS[camName];
+    // v4: one static book camera = the life book's overhead 3/4 set-up (LifeBook 'open' p0/t0, fov 40); the cut list
+    // still drives the page content and light, never the camera
+    const cd = BOOK_CAM;
     const L3 = (a: number[], b: number[]) => new THREE.Vector3(lerp(a[0]!, b[0]!, uE), lerp(a[1]!, b[1]!, uE), lerp(a[2]!, b[2]!, uE));
     const cam = this.cam;
     cam.fov = cd.fov;
@@ -1355,7 +1360,8 @@ export default class Popup extends Scene {
     }
 
     // --- light
-    const ld = LIGHT[camName];
+    // the key light is the book's (fixed, like the camera); only the windows' glow follows the shot
+    const ld = { ...LIGHT.threeq, glow: LIGHT[camName].glow, bloom: LIGHT[camName].bloom };
     const dir = new THREE.Vector3(...ld.dir).normalize();
     const kp = kickPulse(au, t, 0.1);
     this.sun.color.setRGB(...LIN[ld.key]);
