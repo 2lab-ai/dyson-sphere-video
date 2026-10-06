@@ -342,7 +342,7 @@ and names the **residue** it keeps from the previous run. Lint: PASS (45 plates,
 | **p20** | **1** | — | ascii / real tear | dark | locked | split | virtual vs real | residue: the paper's cream edge = the tear lip |
 | **p21** | **1** | — | hatch engraving | dark | slow macro crawl along the seam | seam centre, the iris-to-be at the anchor | the steel hand | residue: p20's tear line = the hatch seam |
 | p22 | 2 | ENGRAVE | = | = | = | = (the engraved iris sits at the anchor) | ● the engraved iris swallows the words | changed: S |
-| p23 | 2 | ORBIT | ● photographic night Earth, the limb | = | = (slow crawl, no push) | = circle at anchor (iris → Earth) | = the disc (iris → Earth; city lights are how the line is written) | changed: W |
+| p23 | 2 | ORBIT | ● photographic night Earth, the limb | = | = (the same slow crawl, now along the limb; no push) | = circle at anchor (iris → Earth) | = the disc (iris → Earth; city lights are how the line is written) | changed: W |
 | p24 | 2 | ORBIT | = | = | = | = (limb stays in frame) | ● the departure board on the night side | changed: S |
 | p25 | 2 | ORBIT | = | = (jamo on the limb glow, never white) | = | = | ● the jamo scatter | changed: S |
 | p26 | 2 | ORBIT | = | = | = | = | ● the cage closes around the line | changed: S |
@@ -370,24 +370,3 @@ String (generated): `R 2 2 2 2 2 2 2 2 2 2 2 1 2 2 2 2 1 2 1 1 2 2 2 2 2 2 2 2 1
 Ones: p13, p18, p20, p21, p30, p32, p35, p37, p38, p41, p44.
 Dark envelopes (cap 7 inside, 4 outside): p01–p07, p13–p17, p20–p26, p38–p43.
 Whiteouts: 65.12, 142.035, 165.343, p37 only.
-
-### C7 decisions carried from trinity R3 (why rows changed vs C6)
-- p01 already shows the hardware wall so p02 changes S only (gpt-6). NIGHT and FILM are one film medium; p08 flips exposure only (gpt-6).
-- COSMOS is one photographic physicality from p13: no clay p16, no ink-wash p17 (gpt-6, fable). p13 carries COSMOS's camera + anchor layout so p14 changes S only (grok, gpt-6).
-- p21's camera is a macro crawl (a real class change vs p20's locked split); ENGRAVE and ORBIT share that crawl, and the disc is the subject of p22→p23 (iris → Earth) so p23 changes W only (grok, fable, gpt-6).
-- p27 keeps the cage as subject; only the ground changes (gpt-6).
-- p28 is a full callback `ref p19` (W/G/C/L identical to the book, S = the city page) — the paper home returns right before the p01 home returns, two 2s before the climax 1 (gpt-6's fix; fable/grok accepted "or 1" — the callback keeps the 1-count lower and avoids 1-2-1 alternation at the climax).
-- AMBER is one light ground p32–p34 (fable, gpt-6, grok); the v3 cave module (dark) cannot be reused as is.
-- p36 keeps the window as subject; the machines pass behind the panes on bar 4 (fable, grok).
-- p37 and p38 are both 1s (a doublet like p20/p21): p38's dot grid is not p37's horizon layout (grok, gpt-6). 11 ones = 25 %.
-- p40 and p42 keep a dark measured ground (bright face / lit panels are subjects, not floods); p41's subject is already the shell under construction so p42/p43 change camera only (fable, gpt-6, grok).
-- p44 is a cream card with the red wedge so the late dark run ends at p43 (lint: p38–p45 would be 8 non-light).
-- Dark envelopes are declared by id range, not by run membership (gpt-6): p01–p07, p13–p17, p20–p26, p38–p43.
-
-### C7 gate clauses (same commit as the table)
-1. `edit.json` carries `nov`, `run`/`ref`, and the five dimension values per plate; `edit-gate.ts` reads them and `plan-table.ts`'s row lint moves into the gate (a 2 changes exactly one cell, a 1 ≥4 + residue; runs ≤6; string generated, never typed).
-2. `T.adjacent`, `T.family-run`, `T.idiom-once` caps and the 8-bar `T.sequence` cap are replaced by run membership: same idiom/family allowed only inside a declared run (≤6), 3-window cap outside runs. `T.ground-run` cap 7 inside a declared dark envelope, 4 outside.
-3. Consecutive-2 pixel lint at the cut (same ground class, |ΔmeanLum| < 40) applies unless the row's changed cell is G or the row has `ref`; undeclared changes are reported.
-4. `hit-gate.py`: beat-centred pre/post sampling on every beat (not phase-blind 4 fps); Δ ≥ 5× plate median AND an absolute floor AND (ΔmeanLum ≥ 8/255 OR area ≥ 5 %); persistence ≥6 frames; the three section hits checked by time as whiteout-class; p45 ROI rule; a cumulative flash+cut photosensitivity window (≤3/s); calibrated on v3 weak/strong plates before use.
-5. Lyrics: one `drawLyric` entry, ≥120 px projected, syllable stamp (no running fill), no glyph re-layout, no text on instrumental plates, circle ≥110 px on 1s.
-6. Content guard: no graticule / axis / diagnostic UI in NIGHT, FILM, LINES. Final receipt = continuous playback with music + gate logs; a contact sheet alone never passes.
