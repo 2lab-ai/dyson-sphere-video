@@ -12,3 +12,4 @@ analysis/__pycache__/
 analysis/stems/
 analysis/work/
 analysis/qa/
+.venv/
