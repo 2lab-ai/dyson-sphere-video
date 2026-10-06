@@ -574,7 +574,8 @@ export default class Cave extends Scene {
     if (this.hosted) { c.beginPath(); c.rect(4, 4, W - 8, H - 8); c.clip(); }
     this.apply(c, k);
     if (!this.hosted) this.rock(c, k);
-    if (cam === 'wide' || cam === 'marks') this.clay(c, t, cam === 'marks' ? this.lastSparkHit(t) : 0);
+    // hosted: the clay patch would float over the host's fire (the cave floor is not drawn) — the host owns the ground
+    if (!this.hosted && (cam === 'wide' || cam === 'marks')) this.clay(c, t, cam === 'marks' ? this.lastSparkHit(t) : 0);
     if (cam !== 'hand' && !this.hosted) this.paintings(c, t, bp);
     for (const h of this.hands) if (h !== this.closeHand || cam === 'hand' || cam === 'marks') this.hand(c, h, t, bp);
     if (cam === 'wide') this.shadow(c, t, bp);

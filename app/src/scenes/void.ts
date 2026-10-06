@@ -264,6 +264,7 @@ export default class Void extends Scene {
     const cc = add(s.c, [0, v.dy, 0]);
     const V = this.corners(cc, v.keep);
     const P = V.map((q) => C.p(q));
+    if (this.plate.variant === 'stones') return this.drawRock(c, C, s, v, cc, V, P, face, t);
     // faces: indices, outward normal, material
     const faces: { idx: number[]; n: V3; col: PaletteKey; a: number; name: string }[] = [
       { idx: [3, 2, 6, 7], n: [0, 1, 0], col: 'paper2', a: 1, name: 'top' },
@@ -293,6 +294,65 @@ export default class Void extends Scene {
       // the engraving surface for this shot
       if (fc.name === face) this.engrave(c, C, s, cc, face, path, t);
     }
+  }
+
+  /** Closed smooth path through the midpoints of `pts` (the points are control points: rounded, no straight edge). */
+  private blob(pts: P2[]): Path2D {
+    const path = new Path2D(), n = pts.length;
+    const mid = (i: number) => ({ x: (pts[i % n]!.x + pts[(i + 1) % n]!.x) / 2, y: (pts[i % n]!.y + pts[(i + 1) % n]!.y) / 2 });
+    const m0 = mid(n - 1);
+    path.moveTo(m0.x, m0.y);
+    for (let i = 0; i < n; i++) { const m = mid(i); path.quadraticCurveTo(pts[i]!.x, pts[i]!.y, m.x, m.y); }
+    path.closePath();
+    return path;
+  }
+
+  /**
+   * p31 stones: the box is only the stone's bounds. Its silhouette = the convex hull of the projected corners, each
+   * hull edge bulged outward by a per-stone amount (irregular) and every corner rounded (the hull points become curve
+   * control points); a darker rounded top carries the word. The newest stone keeps a bone rim until the next lands.
+   */
+  private drawRock(c: CanvasRenderingContext2D, C: Cam3, s: Stone, v: NonNullable<ReturnType<Void['stoneAt']>>, cc: V3, V: V3[], P: P2[], face: Face, t: number) {
+    if (P.some((p) => p.z < 0.3)) return;
+    // convex hull (monotone chain) of the 8 projected corners
+    const q = [...P].sort((a, b) => a.x - b.x || a.y - b.y);
+    const cross = (o: P2, a: P2, b: P2) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+    const lo: P2[] = [], hi: P2[] = [];
+    for (const p of q) { while (lo.length >= 2 && cross(lo[lo.length - 2]!, lo[lo.length - 1]!, p) <= 0) lo.pop(); lo.push(p); }
+    for (const p of [...q].reverse()) { while (hi.length >= 2 && cross(hi[hi.length - 2]!, hi[hi.length - 1]!, p) <= 0) hi.pop(); hi.push(p); }
+    const hull = [...lo.slice(0, -1), ...hi.slice(0, -1)];
+    const cx = hull.reduce((a, p) => a + p.x, 0) / hull.length, cy = hull.reduce((a, p) => a + p.y, 0) / hull.length;
+    const ctl: P2[] = [];
+    hull.forEach((a, i) => {
+      const b = hull[(i + 1) % hull.length]!;
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dx = mx - cx, dy = my - cy, d = Math.hypot(dx, dy) || 1;
+      const len = Math.hypot(b.x - a.x, b.y - a.y);
+      const j = 0.06 + 0.16 * hash(s.k * 7 + i, 41); // irregular bulge
+      // pull the corner in a little (rounder), push the edge out (no straight run)
+      ctl.push({ x: cx + (a.x - cx) * (0.9 + 0.08 * hash(s.k * 5 + i, 43)), y: cy + (a.y - cy) * (0.9 + 0.08 * hash(s.k * 3 + i, 47)), z: a.z });
+      ctl.push({ x: mx + (dx / d) * len * j, y: my + (dy / d) * len * j, z: a.z });
+    });
+    const body = this.blob(ctl);
+    const newest = t < (this.stones[s.k + 1]?.t0 ?? Infinity);
+    c.fillStyle = rgba('ink', 1);
+    c.fill(body);
+    // the slam: a bone wash as the stone lands, then the newest stone's rim holds until the next one is laid
+    if (v.flash > 0.02) { c.fillStyle = rgba('bone', 0.5 * v.flash); c.fill(body); }
+    c.strokeStyle = rgba('bone', newest ? 0.85 : 0.22);
+    c.lineWidth = newest ? 3.5 : 1.4;
+    c.stroke(body);
+    // the top: rounded, inset, a shade lighter than the sides (still dark) — the word is cut into it
+    const top = [3, 2, 6, 7].map((i) => P[i]!);
+    const tx = top.reduce((a, p) => a + p.x, 0) / 4, ty = top.reduce((a, p) => a + p.y, 0) / 4;
+    const topPath = this.blob(top.map((p) => ({ x: tx + (p.x - tx) * 1.15, y: ty + (p.y - ty) * 1.15, z: p.z })));
+    const ctr = mul([3, 2, 6, 7].reduce<V3>((acc, i) => add(acc, V[i]!), [0, 0, 0]), 0.25);
+    if (dot([0, 1, 0], sub(C.e, ctr)) > 0) {
+      c.fillStyle = rgba('graphite', 0.55);
+      c.fill(topPath);
+      if (face === 'top') this.engrave(c, C, s, cc, face, topPath, t);
+    }
+    // the side shot cuts the word into the stone's face: clipped to the silhouette, never to a box edge
+    if (face !== 'top' && dot([0, 0, 1], sub(C.e, cc)) > 0) this.engrave(c, C, s, cc, face, body, t);
   }
 
   /** Face-local frame (px space fw x fh, origin top-left) → screen, linearised at the face centre. */
