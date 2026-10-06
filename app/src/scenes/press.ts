@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../engine/scene';
 import { Layer2D, FSPass, clearRT } from '../engine/gl';
-import { palette, pcss, plin, type NamedPalette, type Role } from '../engine/palette';
+import { palette, pcss, plin, pmix, type NamedPalette, type Role } from '../engine/palette';
 import { drawLyric, ownedLines, layoutLine, F, type CharState, type CharXform } from '../engine/lyric';
 import { beatPulse, kickPulse, downbeatPulse, beatIndex } from '../engine/beat';
 import { stateAt, shotAt, type PlateInfo, type Shot } from '../engine/shots';
@@ -144,8 +144,63 @@ export default class Press extends Scene {
     const st = stateAt(this.list, f.t);
     const sh = shotAt(this.list, f.t);
     const frame = String(st.frame), stage = String(st.stage);
+    if (this.plate.variant === 'clock') return this.clock(f, out);
     if (this.plate.variant === 'riso') return this.riso(f, frame, stage, sh.t0, out);
     return this.credits(f, frame, stage, sh.t0, out);
+  }
+
+  // ---------------------------------------------------------------- clock (v4 NIGHT p07, hosted by wall)
+  // A paper clock pasted on the brick: a printed mustard face (the subject accent — the brick around it stays the
+  // host's dark), torn edge, paste wrinkles; the line printed across the face. The second hand ticks one step per beat
+  // (a held state flip), the minute hand jumps on the downbeat; the signal dot rides the second hand's tip.
+  private CL?: Layer2D;
+  private clock(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
+    const L = (this.CL ??= new Layer2D()), c = L.ctx, t = f.t, au = this.au;
+    L.clear();
+    const cx = 960, cy = 500, R = 290;
+    const bi = Math.max(0, beatIndex(au, t) - beatIndex(au, this.ctx.start));
+    const bp = beatPulse(au, t, 0.1), dp = downbeatPulse(au, t, 0.2);
+    const bars = Math.floor(bi / 4);
+    // the paper: a square sheet, slightly rotated, torn edge (seeded), mustard print
+    c.save(); c.translate(cx, cy); c.rotate(-0.035);
+    c.beginPath();
+    const S = R + 46, n = 64;
+    for (let i = 0; i < n; i++) {
+      const side = Math.floor(i / 16), u = (i % 16) / 16, j = (hash(i, 7) - 0.5) * 14;
+      const [x, y] = side === 0 ? [-S + 2 * S * u, -S + j] : side === 1 ? [S + j, -S + 2 * S * u] : side === 2 ? [S - 2 * S * u, S + j] : [-S + j, S - 2 * S * u];
+      if (i) c.lineTo(x, y); else c.moveTo(x, y);
+    }
+    c.closePath();
+    c.fillStyle = pmix(this.P, 'mid', 'hi', 0.22, 0.9); c.fill(); // mustard print (subject accent, kept dim: the plate's ground stays dark)
+    // paste wrinkles: faint diagonal creases (seeded, static)
+    c.strokeStyle = this.css('deep', 0.35); c.lineWidth = 2;
+    for (let i = 0; i < 7; i++) { const y = -S + 2 * S * hash(i, 3); c.beginPath(); c.moveTo(-S, y); c.lineTo(S, y + (hash(i, 5) - 0.5) * 160); c.stroke(); }
+    // the face: printed ring + 12 ticks
+    c.strokeStyle = this.css('deep', 0.95); c.lineWidth = 10;
+    c.beginPath(); c.arc(0, 0, R, 0, Math.PI * 2); c.stroke();
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      c.lineWidth = i % 3 ? 6 : 14;
+      c.beginPath(); c.moveTo(Math.sin(a) * (R - 18), -Math.cos(a) * (R - 18)); c.lineTo(Math.sin(a) * (R - 64), -Math.cos(a) * (R - 64)); c.stroke();
+    }
+    // hands: minute jumps a twelfth per bar, second steps a sixtieth... per beat (×5 so it reads)
+    const am = (bars / 12) * Math.PI * 2 + 0.6, as = (bi / 12) * Math.PI * 2;
+    c.lineCap = 'round';
+    c.strokeStyle = this.css('ground', 0.95); c.lineWidth = 22 + 6 * dp;
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.sin(am) * R * 0.55, -Math.cos(am) * R * 0.55); c.stroke();
+    c.strokeStyle = this.css('signal', 1); c.lineWidth = 7;
+    c.beginPath(); c.moveTo(-Math.sin(as) * 50, Math.cos(as) * 50); c.lineTo(Math.sin(as) * R * 0.86, -Math.cos(as) * R * 0.86); c.stroke();
+    c.fillStyle = this.css('signal', 1);
+    c.beginPath(); c.arc(Math.sin(as) * R * 0.86, -Math.cos(as) * R * 0.86, 12 + 10 * bp, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(0, 0, 16, 0, Math.PI * 2); c.fill();
+    c.restore();
+    // the line printed across the lower face, in the paper's ink (sung = signal)
+    const line = this.lines[0];
+    if (line) drawLyric(c, line, t, { x: cx, y: cy + 200, size: 128, maxWidth: 2 * R + 60, align: 'center', family: F.slam(), sungColor: 'signal', unsungColor: 'ink', unsungAlpha: 0.8, rotation: -0.035 });
+    L.upload();
+    clearRT(this.ctx.renderer, out, [0, 0, 0], 0);
+    this.ctx.comp.draw(this.ctx.renderer, L.texture, out, { mode: 'normal' });
+    return {};
   }
 
   // ------------------------------------------------------------------ riso

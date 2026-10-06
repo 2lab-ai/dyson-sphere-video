@@ -21,6 +21,8 @@ const EXTRA: Record<string, [number, string, string][]> = {
 };
 
 export function shots(p: PlateInfo, au: AudioLite): Shot[] {
+  // clock (v4 NIGHT p07, hosted by wall): one hand state per storyboard shot; the host owns the per-bar camera
+  if (p.variant === 'clock') return sbShotTimes(p.id).map((t, i) => ({ t: i === 0 ? p.start : t, s: { id: `${p.id}#${i}`, frame: 'paper', stage: `hand${i}` } }));
   const plan = PLAN[p.variant];
   if (!plan) throw new Error(`press: unknown variant ${p.variant}`);
   const sb = sbShotTimes(p.id);

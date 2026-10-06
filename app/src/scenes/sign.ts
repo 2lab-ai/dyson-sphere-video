@@ -136,6 +136,7 @@ export default class Sign extends Scene {
   }
 
   private wall(c: C2) {
+    if (this.ctx.params.hosted) return; // hosted (v4 NIGHT): the wall host owns the brick
     c.fillStyle = rgba('ink2', 1);
     c.fillRect(-900, -700, W + 1800, H + 1400);
     const bw = 132, bh = 46;
@@ -221,7 +222,7 @@ export default class Sign extends Scene {
       const p = this.wordCentre(ri, wi), rad = lays[ri]!.words[wi]!.w * (0.9 + 0.7 * flood) + 160;
       const col: PaletteKey = /[A-Za-z]/.test(w.w) ? this.accentOr('ember') : 'signal';
       const g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, rad);
-      g.addColorStop(0, rgba(col, (0.2 + 0.1 * flood) * lit * surge * (col === 'signal' ? 1 : 0.4)));
+      g.addColorStop(0, rgba(col, (0.2 + 0.1 * flood) * lit * surge * (col === 'signal' ? 1 : 0.4) * (this.ctx.params.hosted ? 0.45 : 1))); // hosted: the spill stays a spill (NIGHT ground dark)
       g.addColorStop(1, rgba(col, 0));
       c.fillStyle = g;
       c.fillRect(p.x - rad, p.y - rad, rad * 2, rad * 2);
@@ -499,11 +500,41 @@ export default class Sign extends Scene {
   override render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
     const L = this.layer, c = L.ctx;
     L.clear();
-    const post = this.plate.variant === 'ring' ? this.renderRing(c, f) : this.renderNeon(c, f);
+    const hosted = !!this.ctx.params.hosted;
+    const v = this.plate.variant;
+    const post = v === 'ring' ? this.renderRing(c, f) : v === 'tubes' ? this.renderTubes(c, f) : this.renderNeon(c, f);
     L.upload();
-    clearRT(this.ctx.renderer, out, LIN.ink);
+    clearRT(this.ctx.renderer, out, hosted ? [0, 0, 0] : LIN.ink, hosted ? 0 : 1);
     this.ctx.comp.draw(this.ctx.renderer, L.texture, out, { mode: 'normal' });
     return post;
+  }
+
+  // ---------------------------------------------------------------- tubes (v4 NIGHT p06, hosted by wall)
+  // Bent neon tubes on the brick: three hand-bent signal tubes (a hairpin, a wave, a hook) and the line bent in tube
+  // under them. Each beat a tube flips on (state stays lit); the downbeat re-strikes all of them (a held surge).
+  private renderTubes(c: C2, f: Frame): PostOverrides {
+    const t = f.t, au = this.ctx.audio;
+    const bp = beatPulse(au, t, 0.14), db = downbeatPulse(au, t, 0.3);
+    const nb = this.beats.filter((b) => b <= t).length; // beats so far in the plate
+    const tube = (pts: [number, number][], lit: number) => {
+      c.lineCap = 'round'; c.lineJoin = 'round';
+      const path = () => { c.beginPath(); pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); };
+      for (const [w, a, key] of [[34, 0.16, 'signal'], [14, 0.6, 'signal'], [5, 0.95, 'ember']] as const) {
+        path(); c.lineWidth = w * (1 + 0.25 * db); c.strokeStyle = rgba(key, a * lit); c.stroke();
+      }
+    };
+    const cx = W / 2, cy = H / 2 - 200;
+    const shapes: [number, number][][] = [
+      Array.from({ length: 40 }, (_, i) => { const u = i / 39; return [cx - 520 + 120 * u + 50 * Math.sin(u * Math.PI), cy - 170 + 340 * Math.abs(u * 2 - 1)] as [number, number]; }),
+      Array.from({ length: 60 }, (_, i) => { const u = i / 59; return [cx - 300 + 600 * u, cy + 70 * Math.sin(u * Math.PI * 3)] as [number, number]; }),
+      Array.from({ length: 40 }, (_, i) => { const u = i / 39; return u < 0.6 ? [cx + 470, cy - 180 + 400 * u] as [number, number] : [cx + 470 - 120 * Math.sin((u - 0.6) / 0.4 * Math.PI), cy + 60 + 120 * Math.cos((u - 0.6) / 0.4 * Math.PI)] as [number, number]; }),
+    ];
+    shapes.forEach((s, i) => tube(s, nb > i ? 0.85 + 0.15 * bp : 0.12));
+    // the line bent in tube under the shapes, in the sign's two rows (it glows like one)
+    c.save(); c.shadowColor = rgba('signal', 0.8); c.shadowBlur = 26;
+    this.rows.slice(0, 2).forEach((row, i) => drawLyric(c, row, t, { x: cx, y: cy + 300 + 150 * i, size: 132, maxWidth: 1300, align: 'center', family: F.hangul(), sungColor: 'signal', unsungColor: 'bone', unsungAlpha: 0.25 }));
+    c.restore();
+    return {};
   }
 
   override dispose() { this.layer?.texture.dispose(); }

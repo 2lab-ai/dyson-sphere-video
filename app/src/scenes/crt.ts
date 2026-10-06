@@ -298,7 +298,8 @@ export default class Crt extends Scene {
     }
     c.restore();
 
-    clearRT(renderer, out, plin(P, 'ground'));
+    // hosted (v4 NIGHT, scenes/wall.ts): transparent ground — the wall host owns the brick
+    if (this.ctx.params.hosted) clearRT(renderer, out, [0, 0, 0], 0); else clearRT(renderer, out, plin(P, 'ground'));
     const k = 1.05 + 0.5 * kp;
     this.ctx.comp.draw(renderer, L.upload(), out, { mode: 'normal', tint: [k, k, k] });
 

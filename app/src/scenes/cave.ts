@@ -53,6 +53,8 @@ const FINGERS: [number, number, number, number, number][] = [
 ];
 
 export default class Cave extends Scene {
+  /** v4: composited by the AMBER host — the rock wall (dark) is replaced by the host's light haze. */
+  private get hosted() { return !!this.ctx.params.hosted; }
   private layer!: Layer2D;
   private list: Shot[] = [];
   private plate!: PlateInfo;
@@ -436,7 +438,8 @@ export default class Cave extends Scene {
     g.addColorStop(1, this.col('signal', 0));
     c.globalCompositeOperation = 'lighter';
     c.fillStyle = g;
-    c.fillRect(FX - R, FY - 40 - R, 2 * R, 2 * R);
+    // hosted: the AMBER haze is the firelight (a clipped glow would print the frame's edge)
+    if (!this.hosted) c.fillRect(FX - R, FY - 40 - R, 2 * R, 2 * R);
     // tongues of flame
     const tongue = (x: number, w: number, h: number, sway: number, col: string) => {
       c.fillStyle = col;
@@ -561,16 +564,18 @@ export default class Cave extends Scene {
     const cam = st.cam as Cam;
     const lt = t - sh.t0;
     const L = this.layer, c = L.ctx;
-    L.clear(pcss(this.P, 'ground'));
+    if (this.hosted) L.clear(); else L.clear(pcss(this.P, 'ground'));
     const bp = beatPulse(audio, t, 0.14), kp = kickPulse(audio, t, 0.12), dp = downbeatPulse(audio, t, 0.25);
     this.setLight(t, bp, kp);
     const k = this.camera(cam, lt);
 
     c.save();
+    // hosted: the host scales this frame down, so keep a transparent 4 px border (the edge texels clamp outward)
+    if (this.hosted) { c.beginPath(); c.rect(4, 4, W - 8, H - 8); c.clip(); }
     this.apply(c, k);
-    this.rock(c, k);
+    if (!this.hosted) this.rock(c, k);
     if (cam === 'wide' || cam === 'marks') this.clay(c, t, cam === 'marks' ? this.lastSparkHit(t) : 0);
-    if (cam !== 'hand') this.paintings(c, t, bp);
+    if (cam !== 'hand' && !this.hosted) this.paintings(c, t, bp);
     for (const h of this.hands) if (h !== this.closeHand || cam === 'hand' || cam === 'marks') this.hand(c, h, t, bp);
     if (cam === 'wide') this.shadow(c, t, bp);
     if (cam === 'marks') this.drawMarks(c, t);
@@ -585,13 +590,13 @@ export default class Cave extends Scene {
       g.addColorStop(0, this.col('signal', 0.12 * (1 + 0.9 * bp)));
       g.addColorStop(1, this.col('signal', 0));
       c.fillStyle = g;
-      c.fillRect(0, 0, W, H);
+      if (!this.hosted) c.fillRect(0, 0, W, H);
       c.globalCompositeOperation = op;
       this.drawSparks(c, t, 1010, H + 60, 1.5, 'all', 10);
     }
 
     L.upload();
-    clearRT(renderer, out, plin(this.P, 'ground'));
+    clearRT(renderer, out, this.hosted ? [0, 0, 0] : plin(this.P, 'ground'), this.hosted ? 0 : 1);
     this.ctx.comp.draw(renderer, L.texture, out, { mode: 'normal' });
 
     // hits: a push-in and an exposure punch on every cut (the drop cut flashes: storyboard D1), the firelight

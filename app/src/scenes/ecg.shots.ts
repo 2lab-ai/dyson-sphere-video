@@ -54,6 +54,8 @@ function extras(p: PlateInfo, au: AudioLite): [number, St][] {
 }
 
 export function shots(p: PlateInfo, au: AudioLite): Shot[] {
+  // scope (v4 NIGHT p02, hosted by wall): one sweep state per storyboard shot; the host owns the per-bar camera
+  if (p.variant === 'scope') return sbShotTimes(p.id).map((t, i) => ({ t: i === 0 ? p.start : t, s: { id: `${p.id}#${i}`, frame: 'glass', sweep: i } }));
   const sb = SB[p.variant];
   if (!sb) throw new Error(`ecg: unknown variant ${p.variant}`);
   const times = sbShotTimes(p.id);

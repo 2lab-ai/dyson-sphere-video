@@ -39,6 +39,8 @@ interface Person {
 interface Dot { x: number; y: number; s: number; a: number; lying: boolean; beat: number }
 
 export default class Sodium extends Scene {
+  /** v4: composited by the AMBER host — the haze, ceiling and floor are the host's. */
+  private get hosted() { return !!this.ctx.params.hosted; }
   private layer!: Layer2D;
   private list: Shot[] = [];
   private plate!: PlateInfo;
@@ -206,12 +208,13 @@ export default class Sodium extends Scene {
   // ------------------------------------------------------------------ light
   /** Haze: soft light around the sun plus slow drifting fog masses (no edges, no lines). */
   private haze(c: CanvasRenderingContext2D, sx: number, sy: number, R: number, t: number, kp: number, k = 1) {
+    if (this.hosted) return;
     const g = c.createRadialGradient(sx, sy, R * 0.8, sx, sy, R * 4.2 + 260 * kp);
     g.addColorStop(0, this.ramp(3, (0.55 + 0.35 * kp) * k));
     g.addColorStop(0.35, this.ramp(2.45, (0.35 + 0.3 * kp) * k));
     g.addColorStop(1, this.ramp(2, 0));
     c.fillStyle = g;
-    c.fillRect(0, 0, W, H);
+    if (!this.hosted) c.fillRect(0, 0, W, H);
     for (let i = 0; i < 6; i++) {
       const x = 960 + 820 * Math.sin(t * 0.21 + i * 1.7), y = 540 + 360 * Math.cos(t * 0.17 + i * 2.3);
       const r = 420 + 160 * Math.sin(i * 3.1 + t * 0.3);
@@ -382,13 +385,13 @@ export default class Sodium extends Scene {
     cg.addColorStop(0, this.ramp(1.8));
     cg.addColorStop(1, this.ramp(2.2));
     c.fillStyle = cg;
-    c.fillRect(-200, -200, W + 400, sy + 200);
+    if (!this.hosted) c.fillRect(-200, -200, W + 400, sy + 200);
     // floor: darker toward the camera
     const fg = c.createLinearGradient(0, floorY, 0, H + 80);
     fg.addColorStop(0, this.ramp(2.15));
     fg.addColorStop(1, this.ramp(1.7));
     c.fillStyle = fg;
-    c.fillRect(-200, floorY, W + 400, H - floorY + 300);
+    if (!this.hosted) c.fillRect(-200, floorY, W + 400, H - floorY + 300);
     // side walls: dim masses converging on the end wall
     for (const s of [-1, 1]) {
       const x0 = s < 0 ? -200 : W + 200, x1 = s < 0 ? 300 : 1790;
@@ -406,7 +409,7 @@ export default class Sodium extends Scene {
     pool.addColorStop(0, this.ramp(2.8, 0.35 + 0.2 * kp));
     pool.addColorStop(1, this.ramp(2, 0));
     c.fillStyle = pool;
-    c.fillRect(sx - 520, floorY - 40, 1040, 400);
+    if (!this.hosted) c.fillRect(sx - 520, floorY - 40, 1040, 400);
     this.etch(c, t, sx, sy, R, { rows: [0, 1, 2], size: 52, cx: sx, lead: 0.4, beat: bp });
     // the crowd and its reflection in the ceiling (upside down, far figures near the seam)
     for (const p of this.crowd) {
@@ -439,7 +442,7 @@ export default class Sodium extends Scene {
     cg.addColorStop(0, this.ramp(1.85));
     cg.addColorStop(1, this.ramp(2.2));
     c.fillStyle = cg;
-    c.fillRect(0, 0, W, sy);
+    if (!this.hosted) c.fillRect(0, 0, W, sy);
     this.haze(c, sx, sy, R, t, kp);
     this.sun(c, sx, sy, R, bp, 0);
     this.etch(c, t, sx, sy, R, { rows: [0, 1], size: 66, cx: sx, lead: 0.4, beat: bp });
@@ -448,7 +451,7 @@ export default class Sodium extends Scene {
     fg.addColorStop(0, this.ramp(1.9));
     fg.addColorStop(1, this.ramp(1.3));
     c.fillStyle = fg;
-    c.fillRect(0, floorY, W, H - floorY);
+    if (!this.hosted) c.fillRect(0, floorY, W, H - floorY);
     // mid-ground figures on the floor line, small and hazed
     for (let i = 0; i < 26; i++) {
       const x = 60 + i * 72 + 30 * Math.sin(i * 2.7);
@@ -492,7 +495,7 @@ export default class Sodium extends Scene {
     bg.addColorStop(0.35, this.ramp(2.25));
     bg.addColorStop(1, this.ramp(1.95));
     c.fillStyle = bg;
-    c.fillRect(0, 0, W, H);
+    if (!this.hosted) c.fillRect(0, 0, W, H);
     // the reflected sun half at the frame's edge (only in the open framing)
     if (!tight) {
       this.haze(c, rx, ry, 300, t, kp, 0.9);
@@ -534,7 +537,7 @@ export default class Sodium extends Scene {
     vg.addColorStop(0.5, this.ramp(2.3));
     vg.addColorStop(1, this.ramp(2.0));
     c.fillStyle = vg;
-    c.fillRect(0, 0, W, H);
+    if (!this.hosted) c.fillRect(0, 0, W, H);
     this.haze(c, sx, sy, R * (1 - 0.2 * dim), t, kp, 1 - 0.25 * dim);
     this.halo(c, sx, sy, R, bp * (1 - dim));
     this.sun(c, sx, sy, R, bp * (1 - dim), dim);
@@ -555,7 +558,7 @@ export default class Sodium extends Scene {
     const cam = st.cam as Cam;
     const lt = t - sh.t0;
     const L = this.layer, c = L.ctx;
-    L.clear(pcss(this.P, 'ground'));
+    if (this.hosted) L.clear(); else L.clear(pcss(this.P, 'ground'));
     const bp = beatPulse(audio, t, 0.14), kp = kickPulse(audio, t, 0.16), dp = downbeatPulse(audio, t, 0.25);
 
     if (cam === 'wide') this.wide(c, t, lt, kp, bp);
@@ -565,7 +568,7 @@ export default class Sodium extends Scene {
     else this.flat(c, t, lt, kp, bp);
 
     L.upload();
-    clearRT(renderer, out, plin(this.P, 'ground'));
+    clearRT(renderer, out, this.hosted ? [0, 0, 0] : plin(this.P, 'ground'), this.hosted ? 0 : 1);
     this.ctx.comp.draw(renderer, L.texture, out, { mode: 'normal' });
 
     // hits: an exposure punch and a push-in on every cut, the haze swelling on the kick, a jolt on the downbeat

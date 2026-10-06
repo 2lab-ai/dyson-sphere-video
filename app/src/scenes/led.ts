@@ -18,7 +18,7 @@
 import * as THREE from 'three';
 import { ShaderScene } from './_shader';
 import type { Frame, PostOverrides } from '../engine/scene';
-import { Layer2D } from '../engine/gl';
+import { Layer2D, clearRT, W as FW, H as FH } from '../engine/gl';
 import { palette, pcss, pmix, plin, type NamedPalette } from '../engine/palette';
 import { drawLyric, ownedLines, layoutLine, F, type LineLayout, type CharState } from '../engine/lyric';
 import { beatPulse, kickPulse, downbeatPulse, beatIndex } from '../engine/beat';
@@ -70,6 +70,49 @@ export default class Led extends ShaderScene {
   private anchors: { t: number; x: number }[] = [];
   private flips: number[] = [];
   private b0 = 0;
+
+  override render(f: Frame, out: THREE.WebGLRenderTarget) {
+    return this.plate.variant === 'ribbon' ? this.ribbon(f, out) : super.render(f, out);
+  }
+
+  // ---------------------------------------------------------------- ribbon (v4 NIGHT p05, hosted by wall)
+  // A dead LED ribbon on the hardware comes on: a strip of dots that runs as a wave (the strip bends with a travelling
+  // sine; the lit band races along it), the line set in LEDs on the strip. Each beat the wave's crest jumps one dot
+  // column ahead and the whole strip steps brighter (held), the downbeat flips the wave's direction of travel.
+  private R2?: Layer2D;
+  private ribbon(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
+    const L = (this.R2 ??= new Layer2D()), c = L.ctx, t = f.t, au = this.ctx.audio, P = this.P;
+    L.clear();
+    const bp = beatPulse(au, t, 0.12), db = downbeatPulse(au, t, 0.25);
+    const bi = beatIndex(au, t) - this.b0, bar = Math.floor(Math.max(0, bi) / 4);
+    const dir = bar % 2 ? -1 : 1;
+    const NX = 120, NY = 14, pitch = 15, x0 = FW / 2 - (NX * pitch) / 2, yc = FH / 2;
+    const ph = t * 2.4 * dir + 0.35 * Math.max(0, bi);
+    const crest = ((Math.max(0, bi) * 9 + (t - this.ctx.start) * 26) % (NX + 40)) - 20;
+    // the lyric rasterised into the strip's dot grid (stamp: sung = signal, via drawLyric on a mask)
+    const MW = NX * pitch, MH = NY * pitch;
+    const M = (this.mask ??= new Layer2D(MW, MH, 1)), m = M.ctx;
+    m.clearRect(0, 0, MW, MH);
+    drawLyric(m, this.line, t, { x: MW / 2, y: MH - 34, size: 150, maxWidth: MW - 40, align: 'center', family: FAM, sungColor: 'signal', unsungColor: 'bone', unsungAlpha: 0.5, lead: 0.4 });
+    const px = m.getImageData(0, 0, MW, MH).data;
+    for (let i = 0; i < NX; i++) {
+      const yo = 70 * Math.sin(i * 0.09 + ph) + 26 * db * Math.sin(i * 0.3);
+      const band = Math.exp(-(((i - crest) / 10) ** 2));
+      for (let j = 0; j < NY; j++) {
+        const k = ((j * pitch + (pitch >> 1)) * MW + (i * pitch + (pitch >> 1))) * 4;
+        const a = px[k + 3]! / 255, sungR = px[k]! > 200 && px[k + 1]! < 160;
+        const x = x0 + i * pitch, y = yc + yo + (j - NY / 2) * pitch;
+        const base = 0.22 + 0.18 * bp + 0.55 * band;
+        c.fillStyle = a > 0.3 ? (sungR ? pcss(P, 'signal', 1) : pmix(P, 'hi', 'text', 0.5, 0.75)) : pcss(P, 'signal', base * 0.55);
+        c.beginPath(); c.arc(x, y, a > 0.3 ? 5.6 : 4.2, 0, Math.PI * 2); c.fill();
+      }
+    }
+    L.upload();
+    clearRT(this.ctx.renderer, out, [0, 0, 0], 0);
+    this.ctx.comp.draw(this.ctx.renderer, L.texture, out, { mode: 'normal' });
+    return {};
+  }
+  private mask?: Layer2D;
 
   override init() {
     this.B = new Layer2D(COLS, ROWS, SS);

@@ -72,6 +72,8 @@ export default class Void extends Scene {
   private lines: Line[] = [];
   private stones: Stone[] = [];
   private events: number[] = []; // times the camera target may change
+  /** v4: composited by a WorldHost (LINES) — no ink ground, the stones only. */
+  private get hosted() { return !!this.ctx.params.hosted; }
 
   override init() {
     this.plate = this.ctx.params as PlateInfo;
@@ -220,7 +222,7 @@ export default class Void extends Scene {
     }
 
     L.upload();
-    clearRT(renderer, out, LIN.ink);
+    clearRT(renderer, out, this.hosted ? [0, 0, 0] : LIN.ink, this.hosted ? 0 : 1);
     this.ctx.comp.draw(renderer, L.texture, out, { mode: 'normal' });
 
     // hits: a punch-in on every cut, a small punch on every beat, a shake on the downbeat
@@ -279,7 +281,9 @@ export default class Void extends Scene {
       const path = new Path2D();
       pts.forEach((p, i) => (i ? path.lineTo(p.x, p.y) : path.moveTo(p.x, p.y)));
       path.closePath();
-      c.fillStyle = rgba(fc.col, fc.a);
+      // stones (p31): dark silhouettes laid across the void — ink sides, a graphite top that carries the word
+      const col: PaletteKey = this.plate.variant === 'stones' ? (fc.name === 'top' ? 'graphite' : 'ink') : fc.col;
+      c.fillStyle = rgba(col, fc.a);
       c.fill(path);
       // the slam: a bone wash over the faces as the stone lands
       if (v.flash > 0.02) { c.fillStyle = rgba('bone', 0.55 * v.flash); c.fill(path); }

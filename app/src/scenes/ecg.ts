@@ -12,7 +12,7 @@
 import type * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../engine/scene';
 import { Layer2D, clearRT, W, H } from '../engine/gl';
-import { palette, pcss, plin, type NamedPalette } from '../engine/palette';
+import { palette, pcss, plin, pmix, type NamedPalette } from '../engine/palette';
 import { drawLyric, layoutLine, ownedLines, F, type CharState } from '../engine/lyric';
 import { beatPulse, kickPulse, downbeatPulse, beatIndex } from '../engine/beat';
 import { stateAt, shotAt, type PlateInfo, type Shot } from '../engine/shots';
@@ -102,12 +102,69 @@ export default class Ecg extends Scene {
   override render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
     const st = stateAt(this.list, f.t);
     const L = this.layer;
-    L.clear(pcss(this.P, 'ground'));
-    const post = this.plate.variant === 'xy' ? this.xyPlate(f, st) : this.ridgePlate(f, st);
+    const hosted = !!this.ctx.params.hosted;
+    if (hosted) L.clear(); else L.clear(pcss(this.P, 'ground'));
+    const post = this.plate.variant === 'scope' ? this.scopePlate(f) : this.plate.variant === 'xy' ? this.xyPlate(f, st) : this.ridgePlate(f, st);
     L.upload();
-    clearRT(this.ctx.renderer, out, plin(this.P, 'ground'));
+    clearRT(this.ctx.renderer, out, hosted ? [0, 0, 0] : plin(this.P, 'ground'), hosted ? 0 : 1);
     this.ctx.comp.draw(this.ctx.renderer, L.texture, out, { mode: 'normal' });
     return post;
+  }
+
+  // ---------------------------------------------------------------- scope (v4 NIGHT p02, hosted by wall)
+  // The cart's scope CRT lights: a physical phosphor trace on curved glass (no graticule). The beam sweeps once per
+  // bar; each beat lands an R-spike (the beat mark is the trace itself); the old sweep decays as phosphor.
+  private scopePlate(f: Frame): PostOverrides {
+    const c = this.layer.ctx, t = f.t, au = this.au, P = this.P;
+    const cx = W / 2, cy = H / 2, gw = 860, gh = 600;
+    const bp = beatPulse(au, t, 0.12), db = downbeatPulse(au, t, 0.3);
+    const on = Math.min(1, Math.max(0, (t - this.ctx.start) / 0.25)); // the tube warms up over the first frames
+    // glass: a faint phosphor bloom inside the tube face (curved: brighter in the middle)
+    const g = c.createRadialGradient(cx, cy, 40, cx, cy, gw * 0.62);
+    g.addColorStop(0, pcss(P, 'signal', 0.16 * on + 0.06 * db));
+    g.addColorStop(1, pcss(P, 'signal', 0));
+    c.save();
+    c.beginPath(); c.roundRect(cx - gw / 2, cy - gh / 2, gw, gh, 90); c.clip();
+    c.fillStyle = g; c.fillRect(cx - gw / 2, cy - gh / 2, gw, gh);
+    // the trace: x = sweep position, the beam writes PQRST complexes whose R-peak sits on each beat
+    const beats = au.beats, downs = au.downbeats;
+    let d0 = this.ctx.start;
+    for (const d of downs) if (d <= t) d0 = d; else break;
+    let d1 = d0 + 2;
+    for (const d of downs) if (d > d0 + 1e-3) { d1 = d; break; }
+    const sweep = Math.min(1, (t - d0) / Math.max(0.2, d1 - d0));
+    const yTrace = cy - 70, amp = 210;
+    const heart = (tt: number) => {
+      let best = 9;
+      for (const b of beats) { const dd = tt - b; if (Math.abs(dd) < Math.abs(best)) best = dd; else if (b > tt) break; }
+      const q = best;
+      return -amp * Math.exp(-((q / 0.022) ** 2)) + 0.28 * amp * Math.exp(-(((q + 0.05) / 0.018) ** 2)) + 0.24 * amp * Math.exp(-(((q - 0.07) / 0.02) ** 2))
+        - 0.16 * amp * Math.exp(-(((q - 0.22) / 0.05) ** 2));
+    };
+    const x0 = cx - gw / 2 + 50, x1 = cx + gw / 2 - 50, N = 260;
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    for (const [w, a] of [[16, 0.12], [6, 0.45], [2.4, 1]] as const) {
+      c.lineWidth = w + (w > 3 ? 4 * bp : 0);
+      for (let i = 1; i <= N; i++) {
+        const u0 = (i - 1) / N, u1 = i / N;
+        // phosphor persistence: the segment's age since the beam passed it (this sweep or the previous one)
+        const age = u1 <= sweep ? (sweep - u1) : (1 - u1 + sweep);
+        const k = Math.exp(-age * 3.2) * on;
+        if (k < 0.02) continue;
+        const ta = u0 <= sweep ? d0 + u0 * (d1 - d0) : d0 - (d1 - d0) * (1 - u0);
+        const tb = u1 <= sweep ? d0 + u1 * (d1 - d0) : d0 - (d1 - d0) * (1 - u1);
+        c.strokeStyle = w < 3 ? pmix(P, 'signal', 'text', 0.35 * k, a * k) : pcss(P, 'signal', a * k);
+        c.beginPath(); c.moveTo(x0 + (x1 - x0) * u0, yTrace + heart(ta)); c.lineTo(x0 + (x1 - x0) * u1, yTrace + heart(tb)); c.stroke();
+      }
+    }
+    // the beam head: a hot dot, bigger on the beat
+    const hx = x0 + (x1 - x0) * sweep, hy = yTrace + heart(t);
+    c.fillStyle = pcss(P, 'text', on); c.beginPath(); c.arc(hx, hy, 6 + 8 * bp, 0, Math.PI * 2); c.fill();
+    c.restore();
+    // line 2 on the glass, lit by the phosphor (stamp: sung = signal)
+    const line = this.lines[0];
+    if (line) drawLyric(c, line, t, { x: cx, y: cy + 210, size: 132, maxWidth: gw - 80, align: 'center', family: F.slam(), sungColor: 'signal', unsungColor: 'bone', unsungAlpha: 0.32 });
+    return {};
   }
 
   // ================================================================== p12 xy

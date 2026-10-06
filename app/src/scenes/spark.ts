@@ -200,7 +200,9 @@ export default class Spark extends Scene {
     }
     c.setTransform(1, 0, 0, 1, 0, 0);
     L.upload();
-    clearRT(this.ctx.renderer, out, LIN.ink);
+    // hosted (v4 NIGHT, scenes/wall.ts): transparent ground — the wall host owns the brick
+    const hosted = !!this.ctx.params.hosted;
+    clearRT(this.ctx.renderer, out, hosted ? [0, 0, 0] : LIN.ink, hosted ? 0 : 1);
     this.ctx.comp.draw(this.ctx.renderer, L.texture, out, { mode: 'normal' });
     return post;
   }
@@ -790,8 +792,9 @@ export default class Spark extends Scene {
     const setM = () => c.setTransform(M[0], M[1], M[2], M[3], M[4], M[5]);
 
     // ---- downbeat: full-frame signal flare
-    if (flare > 0.01) { c.fillStyle = rgba('signal', 0.92 * flare); c.fillRect(0, 0, W, H); }
-    const inkOn = flare > 0.45;
+    // (hosted: no per-downbeat full-frame flare — the wall host times the one whiteout at 142.035 and the cut-in)
+    if (flare > 0.01 && !this.ctx.params.hosted) { c.fillStyle = rgba('signal', 0.92 * flare); c.fillRect(0, 0, W, H); }
+    const inkOn = flare > 0.45 && !this.ctx.params.hosted;
     const markC: PaletteKey = inkOn ? 'ink' : 'bone';
 
     setM();
