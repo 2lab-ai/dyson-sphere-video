@@ -1,0 +1,522 @@
+{
+  "_doc": "Canonical v4 plate table (PLAN-V4.md §C7 is generated from this by app/scripts/plan-table.ts). nov: R|1|2. A 2 keeps >=4 of W/G/C/L/S vs the previous plate (or vs ref). A 1 changes >=4 and names a residue. Ground classes: dark|mid|light = what the pixel lint measures at the cut.",
+  "dims": [
+    "W",
+    "G",
+    "C",
+    "L",
+    "S"
+  ],
+  "dark_envelopes": [
+    [
+      "p01",
+      "p07"
+    ],
+    [
+      "p13",
+      "p17"
+    ],
+    [
+      "p20",
+      "p26"
+    ],
+    [
+      "p38",
+      "p43"
+    ]
+  ],
+  "whiteouts": [
+    65.12,
+    142.035,
+    165.343,
+    "p37"
+  ],
+  "plates": [
+    {
+      "id": "p01",
+      "nov": "R",
+      "W": "night street, the hardware wall, photographed on film",
+      "G": "dark",
+      "C": "eye-level, push per bar",
+      "L": "hardware centre-right, lyric as signage on it",
+      "S": "the orange point writes the line on the brick",
+      "note": "reference; the wall already holds the dark CRT cart, tubes and sign that p02–p07 light up one at a time"
+    },
+    {
+      "id": "p02",
+      "nov": "2",
+      "run": "NIGHT",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "the scope CRT on the cart lights up: the heart trace (physical, no graticule)",
+      "chg": "S"
+    },
+    {
+      "id": "p03",
+      "nov": "2",
+      "run": "NIGHT",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "the TV wall; one dark tube hides the future",
+      "chg": "S"
+    },
+    {
+      "id": "p04",
+      "nov": "2",
+      "run": "NIGHT",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "the neon script sign; one pink tube = the dream (pink is a token of the NIGHT palette family, G unchanged)",
+      "chg": "S"
+    },
+    {
+      "id": "p05",
+      "nov": "2",
+      "run": "NIGHT",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "the LED ribbon running as a wave",
+      "chg": "S"
+    },
+    {
+      "id": "p06",
+      "nov": "2",
+      "run": "NIGHT",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "bent neon tubes on the brick",
+      "chg": "S"
+    },
+    {
+      "id": "p07",
+      "nov": "2",
+      "run": "NIGHT",
+      "W": "=",
+      "G": "= (the clock face mustard is a subject accent; measured ground dark)",
+      "C": "=",
+      "L": "=",
+      "S": "the paper clock pasted on the brick",
+      "chg": "S"
+    },
+    {
+      "id": "p08",
+      "nov": "2",
+      "run": "FILM",
+      "W": "= (same street, same film medium; only the exposure flips)",
+      "G": "light (blown-out daylight stock, grain, halation)",
+      "C": "=",
+      "L": "=",
+      "S": "= the clock wall at dawn (headlight trails are how the line is written, not a new subject)",
+      "chg": "G"
+    },
+    {
+      "id": "p09",
+      "nov": "2",
+      "run": "FILM",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "the flip-board ticker on the street (years overtaken)",
+      "chg": "S"
+    },
+    {
+      "id": "p10",
+      "nov": "2",
+      "run": "FILM",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "the room behind the shop window, swept by light; two figures",
+      "chg": "S"
+    },
+    {
+      "id": "p11",
+      "nov": "2",
+      "run": "FILM",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "two irises (the figures' eyes) across the wall",
+      "chg": "S"
+    },
+    {
+      "id": "p12",
+      "nov": "2",
+      "run": "FILM",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "the two figures double-exposed into one orbit, collapsing to a point at the anchor",
+      "chg": "S"
+    },
+    {
+      "id": "p13",
+      "nov": "1",
+      "W": "space (plasma, photographic physicality for all of COSMOS)",
+      "G": "dark",
+      "C": "slow push + cut-in per bar",
+      "L": "circle at anchor",
+      "S": "the first light: whiteout 65.120 → gold curls from the singular point",
+      "residue": "the point from p12's exit = the singular point at the anchor"
+    },
+    {
+      "id": "p14",
+      "nov": "2",
+      "run": "COSMOS",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "the cosmic-web knot; the gaps grow",
+      "chg": "S"
+    },
+    {
+      "id": "p15",
+      "nov": "2",
+      "run": "COSMOS",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "the Sun ignites (SDO-style surface)",
+      "chg": "S"
+    },
+    {
+      "id": "p16",
+      "nov": "2",
+      "run": "COSMOS",
+      "W": "= (same photographic space; no clay, no peach backdrop)",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "Earth + Theia impact",
+      "chg": "S"
+    },
+    {
+      "id": "p17",
+      "nov": "2",
+      "run": "COSMOS",
+      "W": "= (same photographic space; the ink-wash idea is dropped)",
+      "G": "=",
+      "C": "=",
+      "L": "= (the forming moon is the circle)",
+      "S": "the debris ring gathers into the Moon",
+      "chg": "S"
+    },
+    {
+      "id": "p18",
+      "nov": "1",
+      "W": "pop-up book (paper, card, glue)",
+      "G": "light",
+      "C": "book cam, overhead 3/4, static",
+      "L": "page spread",
+      "S": "the sea page: the first cell divides",
+      "residue": "the moon disc = the red paper sun at the anchor"
+    },
+    {
+      "id": "p19",
+      "nov": "2",
+      "run": "BOOK",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "the land page (page turn)",
+      "chg": "S"
+    },
+    {
+      "id": "p20",
+      "nov": "1",
+      "W": "ascii / real tear",
+      "G": "dark",
+      "C": "locked",
+      "L": "split",
+      "S": "virtual vs real",
+      "residue": "the paper's cream edge = the tear lip"
+    },
+    {
+      "id": "p21",
+      "nov": "1",
+      "W": "hatch engraving",
+      "G": "dark",
+      "C": "slow macro crawl along the seam",
+      "L": "seam centre, the iris-to-be at the anchor",
+      "S": "the steel hand",
+      "residue": "p20's tear line = the hatch seam"
+    },
+    {
+      "id": "p22",
+      "nov": "2",
+      "run": "ENGRAVE",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "= (the engraved iris sits at the anchor)",
+      "S": "the engraved iris swallows the words",
+      "chg": "S"
+    },
+    {
+      "id": "p23",
+      "nov": "2",
+      "run": "ORBIT",
+      "W": "photographic night Earth, the limb",
+      "G": "=",
+      "C": "= (slow crawl, no push)",
+      "L": "= circle at anchor (iris → Earth)",
+      "S": "= the disc (iris → Earth; city lights are how the line is written)",
+      "chg": "W"
+    },
+    {
+      "id": "p24",
+      "nov": "2",
+      "run": "ORBIT",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "= (limb stays in frame)",
+      "S": "the departure board on the night side",
+      "chg": "S"
+    },
+    {
+      "id": "p25",
+      "nov": "2",
+      "run": "ORBIT",
+      "W": "=",
+      "G": "= (jamo on the limb glow, never white)",
+      "C": "=",
+      "L": "=",
+      "S": "the jamo scatter",
+      "chg": "S"
+    },
+    {
+      "id": "p26",
+      "nov": "2",
+      "run": "ORBIT",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "the cage closes around the line",
+      "chg": "S"
+    },
+    {
+      "id": "p27",
+      "nov": "2",
+      "run": "ORBIT",
+      "W": "=",
+      "G": "light: dawn on the limb (colour field)",
+      "C": "=",
+      "L": "=",
+      "S": "= the cage, dissolving in the dawn",
+      "chg": "G"
+    },
+    {
+      "id": "p28",
+      "nov": "2",
+      "ref": "p19",
+      "W": "= (vs ref p19)",
+      "G": "= (vs ref p19)",
+      "C": "= (vs ref p19)",
+      "L": "= (vs ref p19)",
+      "S": "the city page",
+      "chg": "S",
+      "note": "callback: the paper world returns; compared against p19, exempt from the consecutive-2 pixel lint"
+    },
+    {
+      "id": "p29",
+      "nov": "2",
+      "ref": "p01",
+      "W": "= (vs ref p01)",
+      "G": "= (vs ref p01)",
+      "C": "= (vs ref p01)",
+      "L": "= (vs ref p01)",
+      "S": "the marks merge back into the point; hit 142.035 = whiteout + cut-in (timed, inside the plate)",
+      "chg": "S",
+      "note": "callback; lyric line 28 starts 141.235 so the boundary cannot move"
+    },
+    {
+      "id": "p30",
+      "nov": "1",
+      "W": "white ridgelines on black (spatial, perspective rows)",
+      "G": "dark",
+      "C": "low oblique, drifting",
+      "L": "rows",
+      "S": "the heartbeat flattens",
+      "residue": "the point sits on the front ridge"
+    },
+    {
+      "id": "p31",
+      "nov": "2",
+      "run": "LINES",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "stones across the void",
+      "chg": "S"
+    },
+    {
+      "id": "p32",
+      "nov": "1",
+      "W": "sodium haze",
+      "G": "light",
+      "C": "wide, tilting up",
+      "L": "disc at anchor",
+      "S": "the sun; silhouettes reach",
+      "residue": "the stone = the first silhouette"
+    },
+    {
+      "id": "p33",
+      "nov": "2",
+      "run": "AMBER",
+      "W": "= (the haze is the firelight)",
+      "G": "= light",
+      "C": "=",
+      "L": "= (disc → fire at the anchor)",
+      "S": "silhouettes around the fire; hit 165.343 = the fire ignites (whiteout, timed)",
+      "chg": "S"
+    },
+    {
+      "id": "p34",
+      "nov": "2",
+      "run": "AMBER",
+      "W": "=",
+      "G": "= light (raking light on pale clay)",
+      "C": "=",
+      "L": "=",
+      "S": "the clay tablet, a wedge per beat",
+      "chg": "S"
+    },
+    {
+      "id": "p35",
+      "nov": "1",
+      "W": "cathedral, stained glass",
+      "G": "dark",
+      "C": "nave, tilt-up",
+      "L": "rose window centred",
+      "S": "panes light per beat",
+      "residue": "the tablet's window light = the first pane"
+    },
+    {
+      "id": "p36",
+      "nov": "2",
+      "run": "GLASS",
+      "W": "thermal LUT of the same window",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "= the window (machine silhouettes — gears, a loco — pass behind the panes as the bar-4 deviation; the window stays the subject)",
+      "chg": "W"
+    },
+    {
+      "id": "p37",
+      "nov": "1",
+      "W": "1-bit dither desert",
+      "G": "light (measured at the cut); the last bar is the exit: night falls, the dither dots glow as a grid above the horizon, camera settles static",
+      "C": "orbit",
+      "L": "horizon",
+      "S": "whiteout + the cloud",
+      "residue": "thermal white = the whiteout"
+    },
+    {
+      "id": "p38",
+      "nov": "1",
+      "W": "8-bit demoscene",
+      "G": "dark",
+      "C": "static",
+      "L": "dot grid",
+      "S": "the first computer (lamp grid → C64)",
+      "residue": "p37's exit dots = the lamp grid"
+    },
+    {
+      "id": "p39",
+      "nov": "2",
+      "run": "8BIT",
+      "W": "=",
+      "G": "=",
+      "C": "=",
+      "L": "=",
+      "S": "modem → network",
+      "chg": "S"
+    },
+    {
+      "id": "p40",
+      "nov": "2",
+      "run": "8BIT",
+      "W": "=",
+      "G": "= dark (the face is bright on the dark ground; no full-frame flood, not a whiteout)",
+      "C": "=",
+      "L": "=",
+      "S": "data → face → eye",
+      "chg": "S"
+    },
+    {
+      "id": "p41",
+      "nov": "1",
+      "W": "3D space",
+      "G": "dark",
+      "C": "lateral orbit",
+      "L": "disc at anchor",
+      "S": "the sun and the swarm building its shell (volleys per beat)",
+      "residue": "match-circle: the eye → the sun"
+    },
+    {
+      "id": "p42",
+      "nov": "2",
+      "run": "SHELL",
+      "W": "=",
+      "G": "= dark (lit dancheong panels on a dark vault; no flood)",
+      "C": "inside the shell, looking up",
+      "L": "=",
+      "S": "= the shell, closing",
+      "chg": "C"
+    },
+    {
+      "id": "p43",
+      "nov": "2",
+      "run": "SHELL",
+      "W": "=",
+      "G": "=",
+      "C": "pull-back wide",
+      "L": "=",
+      "S": "= the sealed shell (the stars going dark is the beat action)",
+      "chg": "C"
+    },
+    {
+      "id": "p44",
+      "nov": "1",
+      "W": "red constructivist card",
+      "G": "light (cream card, red wedge)",
+      "C": "flat",
+      "L": "wedge + disc",
+      "S": "the title born from the disc",
+      "residue": "the sphere = the cream disc"
+    },
+    {
+      "id": "p45",
+      "nov": "2",
+      "ref": "p01",
+      "W": "= (vs ref p01)",
+      "G": "= (vs ref p01)",
+      "C": "= (vs ref p01)",
+      "L": "= (vs ref p01; the signage slot stays empty — instrumental)",
+      "S": "the point dies per beat",
+      "chg": "S",
+      "note": "callback; no lyric text"
+    }
+  ]
+}
