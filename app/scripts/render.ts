@@ -152,6 +152,12 @@ async function video(page: Page, from: number, to: number, fps: number, out: str
   server.stop();
   console.log(`\nwrote ${out} (${frames} frames in ${((performance.now() - t0) / 1000).toFixed(1)}s)`);
   console.log(`sub-frames per frame (count:frames): ${hist(used)}`);
+  // v4 receipt: who drew lyrics and how small (engine/lyric.ts logs); the hit gate reads this next to the video
+  const lyr = await page.evaluate(() => ({ draws: (window as any).__pdoom.lyricDraws, sizes: (window as any).__pdoom.lyricSizes }));
+  const lyrOut = out.replace(/\.mp4$/, '') + '.lyrics.json';
+  await Bun.write(lyrOut, JSON.stringify({ from, to, ...lyr }, null, 1));
+  const small = Object.entries(lyr.sizes as Record<string, number>).filter(([, v]) => v < 119.5);
+  console.log(`lyric log → ${lyrOut}; ${Object.keys(lyr.sizes).length} vocal plates, min size ${Math.min(...Object.values(lyr.sizes as Record<string, number>)).toFixed(0)} px${small.length ? ` — BELOW 120: ${small.map(([k, v]) => `${k}=${v.toFixed(0)}`).join(', ')}` : ''}`);
 }
 
 if (mode === 'video') {
