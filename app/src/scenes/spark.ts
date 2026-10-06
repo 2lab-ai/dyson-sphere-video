@@ -264,9 +264,9 @@ export default class Spark extends Scene {
     // beats are otherwise only a 24 px hairline step — too small to read as a beat)
     if (this.ctx.params.hosted && ign > 0) {
       const nb = Math.min(6, this.beats.filter((b) => b <= t + 0.03).length);
-      const r = (70 + 48 * nb) / sc;
+      const r = (90 + 90 * nb) / sc;
       const g = c.createRadialGradient(pen.x, pen.y, 0, pen.x, pen.y, r);
-      g.addColorStop(0, rgba('signal', 0.55)); g.addColorStop(0.45, rgba('ember', 0.28)); g.addColorStop(1, rgba('ember', 0));
+      g.addColorStop(0, rgba('signal', 0.75)); g.addColorStop(0.5, rgba('ember', 0.4)); g.addColorStop(1, rgba('ember', 0));
       c.fillStyle = g; c.beginPath(); c.arc(pen.x, pen.y, r, 0, Math.PI * 2); c.fill();
     }
     const hairEnd = t < l0start ? pen.x : x1 + 24 * steps(this.beats.filter((b) => b >= l0start), t, 0.05);
