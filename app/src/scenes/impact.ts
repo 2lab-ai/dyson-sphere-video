@@ -418,33 +418,36 @@ export default class Impact extends Scene {
 }
 
 const HOSTED_GLSL = /* glsl */ `
-// hosted (COSMOS p16): photographic Earth + Theia, lit by one Sun in black space. Theia closes in one step per beat
-// (the beat mark: a held jump), hits on beat 5 (the wound glows and spreads per beat), and the ejecta settle into
-// the debris ring for the last fifth of the plate.
+// hosted (COSMOS p16): photographic Earth + Theia, lit by one Sun in black space. Every beat is a held step: Theia
+// closes in one jump per beat out of the sunlit side while the Earth turns a notch; it hits on beat 5 (a flash that holds
+// ~0.15 s, then the wound glows and spreads a notch per beat), and after the hit one debris-ring segment appears per beat.
 vec3 rock(vec3 n, float seed) {
   float a = fbm(n * 3.0 + seed, 5) * 0.5 + 0.5;
-  vec3 alb = mix(vec3(0.045), mix(cDeep, cSig, 0.3) * 0.35 + vec3(0.07), a);
+  vec3 alb = mix(vec3(0.06), mix(cDeep, cSig, 0.3) * 0.5 + vec3(0.1), a);
   float dif = max(dot(n, LDIR), 0.0);
-  return alb * (0.02 + 1.6 * dif) + cMid * 0.04 * pow(1.0 - n.z, 3.0);   // a faint blue earthshine rim
+  return alb * (0.02 + 2.2 * dif) + cMid * 0.05 * pow(1.0 - n.z, 3.0);   // a faint blue earthshine rim
 }
 vec3 plate(vec2 p) {
-  const float RE = 0.34, RT = 0.16;
-  float hit = step(4.5, uNb), since = max(uNb - 5.0, 0.0);
-  float step_ = min(uNb + smoothstep(0.0, 0.3, uBeatPh) * step(0.5, uNb) - step(0.5, uNb), 5.0);
-  vec2 dir = normalize(vec2(0.86, 0.5));
-  vec2 cT = dir * mix(1.05, RE + RT * 0.55, step_ / 5.0);
+  const float RE = 0.34, RT = 0.21;
+  float nb = uNb, hit = step(4.5, nb), since = max(nb - 5.0, 0.0);
+  vec2 dir = normalize(vec2(-1.0, 0.15));                                 // Theia comes in out of the Sun
+  vec2 cT = dir * mix(1.2, RE + RT * 0.55, clamp((nb - 1.0) / 4.0, 0.0, 1.0));
   vec3 n; float cov = sphere(p, vec2(0.0), RE, n);
-  vec3 c = rock(n, 0.0) * cov;
+  vec3 c = rock(n, 0.7 * nb) * cov;
   vec2 hp = dir * RE;
-  float wound = exp(-dot(p - hp, p - hp) / (0.003 + 0.0025 * since)) * hit;
+  float wound = exp(-dot(p - hp, p - hp) / (0.006 + 0.008 * since)) * hit;
   float cracks = smoothstep(0.6, 0.95, 1.0 - abs(fbm(n * 6.0, 4)));
-  c += spaceHeat(0.9 + 0.3 * uBp) * wound * mix(0.6, 1.4, cracks) * cov;
-  vec3 nt; float covT = sphere(p, cT, RT * (1.0 - 0.6 * hit), nt) * (1.0 - hit);
+  c += spaceHeat(0.95) * wound * mix(0.6, 1.4, cracks) * cov;
+  vec3 nt; float covT = sphere(p, cT, RT, nt) * (1.0 - hit);
   c = mix(c, rock(nt, 7.0), covT);
-  c += spaceHeat(1.2) * hit * exp(-length(p - hp) / (0.025 + 0.012 * since)) * exp(-since * 0.4);   // the hot plume
-  vec2 rg = debrisRing(p, 0.6, 0.07, uLt);
-  float ring = rg.x * smoothstep(0.72, 0.92, uP) * (1.0 - cov * rg.y);
-  c += spaceHeat(0.55 + 0.3 * rg.x) * ring;
+  float flash = hit * step(since, 0.5) * (1.0 - 0.65 * smoothstep(0.3, 0.95, uBeatPh));   // the hit: holds, then eases
+  c += spaceHeat(1.3) * flash * exp(-pow(length(p - hp) / 0.2, 2.0));
+  c += spaceHeat(1.1) * hit * exp(-length(p - hp) / (0.05 + 0.035 * since)) * (0.5 + 0.1 * since);   // the hot plume
+  vec2 rg = debrisRing(p, 0.62, 0.12, uLt);
+  vec2 rq = rot2(0.26) * p; rq.y /= 0.27;
+  float seg = floor((atan(rq.y, rq.x) + 3.14159) / 6.28318 * 3.0);               // 3 segments, one more per beat
+  float ring = rg.x * step(seg, since - 0.5) * (1.0 - cov * rg.y) * 3.2;
+  c += spaceHeat(0.6 + 0.3 * rg.x) * ring;
   return c;
 }
 `;

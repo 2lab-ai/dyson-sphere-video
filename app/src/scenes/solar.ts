@@ -302,27 +302,32 @@ vec3 plate(vec2 _p) {
 }
 
 const HOSTED_GLSL = /* glsl */ `
-// hosted (COSMOS p15): the Sun ignites at the centre, SDO 304-style — a granulated orange disc, limb-bright, a thin
-// corona. Each beat raises one flare loop on the limb and it stays (bright on its beat, then a steady loop).
+// hosted (COSMOS p15): the Sun ignites at the centre, SDO 304-style — a granulated orange disc, limb-bright, a
+// corona. Each beat is a held step: the disc swells 6 % and stays, the surface boils one notch (a new granulation slice,
+// more active plage), the corona reaches one notch further, and one more flare loop erupts on the limb and stays.
 vec3 plate(vec2 p) {
-  const float R0 = 0.4;
-  float r = length(p), ign = smoothstep(0.0, 0.6, uLt);
+  float nb = uNb, R0 = min(0.3 * pow(1.06, nb), 0.5);
+  float r = length(p), ign = smoothstep(0.0, 0.3, uLt);
   vec3 n; float cov = sphere(p, vec2(0.0), R0, n);
-  vec3 sp = n * 3.0 + vec3(0.0, 0.0, 0.05 * uLt);
-  float gran = fbm(sp * 4.0, 5) * 0.5 + 0.5, act = smoothstep(0.55, 0.85, fbm(sp * 1.2 + 4.0, 4) * 0.5 + 0.5);
+  vec3 sp = n * 3.0 + vec3(0.0, 0.0, 0.05 * uLt + 0.55 * nb);
+  float gran = fbm(sp * 4.0, 5) * 0.5 + 0.5;
+  float act = smoothstep(0.55 - 0.015 * nb, 0.85 - 0.015 * nb, fbm(sp * 1.2 + 4.0, 4) * 0.5 + 0.5);
   float limb = pow(1.0 - n.z, 2.0);
-  float lum = (0.42 + 0.35 * gran + 0.45 * act + 0.35 * limb) * 0.62 * mix(0.3, 1.0, ign);
+  float lum = (0.42 + 0.4 * gran + 0.5 * act + 0.35 * limb) * 0.5 * mix(0.3, 1.0, ign);
   vec3 c = spaceHeat(lum) * cov;
-  c += spaceHeat(0.55) * exp(-max(r - R0, 0.0) / 0.035) * (1.0 - cov) * 0.6 * ign;   // corona
+  float cr = max(r - R0, 0.0);
+  c += spaceHeat(0.55) * exp(-cr / (0.03 + 0.01 * nb)) * (1.0 - cov) * (0.35 + 0.04 * nb) * ign
+       * (1.0 - smoothstep(R0 + 0.15, R0 + 0.45, r));                              // corona (ends well inside the slot)
   for (int k = 0; k < 24; k++) {
-    if (float(k) >= uNb) break;
-    float a = 6.2832 * hash11(float(k) * 7.31 + 1.0), h = 0.05 + 0.06 * hash11(float(k) * 3.7 + 2.0);
-    vec2 ctr = R0 * vec2(cos(a), sin(a));
-    float d = abs(length(p - ctr) - h), out_ = smoothstep(R0 - 0.004, R0 + 0.006, r);
-    float fresh = float(k) >= uNb - 1.0 ? 1.0 + 2.5 * uBp : 1.0;
-    float fade = 1.0 - smoothstep(R0, R0 + 1.6 * h, r);                                      // loops thin out with height
-    c += spaceHeat(0.62) * (exp(-d * d / (0.008 * 0.008)) + 0.3 * exp(-d * d / (0.025 * 0.025))) * out_ * fade * fresh;
-    c += spaceHeat(0.9) * 0.35 * exp(-dot(p - ctr * 0.96, p - ctr * 0.96) / 0.0012) * cov * fresh;   // its footpoint
+    if (float(k) >= nb - 0.5) break;
+    float a = 6.2832 * (0.13 + 0.382 * float(k)), h = R0 * (0.2 + 0.12 * hash11(float(k) * 3.7 + 2.0));
+    vec2 rd = vec2(cos(a), sin(a)), ctr = R0 * rd, q = p - ctr;
+    float d = abs(length(vec2(dot(q, vec2(-rd.y, rd.x)), dot(q, rd) / 0.6)) - h);   // a low arch, wider than tall
+    float out_ = smoothstep(R0 - 0.004, R0 + 0.006, r);
+    float fresh = float(k) >= nb - 1.0 ? 1.0 + 0.6 * uBp : 1.0;
+    float fade = 1.0 - 0.6 * smoothstep(R0, R0 + 1.4 * h, r);                                 // loops thin out with height
+    c += spaceHeat(0.75) * (exp(-d * d / (0.012 * 0.012)) + 0.3 * exp(-d * d / (0.035 * 0.035))) * out_ * fade * fresh;
+    c += spaceHeat(0.95) * 0.5 * exp(-dot(p - ctr * 0.96, p - ctr * 0.96) / 0.003) * cov * fresh;   // its footpoint
   }
   return c;
 }

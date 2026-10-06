@@ -397,8 +397,9 @@ export default class CosmicWeb extends Scene {
 
 const HOSTED_GLSL = /* glsl */ `
 // hosted (COSMOS p14): the cosmic-web knot — filaments on the walls between voids, clumped into hot nodes, inside a
-// round knot at the centre. The voids grow one step per bar (cells widen, filaments thin); each beat lights one more
-// node and it stays lit.
+// round knot at the centre (the bright mass stays inside r ~0.55, ~300 px). Each beat is a held step: the voids widen
+// one notch (cells grow, the whole filament net moves outward) and one more filament bundle (an angular sector of the
+// knot) lights and stays lit, with its node.
 vec3 vor(vec2 x) {
   vec2 n = floor(x), f = fract(x); float f1 = 8.0, f2 = 8.0; vec2 id = n;
   for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
@@ -408,19 +409,21 @@ vec3 vor(vec2 x) {
   return vec3(sqrt(f2) - sqrt(f1), hash12(id), sqrt(f1));
 }
 vec3 plate(vec2 p) {
-  float r = length(p);
-  float gap = uNbar + smoothstep(0.0, 0.3, uBeatPh) * step(0.5, uNbar) - step(0.5, uNbar);
-  float scale = 9.0 / (1.0 + 0.32 * max(gap, 0.0));
+  float r = length(p), nb = uNb;
+  float scale = 9.0 / (1.0 + 0.3 * nb);
   vec2 q = rot2(0.03 * uLt) * p * scale + 3.7;
   vec3 v = vor(q), v2 = vor(q * 2.3 + 9.1);
-  float wid = 0.05 / (1.0 + 0.25 * max(gap, 0.0));
-  float fil = exp(-v.x * v.x / (wid * wid)) + 0.35 * exp(-v2.x * v2.x / (0.02 * 0.02));
+  float wid = 0.085 / (1.0 + 0.1 * nb);
+  float fil = exp(-v.x * v.x / (wid * wid)) + 0.45 * exp(-v2.x * v2.x / (0.03 * 0.03));
   float clump = smoothstep(-0.1, 0.7, fbm(q * 0.6, 4));
-  float knot = exp(-pow(r / 0.5, 2.0) * 1.6);
-  vec3 c = mix(cMid, cHi, clump) * fil * clump * knot * 1.3;
-  float node = exp(-v.z * v.z / 0.004) * step(v.y, uNb / 16.0) * knot;   // lit nodes: one more per beat
-  c += spaceHeat(0.9) * node * (1.2 + 0.8 * uBp);
-  c += cHi * 0.35 * exp(-r * r / 0.012);                                  // the knot's core
+  float knot = exp(-pow(r / 0.42, 2.0) * 1.1) * (1.0 - smoothstep(0.42, 0.56, r));
+  float sec = floor((atan(p.y, p.x) + 3.14159) / 6.28318 * 8.0);                 // 8 bundles around the knot
+  float lit = step(mod(sec * 3.0, 8.0), nb - 1.5);                               // one more bundle per beat, held
+  vec3 c = mix(cMid, cHi, clump) * fil * (0.8 + clump) * knot * (1.0 + 3.5 * lit);
+  c += cMid * 0.07 * lit * knot;                                                 // the lit bundle's glow
+  float node = exp(-v.z * v.z / 0.006) * step(v.y, nb / 10.0) * knot;            // lit nodes: more per beat
+  c += spaceHeat(0.9) * node * (1.2 + 0.4 * uBp);
+  c += cHi * (0.35 + 0.05 * nb) * exp(-r * r / 0.012);                           // the knot's core
   return c;
 }
 `;

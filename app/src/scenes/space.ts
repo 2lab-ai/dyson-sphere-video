@@ -19,9 +19,10 @@ const ANCHOR: [number, number] = [1187, 413];
 const WHITEOUT_T = 65.12;
 /** Radius (child half-height units) of the solid body each subject puts at the anchor, for star occlusion. */
 const BODY: Record<string, (p: number) => number> = {
-  solar: () => 0.4,
+  // solar / moon step per beat (8 and 4 beats per plate): the same held radius their hosted GLSL draws
+  solar: (p) => Math.min(0.3 * Math.pow(1.06, 1 + Math.floor(p * 8)), 0.5),
   impact: () => 0.34,
-  moon: (p) => 0.27 * clamp((p - 0.35) / 0.5, 0, 1),
+  moon: (p) => 0.08 + 0.07 * Math.min(Math.floor(p * 4), 3),
 };
 
 const GLSL = /* glsl */ `

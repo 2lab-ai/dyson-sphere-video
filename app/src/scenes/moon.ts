@@ -341,25 +341,28 @@ export default class Moon extends ShaderScene {
 }
 
 const HOSTED_GLSL = /* glsl */ `
-// hosted ring (COSMOS p17): the debris ring left by p16 gathers into the Moon at the centre — no paper, no ink. The
-// ring shrinks and thins, the disc condenses molten red-orange, and each beat drops one clump onto it as a hot spot
-// that stays. The final disc at the centre is the residue p18 picks up (the red sun).
+// hosted ring (COSMOS p17): the debris ring left by p16 gathers into the Moon at the centre — no paper, no ink. Each
+// beat is a held step: one arc of the ring (a quarter) falls in and is gone, the disc steps larger and hotter, and the
+// arc lands as a bright hot spot that stays. The final disc at the centre reads warm red-orange — the residue p18 picks
+// up (the red sun).
 vec3 plate(vec2 p) {
-  float g = smoothstep(0.0, 0.85, uP);
-  float Rd = 0.27 * clamp((uP - 0.35) / 0.5, 0.0, 1.0);
-  vec3 n = vec3(0.0, 0.0, 1.0); float cov = Rd > 0.001 ? sphere(p, vec2(0.0), Rd, n) : 0.0;
-  vec2 rg = debrisRing(p, mix(0.6, 0.12, g), mix(0.07, 0.03, g), uLt * (1.0 + 2.0 * g));
-  vec3 c = spaceHeat(0.55 + 0.4 * g) * rg.x * (1.0 - g * 0.85) * (1.0 - cov * rg.y);
-  float crust = fbm(n * 3.5, 5) * 0.5 + 0.5, dif = max(dot(n, LDIR), 0.0);
-  vec3 disc = spaceHeat(0.5 + 0.25 * crust) * (0.55 + 0.45 * dif);
-  for (int k = 0; k < 16; k++) {
-    if (float(k) >= uNb) break;
-    float a = 6.2832 * hash11(float(k) * 5.13 + 3.0);
-    vec2 s = 0.75 * Rd * vec2(cos(a), sin(a));
-    disc += spaceHeat(1.0) * exp(-dot(p - s, p - s) / (0.0008 + 0.0004 * uBp));
+  float nb = uNb, gath = max(nb - 1.0, 0.0), g = smoothstep(0.0, 0.85, uP);
+  float Rd = 0.08 + 0.07 * gath;
+  vec3 n; float cov = sphere(p, vec2(0.0), Rd, n);
+  vec2 rg = debrisRing(p, mix(0.62, 0.4, g), mix(0.1, 0.06, g), uLt * (1.0 + g));
+  vec2 rq = rot2(0.26) * p; rq.y /= 0.27;
+  float seg = mod(floor((atan(rq.y, rq.x) + 3.14159) / 6.28318 * 4.0) * 3.0, 4.0);   // arcs fall in, one per beat
+  vec3 c = spaceHeat(0.6 + 0.3 * rg.x) * rg.x * 1.6 * step(gath - 0.5, seg) * (1.0 - cov * rg.y);
+  float crust = fbm(n * 3.5 + 0.4 * gath, 5) * 0.5 + 0.5, dif = max(dot(n, LDIR), 0.0);
+  vec3 disc = spaceHeat(0.3 + 0.1 * crust + 0.02 * gath) * (0.45 + 0.4 * dif) * (0.8 + 0.08 * gath);
+  for (int k = 0; k < 4; k++) {
+    if (float(k) >= gath - 0.5) break;
+    float a = 1.3 + 2.4 * float(k);
+    vec2 s = 0.6 * Rd * vec2(cos(a), sin(a));
+    disc += spaceHeat(0.8) * exp(-dot(p - s, p - s) / (0.0018 + 0.0006 * uBp));
   }
   c = mix(c, disc, cov);
-  c += cSig * 0.5 * exp(-max(length(p) - Rd, 0.0) / 0.03) * (1.0 - cov) * step(0.001, Rd);   // molten glow
+  c += cSig * (0.5 + 0.1 * gath) * exp(-max(length(p) - Rd, 0.0) / (0.03 + 0.01 * gath)) * (1.0 - cov);   // molten glow
   return c;
 }
 `;

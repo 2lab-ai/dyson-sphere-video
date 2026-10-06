@@ -209,20 +209,22 @@ vec3 plate(vec2 p) {
 }
 
 const HOSTED_GLSL = /* glsl */ `
-// hosted (COSMOS p13): the residue point at the centre, then gold plasma curls growing out of it. The front grows one
-// step per beat and stays (the beat mark); the plasma cools one notch per beat (white-hot -> gold -> red fringe).
+// hosted (COSMOS p13): the residue point at the centre, then gold plasma curls growing out of it. Each beat is a held
+// step (the beat mark): the front jumps out and stays, the curls swell one notch (the whole curl field re-scales, so the
+// change covers the plasma, not its rim), and the core brightens one notch that stays. The plasma cools one notch per
+// beat (white-hot -> gold -> red fringe) while the core keeps climbing.
 vec3 plate(vec2 p) {
-  float r = length(p);
-  float grow = uNb < 0.5 ? 0.0 : uNb - 1.0 + smoothstep(0.0, 0.35, uBeatPh);
-  float R = min(0.05 + 0.075 * grow, 0.62);
-  vec2 w = p * 2.6;
+  float r = length(p), nb = uNb;
+  float R = min(0.16 + 0.07 * nb, 0.7);
+  vec2 w = p * 2.6 / (1.0 + 0.2 * nb) + vec2(0.4, -0.15) * nb;
   for (int i = 0; i < 3; i++) w += 0.38 * vec2(fbm(w + 0.12 * uLt, 4), fbm(w + vec2(5.2, 1.3) - 0.1 * uLt, 4));
-  float fil = pow(1.0 - abs(fbm(w * 1.4, 5)), 3.0);
-  float env = exp(-pow(r / R, 2.0) * 2.4);
-  float T = clamp(1.25 - 0.09 * uNb, 0.55, 1.25);
-  vec3 c = spaceHeat(fil * env * T * 1.5) * (1.0 + 0.4 * uBp);
-  c += spaceHeat(1.1) * exp(-r * r / (0.016 * 0.016));            // the singular point: hot core
-  c += cSig * 0.6 * exp(-r / 0.045);                         // its orange halo
+  float fil = pow(1.0 - abs(fbm(w * 1.4, 5)), 2.6);
+  float env = exp(-pow(r / R, 4.0) * 1.6);
+  float T = clamp(1.3 - 0.06 * nb, 0.8, 1.3);
+  vec3 c = spaceHeat(fil * env * T * 1.35) * (1.0 + 0.15 * uBp);
+  float Rc = 0.03 + 0.018 * nb;                              // the core: one held notch wider + brighter per beat
+  c += spaceHeat(1.1) * (0.7 + 0.12 * nb) * exp(-r * r / (Rc * Rc));
+  c += cSig * (0.5 + 0.08 * nb) * exp(-r / (0.05 + 0.012 * nb));   // its orange halo
   return c;
 }
 `;
