@@ -17,6 +17,7 @@ import { beatPulse, kickPulse, downbeatPulse } from '../engine/beat';
 import { stateAt, type PlateInfo, type Shot } from '../engine/shots';
 import { mulberry32, clamp, lerp, ease, TAU } from '../engine/util';
 import { shots } from './cosmicweb.shots';
+import { HostedPass } from '../engine/hostedpass';
 
 type Spr = HTMLCanvasElement;
 interface Dot { x: number; y: number; fx: number; fy: number; born: number; s: number; k: number }
@@ -57,6 +58,8 @@ function steps(times: readonly number[], t: number, dur: number): number {
 }
 
 export default class CosmicWeb extends Scene {
+  /** v4 COSMOS: when a WorldHost hosts this plate, the photographic-space subject (HOSTED_GLSL) replaces the plate. */
+  private hp: HostedPass | null = null;
   private L!: Layer2D;
   private P!: NamedPalette;
   private list: Shot[] = [];
@@ -75,6 +78,7 @@ export default class CosmicWeb extends Scene {
   private gal: Spr[] = [];
 
   override init() {
+    if (this.ctx.params.hosted) { this.hp = new HostedPass(this.ctx, HOSTED_GLSL); return; }
     this.plate = this.ctx.params as PlateInfo;
     this.P = palette(this.plate.look?.palette ?? 'web');
     this.list = shots(this.plate, this.ctx.audio);
@@ -198,6 +202,7 @@ export default class CosmicWeb extends Scene {
   }
 
   override render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
+    if (this.hp) { this.hp.render(f, out); return {}; }
     const L = this.L, c = L.ctx, P = this.P, t = f.t, au = this.ctx.audio;
     L.clear(pcss(P, 'ground'));
     const st = stateAt(this.list, t);
@@ -389,3 +394,33 @@ export default class CosmicWeb extends Scene {
     c.restore();
   }
 }
+
+const HOSTED_GLSL = /* glsl */ `
+// hosted (COSMOS p14): the cosmic-web knot — filaments on the walls between voids, clumped into hot nodes, inside a
+// round knot at the centre. The voids grow one step per bar (cells widen, filaments thin); each beat lights one more
+// node and it stays lit.
+vec3 vor(vec2 x) {
+  vec2 n = floor(x), f = fract(x); float f1 = 8.0, f2 = 8.0; vec2 id = n;
+  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+    vec2 g = vec2(i, j), o = hash22(n + g), d = g + o - f; float l = dot(d, d);
+    if (l < f1) { f2 = f1; f1 = l; id = n + g; } else if (l < f2) f2 = l;
+  }
+  return vec3(sqrt(f2) - sqrt(f1), hash12(id), sqrt(f1));
+}
+vec3 plate(vec2 p) {
+  float r = length(p);
+  float gap = uNbar + smoothstep(0.0, 0.3, uBeatPh) * step(0.5, uNbar) - step(0.5, uNbar);
+  float scale = 9.0 / (1.0 + 0.32 * max(gap, 0.0));
+  vec2 q = rot2(0.03 * uLt) * p * scale + 3.7;
+  vec3 v = vor(q), v2 = vor(q * 2.3 + 9.1);
+  float wid = 0.05 / (1.0 + 0.25 * max(gap, 0.0));
+  float fil = exp(-v.x * v.x / (wid * wid)) + 0.35 * exp(-v2.x * v2.x / (0.02 * 0.02));
+  float clump = smoothstep(-0.1, 0.7, fbm(q * 0.6, 4));
+  float knot = exp(-pow(r / 0.5, 2.0) * 1.6);
+  vec3 c = mix(cMid, cHi, clump) * fil * clump * knot * 1.3;
+  float node = exp(-v.z * v.z / 0.004) * step(v.y, uNb / 16.0) * knot;   // lit nodes: one more per beat
+  c += heat(0.9) * node * (1.2 + 0.8 * uBp);
+  c += cHi * 0.35 * exp(-r * r / 0.012);                                  // the knot's core
+  return c;
+}
+`;

@@ -15,6 +15,7 @@ import { beatPulse, kickPulse, downbeatPulse } from '../engine/beat';
 import { shotAt, type PlateInfo, type Shot } from '../engine/shots';
 import { clamp, ease } from '../engine/util';
 import { shots } from './solar.shots';
+import { HostedPass } from '../engine/hostedpass';
 
 const NP = 6; // prominence slots
 
@@ -31,6 +32,8 @@ const STAGE: Record<string, number> = { nebula: 0, protostar: 1, disc: 2 };
 type Prom = { t: number; ang: number; h: number; w: number; k: number };
 
 export default class Solar extends ShaderScene {
+  /** v4 COSMOS: when a WorldHost hosts this plate, the photographic-space subject (HOSTED_GLSL) replaces the plate. */
+  private hp: HostedPass | null = null;
   private list: Shot[] = [];
   private plate!: PlateInfo;
   private P!: NamedPalette;
@@ -40,6 +43,7 @@ export default class Solar extends ShaderScene {
   private proms: Prom[] = [];
 
   override init() {
+    if (this.ctx.params.hosted) { this.hp = new HostedPass(this.ctx, HOSTED_GLSL); return; }
     this.plate = this.ctx.params as PlateInfo;
     this.P = palette(this.ctx.params.look?.palette ?? 'sdo');
     this.list = shots(this.plate, this.ctx.audio);
@@ -290,4 +294,35 @@ vec3 plate(vec2 _p) {
 }
 `;
   }
+
+  override render(f: Frame, out: THREE.WebGLRenderTarget) {
+    if (this.hp) { this.hp.render(f, out); return {}; }
+    return super.render(f, out);
+  }
 }
+
+const HOSTED_GLSL = /* glsl */ `
+// hosted (COSMOS p15): the Sun ignites at the centre, SDO 304-style — a granulated orange disc, limb-bright, a thin
+// corona. Each beat raises one flare loop on the limb and it stays (bright on its beat, then a steady loop).
+vec3 plate(vec2 p) {
+  const float R0 = 0.4;
+  float r = length(p), ign = smoothstep(0.0, 0.6, uLt);
+  vec3 n; float cov = sphere(p, vec2(0.0), R0, n);
+  vec3 sp = n * 3.0 + vec3(0.0, 0.0, 0.05 * uLt);
+  float gran = fbm(sp * 4.0, 5) * 0.5 + 0.5, act = smoothstep(0.55, 0.85, fbm(sp * 1.2 + 4.0, 4) * 0.5 + 0.5);
+  float limb = pow(1.0 - n.z, 2.0);
+  float lum = (0.42 + 0.35 * gran + 0.45 * act + 0.35 * limb) * mix(0.25, 1.0, ign);
+  vec3 c = heat(lum) * cov;
+  c += heat(0.55) * exp(-max(r - R0, 0.0) / 0.035) * (1.0 - cov) * 0.6 * ign;   // corona
+  for (int k = 0; k < 24; k++) {
+    if (float(k) >= uNb) break;
+    float a = 6.2832 * hash11(float(k) * 7.31 + 1.0), h = 0.05 + 0.06 * hash11(float(k) * 3.7 + 2.0);
+    vec2 ctr = R0 * vec2(cos(a), sin(a));
+    float d = abs(length(p - ctr) - h), out_ = smoothstep(R0 - 0.004, R0 + 0.006, r);
+    float fresh = float(k) >= uNb - 1.0 ? 1.0 + 2.5 * uBp : 1.0;
+    c += heat(0.95) * exp(-d * d / (0.006 * 0.006)) * out_ * 0.9 * fresh;
+    c += heat(1.0) * 0.5 * exp(-dot(p - ctr * 0.96, p - ctr * 0.96) / 0.0012) * cov * fresh;   // its footpoint
+  }
+  return c;
+}
+`;

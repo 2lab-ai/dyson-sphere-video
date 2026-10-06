@@ -16,6 +16,7 @@ import { shotAt, type PlateInfo, type Shot } from '../engine/shots';
 import { hash, clamp, pulse } from '../engine/util';
 import { ShaderScene } from './_shader';
 import { shots, type Cam } from './moon.shots';
+import { HostedPass } from '../engine/hostedpass';
 
 const W = 1920, H = 1080;
 /** Screen px (top-left origin) -> shader p units (short side spans -1..1, y up). */
@@ -210,6 +211,8 @@ vec3 plate(vec2 p) {
 `;
 
 export default class Moon extends ShaderScene {
+  /** v4 COSMOS: when a WorldHost hosts this plate, the photographic-space subject (HOSTED_GLSL) replaces the plate. */
+  private hp: HostedPass | null = null;
   private list: Shot[] = [];
   private strokeT: number[] = [];
   private tSeal = Infinity;
@@ -232,6 +235,7 @@ export default class Moon extends ShaderScene {
   }
 
   override init() {
+    if (this.ctx.params.hosted || this.ctx.params.variant === 'ring') { this.hp = new HostedPass(this.ctx, HOSTED_GLSL); return; }
     const plate = this.ctx.params as PlateInfo;
     this.list = shots(plate, this.ctx.audio);
     // the four strokes land on the plate's beats (the shot times after the start are those beats)
@@ -324,6 +328,7 @@ export default class Moon extends ShaderScene {
   }
 
   override render(f: Frame, out: THREE.WebGLRenderTarget) {
+    if (this.hp) { this.hp.render(f, out); return {}; }
     const ov = super.render(f, out);
     if (f.t >= this.tSeal) this.ctx.comp.draw(this.ctx.renderer, this.drawSeal(f.t), out, { mode: 'normal' });
     return ov;
@@ -334,3 +339,27 @@ export default class Moon extends ShaderScene {
     this.pass?.mat.dispose();
   }
 }
+
+const HOSTED_GLSL = /* glsl */ `
+// hosted ring (COSMOS p17): the debris ring left by p16 gathers into the Moon at the centre — no paper, no ink. The
+// ring shrinks and thins, the disc condenses molten red-orange, and each beat drops one clump onto it as a hot spot
+// that stays. The final disc at the centre is the residue p18 picks up (the red sun).
+vec3 plate(vec2 p) {
+  float g = smoothstep(0.0, 0.85, uP);
+  float Rd = 0.27 * clamp((uP - 0.35) / 0.5, 0.0, 1.0);
+  vec3 n = vec3(0.0, 0.0, 1.0); float cov = Rd > 0.001 ? sphere(p, vec2(0.0), Rd, n) : 0.0;
+  vec2 rg = debrisRing(p, mix(0.6, 0.12, g), mix(0.07, 0.03, g), uLt * (1.0 + 2.0 * g));
+  vec3 c = heat(0.55 + 0.4 * g) * rg.x * (1.0 - g * 0.85) * (1.0 - cov * rg.y);
+  float crust = fbm(n * 3.5, 5) * 0.5 + 0.5, dif = max(dot(n, LDIR), 0.0);
+  vec3 disc = heat(0.5 + 0.25 * crust) * (0.55 + 0.45 * dif);
+  for (int k = 0; k < 16; k++) {
+    if (float(k) >= uNb) break;
+    float a = 6.2832 * hash11(float(k) * 5.13 + 3.0);
+    vec2 s = 0.75 * Rd * vec2(cos(a), sin(a));
+    disc += heat(1.0) * exp(-dot(p - s, p - s) / (0.0008 + 0.0004 * uBp));
+  }
+  c = mix(c, disc, cov);
+  c += cSig * 0.5 * exp(-max(length(p) - Rd, 0.0) / 0.03) * (1.0 - cov) * step(0.001, Rd);   // molten glow
+  return c;
+}
+`;

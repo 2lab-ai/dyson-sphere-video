@@ -15,6 +15,7 @@ import { beatPulse, kickPulse, downbeatPulse, beatIndex } from '../engine/beat';
 import { shotAt, type PlateInfo, type Shot } from '../engine/shots';
 import { hash, lerp } from '../engine/util';
 import { shots } from './impact.shots';
+import { HostedPass } from '../engine/hostedpass';
 
 type V3 = [number, number, number];
 
@@ -329,6 +330,8 @@ void main() {
 `;
 
 export default class Impact extends Scene {
+  /** v4 COSMOS: when a WorldHost hosts this plate, the photographic-space subject (HOSTED_GLSL) replaces the plate. */
+  private hp: HostedPass | null = null;
   private list: Shot[] = [];
   private plate!: PlateInfo;
   private P!: NamedPalette;
@@ -338,6 +341,7 @@ export default class Impact extends Scene {
   private land: number[] = [];
 
   override init() {
+    if (this.ctx.params.hosted) { this.hp = new HostedPass(this.ctx, HOSTED_GLSL); return; }
     this.plate = this.ctx.params as PlateInfo;
     this.P = palette(this.ctx.params.look?.palette ?? 'clay');
     this.list = shots(this.plate, this.ctx.audio);
@@ -366,6 +370,7 @@ export default class Impact extends Scene {
   }
 
   override render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
+    if (this.hp) { this.hp.render(f, out); return {}; }
     const au = this.ctx.audio, t = f.t, st = this.plate.start;
     const { tq, step } = this.stepped(t);
     const sh = shotAt(this.list, t);
@@ -411,3 +416,35 @@ export default class Impact extends Scene {
     this.rt?.dispose();
   }
 }
+
+const HOSTED_GLSL = /* glsl */ `
+// hosted (COSMOS p16): photographic Earth + Theia, lit by one Sun in black space. Theia closes in one step per beat
+// (the beat mark: a held jump), hits on beat 5 (the wound glows and spreads per beat), and the ejecta settle into
+// the debris ring for the last fifth of the plate.
+vec3 rock(vec3 n, float seed) {
+  float a = fbm(n * 3.0 + seed, 5) * 0.5 + 0.5;
+  vec3 alb = mix(vec3(0.045), mix(cDeep, cSig, 0.3) * 0.35 + vec3(0.07), a);
+  float dif = max(dot(n, LDIR), 0.0);
+  return alb * (0.02 + 1.6 * dif) + cMid * 0.04 * pow(1.0 - n.z, 3.0);   // a faint blue earthshine rim
+}
+vec3 plate(vec2 p) {
+  const float RE = 0.34, RT = 0.16;
+  float hit = step(4.5, uNb), since = max(uNb - 5.0, 0.0);
+  float step_ = min(uNb + smoothstep(0.0, 0.3, uBeatPh) * step(0.5, uNb) - step(0.5, uNb), 5.0);
+  vec2 dir = normalize(vec2(0.86, 0.5));
+  vec2 cT = dir * mix(1.05, RE + RT * 0.55, step_ / 5.0);
+  vec3 n; float cov = sphere(p, vec2(0.0), RE, n);
+  vec3 c = rock(n, 0.0) * cov;
+  vec2 hp = dir * RE;
+  float wound = exp(-dot(p - hp, p - hp) / (0.012 + 0.02 * since)) * hit;
+  float cracks = smoothstep(0.6, 0.95, 1.0 - abs(fbm(n * 6.0, 4)));
+  c += heat(0.9 + 0.3 * uBp) * wound * mix(0.6, 1.4, cracks) * cov;
+  vec3 nt; float covT = sphere(p, cT, RT * (1.0 - 0.6 * hit), nt) * (1.0 - hit);
+  c = mix(c, rock(nt, 7.0), covT);
+  c += heat(1.2) * hit * exp(-length(p - hp) / (0.03 + 0.05 * since)) * exp(-since * 0.35);   // the hot plume
+  vec2 rg = debrisRing(p, 0.6, 0.07, uLt);
+  float ring = rg.x * smoothstep(0.72, 0.92, uP) * (1.0 - cov * rg.y);
+  c += heat(0.55 + 0.3 * rg.x) * ring;
+  return c;
+}
+`;

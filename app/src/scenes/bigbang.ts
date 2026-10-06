@@ -16,11 +16,14 @@ import { shotAt, stateAt, type PlateInfo, type Shot } from '../engine/shots';
 import { clamp, ease, hash } from '../engine/util';
 import { ShaderScene } from './_shader';
 import { shots, STAGES, type Stage } from './bigbang.shots';
+import { HostedPass } from '../engine/hostedpass';
 
 /** Temperature per beat of the plate (1 = white-hot). Beat 0 is the drop. */
 const TEMP = [1.0, 0.9, 0.8, 0.7, 0.56, 0.5, 0.44, 0.38];
 
 export default class Bigbang extends ShaderScene {
+  /** v4 COSMOS: when a WorldHost hosts this plate, the photographic-space subject (HOSTED_GLSL) replaces the plate. */
+  private hp: HostedPass | null = null;
   private list: Shot[] = [];
   private beats: number[] = [];
 
@@ -132,6 +135,7 @@ vec3 plate(vec2 p) {
   }
 
   override init() {
+    if (this.ctx.params.hosted) { this.hp = new HostedPass(this.ctx, HOSTED_GLSL); return; }
     super.init();
     this.list = shots(this.ctx.params as PlateInfo, this.ctx.audio);
     this.beats = this.ctx.audio.beats.filter((b) => b >= this.ctx.start - 1e-3 && b < this.ctx.end - 1e-3);
@@ -197,4 +201,28 @@ vec3 plate(vec2 p) {
       ca: 0.4,
     };
   }
+
+  override render(f: Frame, out: THREE.WebGLRenderTarget) {
+    if (this.hp) { this.hp.render(f, out); return {}; }
+    return super.render(f, out);
+  }
 }
+
+const HOSTED_GLSL = /* glsl */ `
+// hosted (COSMOS p13): the residue point at the centre, then gold plasma curls growing out of it. The front grows one
+// step per beat and stays (the beat mark); the plasma cools one notch per beat (white-hot -> gold -> red fringe).
+vec3 plate(vec2 p) {
+  float r = length(p);
+  float grow = uNb < 0.5 ? 0.0 : uNb - 1.0 + smoothstep(0.0, 0.35, uBeatPh);
+  float R = min(0.05 + 0.075 * grow, 0.62);
+  vec2 w = p * 2.6;
+  for (int i = 0; i < 3; i++) w += 0.38 * vec2(fbm(w + 0.12 * uLt, 4), fbm(w + vec2(5.2, 1.3) - 0.1 * uLt, 4));
+  float fil = pow(1.0 - abs(fbm(w * 1.4, 5)), 3.0);
+  float env = exp(-pow(r / R, 2.0) * 2.4);
+  float T = clamp(1.25 - 0.09 * uNb, 0.55, 1.25);
+  vec3 c = heat(fil * env * T * 1.5) * (1.0 + 0.4 * uBp);
+  c += heat(1.1) * exp(-r * r / (0.016 * 0.016));            // the singular point: hot core
+  c += cSig * 0.6 * exp(-r / 0.045);                         // its orange halo
+  return c;
+}
+`;
