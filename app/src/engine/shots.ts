@@ -56,6 +56,17 @@ export interface PlateInfo {
   sequence?: string;
   /** v3: the cut to the next plate is a gated circle match cut. */
   match_circle_next?: boolean;
+  /** v4 typing (docs/PLAN-V4.md §C7): R | 1 | 2; run name for a 2 inside a run; ref plate id for a callback 2. */
+  nov?: 'R' | '1' | '2';
+  run?: string;
+  ref?: string;
+  /** v4: the five dimensions (world/medium, ground, camera, layout, subject), resolved. */
+  dims?: Record<'W' | 'G' | 'C' | 'L' | 'S', string>;
+  /** v4: the one changed dim of a 2 / the residue kept by a 1. */
+  chg?: string;
+  residue?: string;
+  /** v4: hosted plate — `module` is the world host, `subject` the child scene it composites. */
+  subject?: { module: string; variant: string };
   /** v3: the PLAN-V3 start time before snapping. */
   plan?: number;
 }

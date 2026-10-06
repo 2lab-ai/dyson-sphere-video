@@ -6,7 +6,7 @@
   {
    "id": "p01-spark-write",
    "n": 1,
-   "module": "spark",
+   "module": "wall",
    "variant": "write",
    "lines": [
     0,
@@ -14,241 +14,379 @@
    ],
    "bars": null,
    "light": false,
-   "event": "a point of light writes the first words as a circuit trace on black",
+   "event": "the orange point writes the line on the brick",
    "start": 0.0,
    "anchor": "start",
    "plan": 0.0,
    "look": {
     "idiom": "light-trace",
     "family": "E",
-    "palette": "bco",
+    "palette": "wall",
     "ground": "dark",
-    "bco": true
+    "bco": false
    },
    "end": 6.96,
-   "dur": 6.96
+   "dur": 6.96,
+   "nov": "R",
+   "dims": {
+    "W": "night street, the hardware wall, photographed on film",
+    "G": "dark",
+    "C": "eye-level, push per bar",
+    "L": "hardware centre-right, lyric as signage on it",
+    "S": "the orange point writes the line on the brick"
+   },
+   "subject": {
+    "module": "spark",
+    "variant": "write"
+   }
   },
   {
-   "id": "p02-xray-heart",
+   "id": "p02-ecg-scope",
    "n": 2,
-   "module": "xray",
-   "variant": "heart",
+   "module": "wall",
+   "variant": "scope",
    "lines": [
     2
    ],
    "bars": null,
    "light": false,
-   "event": "the machine heart X-rayed: ribs of gears, the letters as bone-white radiograph",
+   "event": "the scope CRT on the cart lights up: the heart trace (physical, no graticule)",
    "start": 6.96,
    "anchor": "lyric",
    "plan": 6.96,
    "look": {
-    "idiom": "xray",
-    "family": "S",
-    "palette": "xray",
+    "idiom": "oscilloscope-xy",
+    "family": "E",
+    "palette": "wall",
     "ground": "dark",
     "bco": false
    },
    "end": 12.095,
-   "dur": 5.135
+   "dur": 5.135,
+   "nov": "2",
+   "dims": {
+    "W": "night street, the hardware wall, photographed on film",
+    "G": "dark",
+    "C": "eye-level, push per bar",
+    "L": "hardware centre-right, lyric as signage on it",
+    "S": "the scope CRT on the cart lights up: the heart trace (physical, no graticule)"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "ecg",
+    "variant": "scope"
+   },
+   "run": "NIGHT"
   },
   {
    "id": "p03-crt-wall",
    "n": 3,
-   "module": "crt",
+   "module": "wall",
    "variant": "wall",
    "lines": [
     3
    ],
    "bars": null,
    "light": false,
-   "event": "a wall of CRT TVs (Paik); the line scrolls across the tubes and one tube hides the future",
+   "event": "the TV wall; one dark tube hides the future",
    "start": 12.095,
    "anchor": "beat",
    "plan": 12.1,
    "look": {
     "idiom": "crt-wall",
     "family": "E",
-    "palette": "crt",
+    "palette": "wall",
     "ground": "dark",
     "bco": false
    },
    "end": 16.174,
-   "dur": 4.079
+   "dur": 4.079,
+   "nov": "2",
+   "dims": {
+    "W": "night street, the hardware wall, photographed on film",
+    "G": "dark",
+    "C": "eye-level, push per bar",
+    "L": "hardware centre-right, lyric as signage on it",
+    "S": "the TV wall; one dark tube hides the future"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "crt",
+    "variant": "wall"
+   },
+   "run": "NIGHT"
   },
   {
-   "id": "p04-press-riso",
+   "id": "p04-sign-neon",
    "n": 4,
-   "module": "press",
-   "variant": "riso",
+   "module": "wall",
+   "variant": "neon",
    "lines": [
     4
    ],
    "bars": null,
-   "light": true,
-   "event": "the dream printed in fluorescent pink and blue riso that drifts out of register",
+   "light": false,
+   "event": "the neon script sign; one pink tube = the dream (pink is a token of the NIGHT palette family, G unchanged)",
    "start": 16.174,
    "anchor": "beat",
    "plan": 16.17,
    "look": {
-    "idiom": "risograph",
-    "family": "P",
-    "palette": "riso",
-    "ground": "light",
+    "idiom": "neon",
+    "family": "E",
+    "palette": "wall",
+    "ground": "dark",
     "bco": false
    },
    "end": 20.835,
-   "dur": 4.661
+   "dur": 4.661,
+   "nov": "2",
+   "dims": {
+    "W": "night street, the hardware wall, photographed on film",
+    "G": "dark",
+    "C": "eye-level, push per bar",
+    "L": "hardware centre-right, lyric as signage on it",
+    "S": "the neon script sign; one pink tube = the dream (pink is a token of the NIGHT palette family, G unchanged)"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "sign",
+    "variant": "neon"
+   },
+   "run": "NIGHT"
   },
   {
-   "id": "p05-wave-ocean",
+   "id": "p05-led-ribbon",
    "n": 5,
-   "module": "wave",
-   "variant": "ocean",
+   "module": "wall",
+   "variant": "ribbon",
    "lines": [
     5
    ],
    "bars": null,
    "light": false,
-   "event": "the high-tech tide as an ink-in-water ocean: a side-on wave flowing left, amber light in the teal",
+   "event": "the LED ribbon running as a wave",
    "start": 20.835,
    "anchor": "beat",
    "plan": 20.84,
    "look": {
-    "idiom": "fluid-cosmos",
-    "family": "M",
-    "palette": "ocean",
+    "idiom": "led-wall",
+    "family": "E",
+    "palette": "wall",
     "ground": "dark",
     "bco": false
    },
    "end": 24.94,
-   "dur": 4.105
+   "dur": 4.105,
+   "nov": "2",
+   "dims": {
+    "W": "night street, the hardware wall, photographed on film",
+    "G": "dark",
+    "C": "eye-level, push per bar",
+    "L": "hardware centre-right, lyric as signage on it",
+    "S": "the LED ribbon running as a wave"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "led",
+    "variant": "ribbon"
+   },
+   "run": "NIGHT"
   },
   {
-   "id": "p06-sign-neon",
+   "id": "p06-sign-tubes",
    "n": 6,
-   "module": "sign",
-   "variant": "neon",
+   "module": "wall",
+   "variant": "tubes",
    "lines": [
     6
    ],
    "bars": null,
    "light": false,
-   "event": "neon tubes switching on stroke by stroke over brick (accent plate)",
+   "event": "bent neon tubes on the brick",
    "start": 24.94,
    "anchor": "lyric",
    "plan": 24.94,
    "look": {
     "idiom": "neon",
     "family": "E",
-    "palette": "neon",
+    "palette": "wall",
     "ground": "dark",
     "bco": false
    },
    "accent": true,
    "end": 29.534,
-   "dur": 4.594
+   "dur": 4.594,
+   "nov": "2",
+   "dims": {
+    "W": "night street, the hardware wall, photographed on film",
+    "G": "dark",
+    "C": "eye-level, push per bar",
+    "L": "hardware centre-right, lyric as signage on it",
+    "S": "bent neon tubes on the brick"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "sign",
+    "variant": "tubes"
+   },
+   "run": "NIGHT"
   },
   {
-   "id": "p07-gauge-bass",
+   "id": "p07-press-clock",
    "n": 7,
-   "module": "gauge",
-   "variant": "bass",
+   "module": "wall",
+   "variant": "clock",
    "lines": [
     7
    ],
    "bars": null,
-   "light": true,
-   "event": "a Saul Bass cut-paper clock on a mustard ground that cannot be rewound",
+   "light": false,
+   "event": "the paper clock pasted on the brick",
    "start": 29.534,
    "anchor": "lyric",
    "plan": 29.53,
    "look": {
-    "idiom": "saul-bass",
+    "idiom": "paper-clock",
     "family": "P",
-    "palette": "bass",
-    "ground": "light",
+    "palette": "wall",
+    "ground": "dark",
     "bco": false
    },
    "end": 34.237,
-   "dur": 4.703
+   "dur": 4.703,
+   "nov": "2",
+   "dims": {
+    "W": "night street, the hardware wall, photographed on film",
+    "G": "dark",
+    "C": "eye-level, push per bar",
+    "L": "hardware centre-right, lyric as signage on it",
+    "S": "the paper clock pasted on the brick"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "press",
+    "variant": "clock"
+   },
+   "run": "NIGHT"
   },
   {
    "id": "p08-lightpaint-time",
    "n": 8,
-   "module": "lightpaint",
+   "module": "film",
    "variant": "time",
    "lines": [
     8
    ],
    "bars": null,
-   "light": false,
-   "event": "time as long-exposure light-painting trails (Gjon Mili) writing the line",
+   "light": true,
+   "event": "the paper clock pasted on the brick",
    "start": 34.237,
    "anchor": "beat",
    "plan": 34.24,
    "look": {
     "idiom": "light-painting",
     "family": "M",
-    "palette": "lightpaint",
-    "ground": "dark",
+    "palette": "film",
+    "ground": "light",
     "bco": false
    },
    "end": 37.56,
-   "dur": 3.323
+   "dur": 3.323,
+   "nov": "2",
+   "dims": {
+    "W": "night street, the hardware wall, photographed on film",
+    "G": "light (blown-out daylight stock, grain, halation)",
+    "C": "eye-level, push per bar",
+    "L": "hardware centre-right, lyric as signage on it",
+    "S": "the paper clock pasted on the brick"
+   },
+   "chg": "G",
+   "subject": {
+    "module": "lightpaint",
+    "variant": "time"
+   },
+   "run": "FILM"
   },
   {
-   "id": "p09-led-ticker",
+   "id": "p09-flipdisc-years",
    "n": 9,
-   "module": "led",
-   "variant": "ticker",
+   "module": "film",
+   "variant": "years",
    "lines": [
     9
    ],
    "bars": null,
-   "light": false,
-   "event": "a stadium LED ticker; AGI overtakes the scrolling years",
+   "light": true,
+   "event": "the flip-board ticker on the street (years overtaken)",
    "start": 37.56,
    "anchor": "lyric",
    "plan": 37.56,
    "look": {
-    "idiom": "led-wall",
+    "idiom": "flip-board",
     "family": "E",
-    "palette": "led",
-    "ground": "dark",
+    "palette": "film",
+    "ground": "light",
     "bco": false
    },
    "end": 43.56,
-   "dur": 6.0
+   "dur": 6.0,
+   "nov": "2",
+   "dims": {
+    "W": "night street, the hardware wall, photographed on film",
+    "G": "light (blown-out daylight stock, grain, halation)",
+    "C": "eye-level, push per bar",
+    "L": "hardware centre-right, lyric as signage on it",
+    "S": "the flip-board ticker on the street (years overtaken)"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "flipdisc",
+    "variant": "years"
+   },
+   "run": "FILM"
   },
   {
    "id": "p10-lidar-room",
    "n": 10,
-   "module": "lidar",
+   "module": "film",
    "variant": "room",
    "lines": [
     10
    ],
    "bars": null,
-   "light": false,
-   "event": "a LiDAR sweep scans the room you and I made; two figures appear as point returns",
+   "light": true,
+   "event": "the room behind the shop window, swept by light; two figures",
    "start": 43.56,
    "anchor": "beat",
    "plan": 43.56,
    "look": {
-    "idiom": "lidar",
+    "idiom": "swept-room",
     "family": "S",
-    "palette": "lidar",
-    "ground": "dark",
+    "palette": "film",
+    "ground": "light",
     "bco": false
    },
    "end": 51.135,
-   "dur": 7.575
+   "dur": 7.575,
+   "nov": "2",
+   "dims": {
+    "W": "night street, the hardware wall, photographed on film",
+    "G": "light (blown-out daylight stock, grain, halation)",
+    "C": "eye-level, push per bar",
+    "L": "hardware centre-right, lyric as signage on it",
+    "S": "the room behind the shop window, swept by light; two figures"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "lidar",
+    "variant": "room"
+   },
+   "run": "FILM"
   },
   {
    "id": "p11-lens-gaze",
    "n": 11,
-   "module": "lens",
+   "module": "film",
    "variant": "gaze",
    "lines": [
     11,
@@ -256,7 +394,7 @@
    ],
    "bars": null,
    "light": true,
-   "event": "two camera irises across a wall, shot on bright overexposed film stock",
+   "event": "two irises (the figures' eyes) across the wall",
    "start": 51.135,
    "anchor": "beat",
    "plan": 51.13,
@@ -268,141 +406,238 @@
     "bco": false
    },
    "end": 57.545,
-   "dur": 6.41
+   "dur": 6.41,
+   "nov": "2",
+   "dims": {
+    "W": "night street, the hardware wall, photographed on film",
+    "G": "light (blown-out daylight stock, grain, halation)",
+    "C": "eye-level, push per bar",
+    "L": "hardware centre-right, lyric as signage on it",
+    "S": "two irises (the figures' eyes) across the wall"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "lens",
+    "variant": "gaze"
+   },
+   "run": "FILM"
   },
   {
-   "id": "p12-ecg-xy",
+   "id": "p12-lightpaint-orbit",
    "n": 12,
-   "module": "ecg",
-   "variant": "xy",
+   "module": "film",
+   "variant": "orbit",
    "lines": [
     13
    ],
    "bars": null,
-   "light": false,
-   "event": "two XY-oscilloscope Lissajous figures that sync, green phosphor",
+   "light": true,
+   "event": "the two figures double-exposed into one orbit, collapsing to a point at the anchor",
    "start": 57.545,
    "anchor": "beat",
    "plan": 57.55,
    "look": {
-    "idiom": "oscilloscope-xy",
-    "family": "E",
-    "palette": "scope",
-    "ground": "dark",
+    "idiom": "double-exposure",
+    "family": "M",
+    "palette": "film",
+    "ground": "light",
     "bco": false
    },
    "end": 65.12,
-   "dur": 7.575
+   "dur": 7.575,
+   "nov": "2",
+   "dims": {
+    "W": "night street, the hardware wall, photographed on film",
+    "G": "light (blown-out daylight stock, grain, halation)",
+    "C": "eye-level, push per bar",
+    "L": "hardware centre-right, lyric as signage on it",
+    "S": "the two figures double-exposed into one orbit, collapsing to a point at the anchor"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "lightpaint",
+    "variant": "orbit"
+   },
+   "run": "FILM"
   },
   {
    "id": "p13-bigbang-bang",
    "n": 13,
-   "module": "bigbang",
+   "module": "space",
    "variant": "bang",
    "lines": [],
    "bars": 2.0,
    "light": false,
-   "event": "Big Bang: the drop hits and the whole frame is white-hot at once (space itself expands everywhere, no centre); the plasma cools into gold ink-in-water curls",
+   "event": "the first light: whiteout 65.120 → gold curls from the singular point",
    "start": 65.12,
    "anchor": "downbeat",
    "plan": 65.12,
    "look": {
     "idiom": "fluid-cosmos",
     "family": "M",
-    "palette": "cosmos-gold",
+    "palette": "space",
     "ground": "dark",
     "bco": false
    },
    "end": 69.781,
-   "dur": 4.661
+   "dur": 4.661,
+   "nov": "1",
+   "dims": {
+    "W": "space (plasma, photographic physicality for all of COSMOS)",
+    "G": "dark",
+    "C": "slow push + cut-in per bar",
+    "L": "circle at anchor",
+    "S": "the first light: whiteout 65.120 → gold curls from the singular point"
+   },
+   "residue": "the point from p12's exit = the singular point at the anchor",
+   "subject": {
+    "module": "bigbang",
+    "variant": "bang"
+   }
   },
   {
    "id": "p14-cosmicweb-web",
    "n": 14,
-   "module": "cosmicweb",
+   "module": "space",
    "variant": "web",
    "lines": [],
    "bars": 2.0,
    "light": false,
-   "event": "expansion: the cosmic web grows; the distances between structures grow per beat (metric expansion) while the structures keep their size, a power of ten per bar",
+   "event": "the cosmic-web knot; the gaps grow",
    "start": 69.781,
    "anchor": "downbeat",
    "plan": 69.78,
    "look": {
     "idiom": "powers-of-ten",
     "family": "A",
-    "palette": "web",
+    "palette": "space",
     "ground": "dark",
     "bco": false
    },
    "end": 74.443,
-   "dur": 4.662
+   "dur": 4.662,
+   "nov": "2",
+   "dims": {
+    "W": "space (plasma, photographic physicality for all of COSMOS)",
+    "G": "dark",
+    "C": "slow push + cut-in per bar",
+    "L": "circle at anchor",
+    "S": "the cosmic-web knot; the gaps grow"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "cosmicweb",
+    "variant": "web"
+   },
+   "run": "COSMOS"
   },
   {
    "id": "p15-solar-sun",
    "n": 15,
-   "module": "solar",
+   "module": "space",
    "variant": "sun",
    "lines": [],
    "bars": 2.0,
    "light": false,
-   "event": "the Sun ignites: a nebula collapses into the Sun in SDO false colour, granulation pulsing on the kick",
+   "event": "the Sun ignites (SDO-style surface)",
    "start": 74.443,
    "anchor": "downbeat",
    "plan": 74.44,
    "look": {
     "idiom": "sdo-solar",
     "family": "S",
-    "palette": "sdo",
+    "palette": "space",
     "ground": "dark",
     "bco": false
    },
    "end": 79.105,
-   "dur": 4.662
+   "dur": 4.662,
+   "nov": "2",
+   "dims": {
+    "W": "space (plasma, photographic physicality for all of COSMOS)",
+    "G": "dark",
+    "C": "slow push + cut-in per bar",
+    "L": "circle at anchor",
+    "S": "the Sun ignites (SDO-style surface)"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "solar",
+    "variant": "sun"
+   },
+   "run": "COSMOS"
   },
   {
    "id": "p16-impact-theia",
    "n": 16,
-   "module": "impact",
+   "module": "space",
    "variant": "theia",
    "lines": [],
    "bars": 2.0,
-   "light": true,
-   "event": "Earth accretes; Theia strikes: molten clay planets, stepped 12 fps, the impact on the downbeat",
+   "light": false,
+   "event": "Earth + Theia impact",
    "start": 79.105,
    "anchor": "downbeat",
    "plan": 79.1,
    "look": {
-    "idiom": "claymation",
+    "idiom": "impact",
     "family": "M",
-    "palette": "clay",
-    "ground": "light",
+    "palette": "space",
+    "ground": "dark",
     "bco": false
    },
    "end": 83.766,
-   "dur": 4.661
+   "dur": 4.661,
+   "nov": "2",
+   "dims": {
+    "W": "space (plasma, photographic physicality for all of COSMOS)",
+    "G": "dark",
+    "C": "slow push + cut-in per bar",
+    "L": "circle at anchor",
+    "S": "Earth + Theia impact"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "impact",
+    "variant": "theia"
+   },
+   "run": "COSMOS"
   },
   {
-   "id": "p17-moon-sumuk",
+   "id": "p17-moon-ring",
    "n": 17,
-   "module": "moon",
-   "variant": "sumuk",
+   "module": "space",
+   "variant": "ring",
    "lines": [],
    "bars": 1.0,
-   "light": true,
-   "event": "the Moon forms: the debris ring gathers into a full moon in Korean ink wash (sumuk)",
+   "light": false,
+   "event": "the debris ring gathers into the Moon",
    "start": 83.766,
    "anchor": "downbeat",
    "plan": 83.77,
    "look": {
-    "idiom": "ink-wash",
-    "family": "H",
-    "palette": "sumuk",
-    "ground": "light",
+    "idiom": "debris-ring",
+    "family": "S",
+    "palette": "space",
+    "ground": "dark",
     "bco": false
    },
    "end": 86.097,
-   "dur": 2.331
+   "dur": 2.331,
+   "nov": "2",
+   "dims": {
+    "W": "space (plasma, photographic physicality for all of COSMOS)",
+    "G": "dark",
+    "C": "slow push + cut-in per bar",
+    "L": "circle at anchor",
+    "S": "the debris ring gathers into the Moon"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "moon",
+    "variant": "ring"
+   },
+   "run": "COSMOS"
   },
   {
    "id": "p18-popup-life-sea",
@@ -412,7 +647,7 @@
    "lines": [],
    "bars": 2.0,
    "light": true,
-   "event": "life, pop-up book 1: the page opens on a primordial sea, a cell divides per beat, fish rise",
+   "event": "the sea page: the first cell divides",
    "start": 86.097,
    "anchor": "downbeat",
    "plan": 86.1,
@@ -425,7 +660,16 @@
    },
    "sequence": "popup-life",
    "end": 90.758,
-   "dur": 4.661
+   "dur": 4.661,
+   "nov": "1",
+   "dims": {
+    "W": "pop-up book (paper, card, glue)",
+    "G": "light",
+    "C": "book cam, overhead 3/4, static",
+    "L": "page spread",
+    "S": "the sea page: the first cell divides"
+   },
+   "residue": "the moon disc = the red paper sun at the anchor"
   },
   {
    "id": "p19-popup-life-land",
@@ -435,7 +679,7 @@
    "lines": [],
    "bars": 3.25,
    "light": true,
-   "event": "life, pop-up book 2: onto land, into the forest; gait changes across several lineages (crawl, knuckle-walk, climb, upright hominins); a human appears last",
+   "event": "the land page (page turn)",
    "start": 90.758,
    "anchor": "downbeat",
    "plan": 90.76,
@@ -448,7 +692,17 @@
    },
    "sequence": "popup-life",
    "end": 98.333,
-   "dur": 7.575
+   "dur": 7.575,
+   "nov": "2",
+   "dims": {
+    "W": "pop-up book (paper, card, glue)",
+    "G": "light",
+    "C": "book cam, overhead 3/4, static",
+    "L": "page spread",
+    "S": "the land page (page turn)"
+   },
+   "chg": "S",
+   "run": "BOOK"
   },
   {
    "id": "p20-split-ascii",
@@ -461,7 +715,7 @@
    ],
    "bars": null,
    "light": false,
-   "event": "virtual vs real: the frame is torn, one side an ASCII Hangul raster, the other lit",
+   "event": "virtual vs real",
    "start": 98.333,
    "anchor": "beat",
    "plan": 98.33,
@@ -473,7 +727,16 @@
     "bco": false
    },
    "end": 106.491,
-   "dur": 8.158
+   "dur": 8.158,
+   "nov": "1",
+   "dims": {
+    "W": "ascii / real tear",
+    "G": "dark",
+    "C": "locked",
+    "L": "split",
+    "S": "virtual vs real"
+   },
+   "residue": "the paper's cream edge = the tear lip"
   },
   {
    "id": "p21-engrave-hand",
@@ -486,7 +749,7 @@
    ],
    "bars": null,
    "light": false,
-   "event": "the steel hand in hatch engraving, reversed out of Prussian blue",
+   "event": "the steel hand",
    "start": 106.491,
    "anchor": "beat",
    "plan": 106.49,
@@ -498,44 +761,63 @@
     "bco": false
    },
    "end": 113.107,
-   "dur": 6.616
+   "dur": 6.616,
+   "nov": "1",
+   "dims": {
+    "W": "hatch engraving",
+    "G": "dark",
+    "C": "slow macro crawl along the seam",
+    "L": "seam centre, the iris-to-be at the anchor",
+    "S": "the steel hand"
+   },
+   "residue": "p20's tear line = the hatch seam"
   },
   {
-   "id": "p22-lens-ai",
+   "id": "p22-engrave-iris",
    "n": 22,
-   "module": "lens",
-   "variant": "ai",
+   "module": "engrave",
+   "variant": "iris",
    "lines": [
     18,
     19
    ],
    "bars": null,
-   "light": true,
-   "event": "the machine eye (a chrome iris on a white cyclorama) swallows the words",
+   "light": false,
+   "event": "the engraved iris swallows the words",
    "start": 113.107,
    "anchor": "lyric",
    "plan": 113.11,
    "look": {
-    "idiom": "aperture",
-    "family": "M",
-    "palette": "chrome-eye",
-    "ground": "light",
+    "idiom": "engraving",
+    "family": "H",
+    "palette": "engrave",
+    "ground": "dark",
     "bco": false
    },
    "end": 117.487,
-   "dur": 4.38
+   "dur": 4.38,
+   "nov": "2",
+   "dims": {
+    "W": "hatch engraving",
+    "G": "dark",
+    "C": "slow macro crawl along the seam",
+    "L": "seam centre, the iris-to-be at the anchor",
+    "S": "the engraved iris swallows the words"
+   },
+   "chg": "S",
+   "run": "ENGRAVE"
   },
   {
    "id": "p23-blackmarble-future",
    "n": 23,
-   "module": "blackmarble",
+   "module": "limb",
    "variant": "future",
    "lines": [
     20
    ],
    "bars": null,
    "light": false,
-   "event": "the future seen from orbit: Earth's night lights spell the line (Black Marble)",
+   "event": "the engraved iris swallows the words",
    "start": 117.487,
    "anchor": "lyric",
    "plan": 117.49,
@@ -547,92 +829,148 @@
     "bco": false
    },
    "end": 120.66,
-   "dur": 3.173
+   "dur": 3.173,
+   "nov": "2",
+   "dims": {
+    "W": "photographic night Earth, the limb",
+    "G": "dark",
+    "C": "slow macro crawl along the seam",
+    "L": "seam centre, the iris-to-be at the anchor",
+    "S": "the engraved iris swallows the words"
+   },
+   "chg": "W",
+   "subject": {
+    "module": "blackmarble",
+    "variant": "future"
+   },
+   "run": "ORBIT"
   },
   {
-   "id": "p24-flipdisc-choice",
+   "id": "p24-flipdisc-board",
    "n": 24,
-   "module": "flipdisc",
-   "variant": "choice",
+   "module": "limb",
+   "variant": "board",
    "lines": [
     21,
     22
    ],
    "bars": null,
    "light": false,
-   "event": "a flip-disc departure board; the choices flip away",
+   "event": "the departure board on the night side",
    "start": 120.66,
    "anchor": "lyric",
    "plan": 120.66,
    "look": {
-    "idiom": "flip-disc",
+    "idiom": "flip-board",
     "family": "E",
-    "palette": "flipdisc",
+    "palette": "blackmarble",
     "ground": "dark",
     "bco": false
    },
    "end": 125.26,
-   "dur": 4.6
+   "dur": 4.6,
+   "nov": "2",
+   "dims": {
+    "W": "photographic night Earth, the limb",
+    "G": "dark",
+    "C": "slow macro crawl along the seam",
+    "L": "seam centre, the iris-to-be at the anchor",
+    "S": "the departure board on the night side"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "flipdisc",
+    "variant": "board"
+   },
+   "run": "ORBIT"
   },
   {
    "id": "p25-jamo-ahn",
    "n": 25,
-   "module": "jamo",
+   "module": "limb",
    "variant": "ahn",
    "lines": [
     23
    ],
    "bars": null,
-   "light": true,
-   "event": "Ahn Sang-soo jamo: the letters break apart as change accelerates and reassemble on the downbeat",
+   "light": false,
+   "event": "the jamo scatter",
    "start": 125.26,
    "anchor": "lyric",
    "plan": 125.26,
    "look": {
     "idiom": "ahn-jamo",
     "family": "H",
-    "palette": "ahn",
-    "ground": "light",
+    "palette": "blackmarble",
+    "ground": "dark",
     "bco": false
    },
    "end": 127.571,
-   "dur": 2.311
+   "dur": 2.311,
+   "nov": "2",
+   "dims": {
+    "W": "photographic night Earth, the limb",
+    "G": "dark",
+    "C": "slow macro crawl along the seam",
+    "L": "seam centre, the iris-to-be at the anchor",
+    "S": "the jamo scatter"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "jamo",
+    "variant": "ahn"
+   },
+   "run": "ORBIT"
   },
   {
    "id": "p26-orbit-capture",
    "n": 26,
-   "module": "orbit",
+   "module": "limb",
    "variant": "capture",
    "lines": [
     24
    ],
    "bars": null,
    "light": false,
-   "event": "the cage closes: 3D rings around the words",
+   "event": "the cage closes around the line",
    "start": 127.571,
    "anchor": "lyric",
    "plan": 127.57,
    "look": {
     "idiom": "3d-lit",
     "family": "M",
-    "palette": "steel",
+    "palette": "blackmarble",
     "ground": "dark",
     "bco": false
    },
    "end": 130.04,
-   "dur": 2.469
+   "dur": 2.469,
+   "nov": "2",
+   "dims": {
+    "W": "photographic night Earth, the limb",
+    "G": "dark",
+    "C": "slow macro crawl along the seam",
+    "L": "seam centre, the iris-to-be at the anchor",
+    "S": "the cage closes around the line"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "orbit",
+    "variant": "capture"
+   },
+   "run": "ORBIT"
   },
   {
-   "id": "p27-colorfield-freedom",
+   "id": "p27-colorfield-dawn",
    "n": 27,
-   "module": "colorfield",
-   "variant": "freedom",
+   "module": "limb",
+   "variant": "dawn",
    "lines": [
     25
    ],
    "bars": null,
    "light": true,
-   "event": "the voice of freedom dissolves into a Turrell dawn colour field",
+   "event": "the cage closes around the line",
    "start": 130.04,
    "anchor": "lyric",
    "plan": 130.04,
@@ -644,7 +982,21 @@
     "bco": false
    },
    "end": 135.626,
-   "dur": 5.586
+   "dur": 5.586,
+   "nov": "2",
+   "dims": {
+    "W": "photographic night Earth, the limb",
+    "G": "light: dawn on the limb (colour field)",
+    "C": "slow macro crawl along the seam",
+    "L": "seam centre, the iris-to-be at the anchor",
+    "S": "the cage closes around the line"
+   },
+   "chg": "G",
+   "subject": {
+    "module": "colorfield",
+    "variant": "dawn"
+   },
+   "run": "ORBIT"
   },
   {
    "id": "p28-popup-city",
@@ -657,7 +1009,7 @@
    ],
    "bars": null,
    "light": true,
-   "event": "pop-up book 3: a paper city hinges up building by building, the line printed on the page",
+   "event": "the city page",
    "start": 135.626,
    "anchor": "beat",
    "plan": 135.63,
@@ -669,43 +1021,67 @@
     "bco": true
    },
    "end": 141.235,
-   "dur": 5.609
+   "dur": 5.609,
+   "nov": "2",
+   "dims": {
+    "W": "pop-up book (paper, card, glue)",
+    "G": "light",
+    "C": "book cam, overhead 3/4, static",
+    "L": "page spread",
+    "S": "the city page"
+   },
+   "chg": "S",
+   "ref": "p19-popup-life-land"
   },
   {
    "id": "p29-spark-merge",
    "n": 29,
-   "module": "spark",
+   "module": "wall",
    "variant": "merge",
    "lines": [
     28
    ],
    "bars": null,
    "light": false,
-   "event": "different marks are forced into one grid and merge into one point",
+   "event": "the marks merge back into the point; hit 142.035 = whiteout + cut-in (timed, inside the plate)",
    "start": 141.235,
    "anchor": "lyric",
    "plan": 141.24,
    "look": {
     "idiom": "light-trace",
     "family": "E",
-    "palette": "bco",
+    "palette": "wall",
     "ground": "dark",
-    "bco": true
+    "bco": false
    },
    "end": 145.3,
-   "dur": 4.065
+   "dur": 4.065,
+   "nov": "2",
+   "dims": {
+    "W": "night street, the hardware wall, photographed on film",
+    "G": "dark",
+    "C": "eye-level, push per bar",
+    "L": "hardware centre-right, lyric as signage on it",
+    "S": "the marks merge back into the point; hit 142.035 = whiteout + cut-in (timed, inside the plate)"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "spark",
+    "variant": "merge"
+   },
+   "ref": "p01-spark-write"
   },
   {
    "id": "p30-ecg-ridge",
    "n": 30,
-   "module": "ecg",
+   "module": "lines",
    "variant": "ridge",
    "lines": [
     29
    ],
    "bars": null,
    "light": false,
-   "event": "heartbeats flatten into machine regularity: Unknown Pleasures ridgelines",
+   "event": "the heartbeat flattens",
    "start": 145.3,
    "anchor": "lyric",
    "plan": 145.3,
@@ -717,99 +1093,167 @@
     "bco": false
    },
    "end": 150.776,
-   "dur": 5.476
+   "dur": 5.476,
+   "nov": "1",
+   "dims": {
+    "W": "white ridgelines on black (spatial, perspective rows)",
+    "G": "dark",
+    "C": "low oblique, drifting",
+    "L": "rows",
+    "S": "the heartbeat flattens"
+   },
+   "residue": "the point sits on the front ridge",
+   "subject": {
+    "module": "ecg",
+    "variant": "ridge"
+   }
   },
   {
-   "id": "p31-void-descent",
+   "id": "p31-void-stones",
    "n": 31,
-   "module": "void",
-   "variant": "descent",
+   "module": "lines",
+   "variant": "stones",
    "lines": [
     30
    ],
    "bars": null,
    "light": false,
-   "event": "stepping stones across the abyss, one per beat",
+   "event": "stones across the void",
    "start": 150.776,
    "anchor": "beat",
    "plan": 150.78,
    "look": {
     "idiom": "void",
     "family": "A",
-    "palette": "bco",
+    "palette": "ridge",
     "ground": "dark",
-    "bco": true
+    "bco": false
    },
    "end": 155.348,
-   "dur": 4.572
+   "dur": 4.572,
+   "nov": "2",
+   "dims": {
+    "W": "white ridgelines on black (spatial, perspective rows)",
+    "G": "dark",
+    "C": "low oblique, drifting",
+    "L": "rows",
+    "S": "stones across the void"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "void",
+    "variant": "stones"
+   },
+   "run": "LINES"
   },
   {
    "id": "p32-sodium-sun",
    "n": 32,
-   "module": "sodium",
+   "module": "amber",
    "variant": "sun",
    "lines": [
     31
    ],
    "bars": null,
    "light": true,
-   "event": "the Weather Project sodium sun in an amber haze; silhouettes reach for it; the line etched in the disc",
+   "event": "the sun; silhouettes reach",
    "start": 155.348,
    "anchor": "lyric",
    "plan": 155.35,
    "look": {
     "idiom": "sodium-sun",
     "family": "A",
-    "palette": "sodium",
+    "palette": "amber",
     "ground": "light",
     "bco": false
    },
    "end": 163.595,
-   "dur": 8.247
+   "dur": 8.247,
+   "nov": "1",
+   "dims": {
+    "W": "sodium haze",
+    "G": "light",
+    "C": "wide, tilting up",
+    "L": "disc at anchor",
+    "S": "the sun; silhouettes reach"
+   },
+   "residue": "the stone = the first silhouette",
+   "subject": {
+    "module": "sodium",
+    "variant": "sun"
+   }
   },
   {
    "id": "p33-cave-fire",
    "n": 33,
-   "module": "cave",
+   "module": "amber",
    "variant": "fire",
    "lines": [],
    "bars": 1.75,
-   "light": false,
-   "event": "fire and speech: a cave wall, ochre handprints, firelight on the beat, the first sounds as sparks",
+   "light": true,
+   "event": "silhouettes around the fire; hit 165.343 = the fire ignites (whiteout, timed)",
    "start": 163.595,
    "anchor": "beat-after-line",
    "plan": 163.59,
    "look": {
     "idiom": "cave-ochre",
     "family": "H",
-    "palette": "cave",
-    "ground": "dark",
+    "palette": "amber",
+    "ground": "light",
     "bco": false
    },
    "end": 167.674,
-   "dur": 4.079
+   "dur": 4.079,
+   "nov": "2",
+   "dims": {
+    "W": "sodium haze",
+    "G": "light",
+    "C": "wide, tilting up",
+    "L": "disc at anchor",
+    "S": "silhouettes around the fire; hit 165.343 = the fire ignites (whiteout, timed)"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "cave",
+    "variant": "fire"
+   },
+   "run": "AMBER"
   },
   {
    "id": "p34-clay-tablet",
    "n": 34,
-   "module": "clay",
+   "module": "amber",
    "variant": "tablet",
    "lines": [],
    "bars": 2.0,
-   "light": false,
-   "event": "writing: cuneiform wedges pressed into a clay tablet under raking light",
+   "light": true,
+   "event": "the clay tablet, a wedge per beat",
    "start": 167.674,
    "anchor": "downbeat",
    "plan": 167.67,
    "look": {
     "idiom": "clay-tablet",
     "family": "M",
-    "palette": "tablet",
-    "ground": "mid",
+    "palette": "amber",
+    "ground": "light",
     "bco": false
    },
    "end": 172.336,
-   "dur": 4.662
+   "dur": 4.662,
+   "nov": "2",
+   "dims": {
+    "W": "sodium haze",
+    "G": "light",
+    "C": "wide, tilting up",
+    "L": "disc at anchor",
+    "S": "the clay tablet, a wedge per beat"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "clay",
+    "variant": "tablet"
+   },
+   "run": "AMBER"
   },
   {
    "id": "p35-glass-rose",
@@ -819,7 +1263,7 @@
    "lines": [],
    "bars": 2.0,
    "light": false,
-   "event": "religion: a stained-glass rose window lights up pane by pane",
+   "event": "panes light per beat",
    "start": 172.336,
    "anchor": "downbeat",
    "plan": 172.33,
@@ -831,17 +1275,26 @@
     "bco": false
    },
    "end": 176.997,
-   "dur": 4.661
+   "dur": 4.661,
+   "nov": "1",
+   "dims": {
+    "W": "cathedral, stained glass",
+    "G": "dark",
+    "C": "nave, tilt-up",
+    "L": "rose window centred",
+    "S": "panes light per beat"
+   },
+   "residue": "the tablet's window light = the first pane"
   },
   {
-   "id": "p36-thermal-steam",
+   "id": "p36-glass-thermal",
    "n": 37,
-   "module": "thermal",
-   "variant": "steam",
+   "module": "glass",
+   "variant": "thermal",
    "lines": [],
    "bars": 2.0,
    "light": false,
-   "event": "machines and steam in a thermal camera: clockwork gears and linkages drive pistons, then a locomotive; pistons flare on the beat",
+   "event": "panes light per beat",
    "start": 176.997,
    "anchor": "downbeat",
    "plan": 177.0,
@@ -853,7 +1306,17 @@
     "bco": false
    },
    "end": 181.659,
-   "dur": 4.662
+   "dur": 4.662,
+   "nov": "2",
+   "dims": {
+    "W": "thermal LUT of the same window",
+    "G": "dark",
+    "C": "nave, tilt-up",
+    "L": "rose window centred",
+    "S": "panes light per beat"
+   },
+   "chg": "W",
+   "run": "GLASS"
   },
   {
    "id": "p37-dither-bomb",
@@ -863,7 +1326,7 @@
    "lines": [],
    "bars": 2.0,
    "light": true,
-   "event": "the atomic bomb: silence, whiteout on the downbeat, a 1-bit dithered mushroom cloud (Obra Dinn)",
+   "event": "whiteout + the cloud",
    "start": 181.659,
    "anchor": "downbeat",
    "plan": 181.66,
@@ -875,7 +1338,16 @@
     "bco": false
    },
    "end": 186.32,
-   "dur": 4.661
+   "dur": 4.661,
+   "nov": "1",
+   "dims": {
+    "W": "1-bit dither desert",
+    "G": "light (measured at the cut); the last bar is the exit: night falls, the dither dots glow as a grid above the horizon, camera settles static",
+    "C": "orbit",
+    "L": "horizon",
+    "S": "whiteout + the cloud"
+   },
+   "residue": "thermal white = the whiteout"
   },
   {
    "id": "p38-demo-boot",
@@ -885,7 +1357,7 @@
    "lines": [],
    "bars": 2.0,
    "light": false,
-   "event": "first computer (8-bit 1): ENIAC panel lamps, a PET/C64 boot screen, the first raster bars",
+   "event": "the first computer (lamp grid → C64)",
    "start": 186.32,
    "anchor": "downbeat",
    "plan": 186.32,
@@ -898,7 +1370,16 @@
    },
    "sequence": "demo",
    "end": 190.982,
-   "dur": 4.662
+   "dur": 4.662,
+   "nov": "1",
+   "dims": {
+    "W": "8-bit demoscene",
+    "G": "dark",
+    "C": "static",
+    "L": "dot grid",
+    "S": "the first computer (lamp grid → C64)"
+   },
+   "residue": "p37's exit dots = the lamp grid"
   },
   {
    "id": "p39-demo-internet",
@@ -908,7 +1389,7 @@
    "lines": [],
    "bars": 3.0,
    "light": false,
-   "event": "internet (8-bit 2): modem handshake, copper bars, a sine scroller of jamo, the network lights node by node",
+   "event": "modem → network",
    "start": 190.982,
    "anchor": "downbeat",
    "plan": 190.98,
@@ -921,7 +1402,17 @@
    },
    "sequence": "demo",
    "end": 197.974,
-   "dur": 6.992
+   "dur": 6.992,
+   "nov": "2",
+   "dims": {
+    "W": "8-bit demoscene",
+    "G": "dark",
+    "C": "static",
+    "L": "dot grid",
+    "S": "modem → network"
+   },
+   "chg": "S",
+   "run": "8BIT"
   },
   {
    "id": "p40-demo-ai",
@@ -930,22 +1421,32 @@
    "variant": "ai",
    "lines": [],
    "bars": 2.0,
-   "light": true,
-   "event": "AI (8-bit 3): an Ikeda data flood (at most 3 flashes/s) condenses into a low-res face whose eye is a circle",
+   "light": false,
+   "event": "data → face → eye",
    "start": 197.974,
    "anchor": "downbeat",
    "plan": 197.97,
    "look": {
     "idiom": "demoscene",
     "family": "E",
-    "palette": "demo-ai",
-    "ground": "light",
+    "palette": "demo-ai-dark",
+    "ground": "dark",
     "bco": false
    },
    "sequence": "demo",
    "match_circle_next": true,
    "end": 202.636,
-   "dur": 4.662
+   "dur": 4.662,
+   "nov": "2",
+   "dims": {
+    "W": "8-bit demoscene",
+    "G": "dark",
+    "C": "static",
+    "L": "dot grid",
+    "S": "data → face → eye"
+   },
+   "chg": "S",
+   "run": "8BIT"
   },
   {
    "id": "p41-orbit-swarm",
@@ -955,7 +1456,7 @@
    "lines": [],
    "bars": 2.0,
    "light": false,
-   "event": "AI launches the swarm: collector volleys snap into orbit around the Sun from #15; lateral track in orbit",
+   "event": "the sun and the swarm building its shell (volleys per beat)",
    "start": 202.636,
    "anchor": "downbeat",
    "plan": 202.64,
@@ -968,7 +1469,16 @@
    },
    "match_circle_next": true,
    "end": 207.297,
-   "dur": 4.661
+   "dur": 4.661,
+   "nov": "1",
+   "dims": {
+    "W": "3D space",
+    "G": "dark",
+    "C": "lateral orbit",
+    "L": "disc at anchor",
+    "S": "the sun and the swarm building its shell (volleys per beat)"
+   },
+   "residue": "match-circle: the eye → the sun"
   },
   {
    "id": "p42-shell-dancheong",
@@ -977,21 +1487,31 @@
    "variant": "dancheong",
    "lines": [],
    "bars": 2.0,
-   "light": true,
-   "event": "the shell closes: hex panels painted in dancheong lock shut, seen looking up from inside the sunlit shell",
+   "light": false,
+   "event": "the sun and the swarm building its shell (volleys per beat)",
    "start": 207.297,
    "anchor": "downbeat",
    "plan": 207.3,
    "look": {
     "idiom": "dancheong",
     "family": "H",
-    "palette": "dancheong",
-    "ground": "light",
+    "palette": "swarm",
+    "ground": "dark",
     "bco": false
    },
    "match_circle_next": true,
    "end": 211.959,
-   "dur": 4.662
+   "dur": 4.662,
+   "nov": "2",
+   "dims": {
+    "W": "3D space",
+    "G": "dark",
+    "C": "inside the shell, looking up",
+    "L": "disc at anchor",
+    "S": "the sun and the swarm building its shell (volleys per beat)"
+   },
+   "chg": "C",
+   "run": "SHELL"
   },
   {
    "id": "p43-shell-pullback",
@@ -1001,7 +1521,7 @@
    "lines": [],
    "bars": 2.0,
    "light": false,
-   "event": "pull back (exterior wide): the enclosed Sun goes dark; other stars go dark too (other spheres)",
+   "event": "the sun and the swarm building its shell (volleys per beat)",
    "start": 211.959,
    "anchor": "downbeat",
    "plan": 211.96,
@@ -1013,7 +1533,17 @@
     "bco": false
    },
    "end": 216.62,
-   "dur": 4.661
+   "dur": 4.661,
+   "nov": "2",
+   "dims": {
+    "W": "3D space",
+    "G": "dark",
+    "C": "pull-back wide",
+    "L": "disc at anchor",
+    "S": "the sun and the swarm building its shell (volleys per beat)"
+   },
+   "chg": "C",
+   "run": "SHELL"
   },
   {
    "id": "p44-press-credits",
@@ -1022,42 +1552,66 @@
    "variant": "credits",
    "lines": [],
    "bars": 4.0,
-   "light": false,
-   "event": "title and credits: constructivist wedge typography, stamped on the beat",
+   "light": true,
+   "event": "the title born from the disc",
    "start": 216.62,
    "anchor": "downbeat",
    "plan": 216.62,
    "look": {
     "idiom": "constructivist",
     "family": "P",
-    "palette": "constructivist",
-    "ground": "mid",
+    "palette": "credits",
+    "ground": "light",
     "bco": false
    },
    "end": 225.943,
-   "dur": 9.323
+   "dur": 9.323,
+   "nov": "1",
+   "dims": {
+    "W": "red constructivist card",
+    "G": "light (cream card, red wedge)",
+    "C": "flat",
+    "L": "wedge + disc",
+    "S": "the title born from the disc"
+   },
+   "residue": "the sphere = the cream disc"
   },
   {
    "id": "p45-spark-outro",
    "n": 46,
-   "module": "spark",
+   "module": "wall",
    "variant": "outro",
    "lines": [],
    "bars": 2.73,
    "light": false,
-   "event": "the point shrinks per beat to nothing",
+   "event": "the point dies per beat",
    "start": 225.943,
    "anchor": "downbeat",
    "plan": 225.94,
    "look": {
     "idiom": "light-trace",
     "family": "E",
-    "palette": "bco",
+    "palette": "wall",
     "ground": "dark",
-    "bco": true
+    "bco": false
    },
    "end": 232.299,
-   "dur": 6.356
+   "dur": 6.356,
+   "nov": "2",
+   "dims": {
+    "W": "night street, the hardware wall, photographed on film",
+    "G": "dark",
+    "C": "eye-level, push per bar",
+    "L": "hardware centre-right, lyric as signage on it",
+    "S": "the point dies per beat"
+   },
+   "chg": "S",
+   "subject": {
+    "module": "spark",
+    "variant": "outro"
+   },
+   "ref": "p01-spark-write"
   }
- ]
+ ],
+ "v": 4
 }

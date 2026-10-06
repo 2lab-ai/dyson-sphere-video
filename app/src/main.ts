@@ -2,7 +2,7 @@
 import { Engine, type AdaptiveSampling } from './engine/engine';
 import { PW, PH, SCALE } from './engine/gl';
 import { makeTimeline } from './timeline';
-import { lyricDrawLog } from './engine/lyric';
+import { lyricDrawLog, lyricSizeLog } from './engine/lyric';
 
 const params = new URLSearchParams(location.search);
 const EXPORT = params.has('export');
@@ -44,6 +44,7 @@ function setupExport() {
     timeline: TIMELINE.map(({ id, start, end }) => ({ id, start, end })),
     /** drawLyric calls per plate id so far (live; see engine/lyric.ts). */
     get lyricDraws(): Record<string, number> { return Object.fromEntries(lyricDrawLog); },
+    get lyricSizes(): Record<string, number> { return Object.fromEntries(lyricSizeLog); },
     /** Render a single frame at t (seeks as needed). */
     still(t: number, samples: number | AdaptiveSampling = 1, shutter = 0.5) { return engine.render(t, 1 / 60, true, samples, shutter); },
     /** The last rendered frame as a full-resolution (PW x PH) PNG, base64 (for stills at scale > 1). */

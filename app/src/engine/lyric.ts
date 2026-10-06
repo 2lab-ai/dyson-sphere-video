@@ -35,6 +35,10 @@ export { F };
 // ------------------------------------------------------------------ draw log
 /** drawLyric calls per plate id (reset only by reloading the page). */
 export const lyricDrawLog = new Map<string, number>();
+/** Smallest fitted glyph size (px, 1080p logical) drawn per plate — the v4 gate checks it against LYRIC_MIN_PX. */
+export const lyricSizeLog = new Map<string, number>();
+/** v4: no lyric smaller than this on screen (docs/PLAN-V4.md C7 gate clause 5). layoutLine will not shrink below it. */
+export const LYRIC_MIN_PX = 120;
 let currentPlate = '(none)';
 /** Engine-internal: the plate being rendered (set right before each scene render). */
 export function setLyricPlate(id: string) { currentPlate = id; }
@@ -183,6 +187,8 @@ export interface DrawLyricOpts {
   /** Rotation of the whole line (rad) around (x, y). */
   rotation?: number;
   vertical?: boolean;
+  /** v4 floor for the fitted size (default LYRIC_MIN_PX = 120). Only an instrumental/furniture use may lower it. */
+  minSize?: number;
   /** Per-character motion/material hook. */
   charTransform?: (ch: string, idx: number, state: CharState) => CharXform | void;
   /** Optional per-character draw override (e.g. strokeText, outlines); default fills. */
@@ -195,7 +201,13 @@ export function drawLyric(c2d: CanvasRenderingContext2D, line: Line, t: number, 
   if (!lineVisible(line, t, lead)) return null;
   const family = opts.family ?? F.slam();
   const vertical = !!opts.vertical;
-  const lay = layoutLine(c2d, line, family, opts.size, opts.maxWidth, vertical);
+  const lay = layoutLine(c2d, line, family, Math.max(opts.size, opts.minSize ?? LYRIC_MIN_PX), opts.maxWidth, vertical);
+  if (lay.size < (opts.minSize ?? LYRIC_MIN_PX) - 0.5) {
+    // the fit shrank below the floor: re-measure at the floor (the line may overflow maxWidth; the gate reports it)
+    const floor = layoutLine(c2d, line, family, opts.minSize ?? LYRIC_MIN_PX, undefined, vertical);
+    Object.assign(lay, floor);
+  }
+  lyricSizeLog.set(currentPlate, Math.min(lyricSizeLog.get(currentPlate) ?? Infinity, lay.size));
   const align = opts.align ?? 'center';
   const sungC = opts.sungColor ?? 'bone', unsungC = opts.unsungColor ?? sungC;
   const unsungA = opts.unsungAlpha ?? 0.35, A = opts.alpha ?? 1;

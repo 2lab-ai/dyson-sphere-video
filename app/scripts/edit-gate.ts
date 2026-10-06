@@ -68,7 +68,7 @@ const BUILT = new Set([
 /** Idioms allowed to repeat, with their max count. Everything else: at most once. */
 const IDIOM_REPEAT: Record<string, number> = { 'pop-up': 3, demoscene: 3, 'light-trace': 3, aperture: 2, '3d-lit': 3 };
 /** Idioms allowed only on named plates (M3 fluid: #5 ocean and #13 Big Bang). */
-const IDIOM_PLATES: Record<string, string[]> = { 'fluid-cosmos': ['p05-wave-ocean', 'p13-bigbang-bang'] };
+const IDIOM_PLATES: Record<string, string[]> = { 'fluid-cosmos': ['p13-bigbang-bang'] };
 /** Banned idioms (the retired drawing / UI-chrome looks). */
 const IDIOM_BANNED = ['blueprint', 'drawing', 'technical-drawing', 'screen-ui', 'dial-chrome', 'silhouette', 'liquid-chrome'];
 /** Plate-ID-scoped sequences: the only places the same idiom may sit on adjacent plates. */
@@ -92,6 +92,12 @@ const MATCH_REQUIRED: [string, string][] = [
 ];
 const FAMILIES = ['E', 'S', 'H', 'M', 'P', 'A'];
 const MAX_DARK_RUN = 4, MAX_BCO = 8, MAX_CREAM = 3, FAMILY_WINDOW = 8, FAMILY_WINDOW_MAX = 3;
+/** v4 (PLAN-V4 §C7): declared dark envelopes by plate number — 7 non-light in a row allowed only inside one of these. */
+const DARK_ENVELOPES: [string, string][] = [['p01', 'p07'], ['p13', 'p17'], ['p20', 'p26'], ['p38', 'p43']];
+const MAX_DARK_RUN_ENVELOPE = 7;
+/** v4: a run (same world across consecutive plates) holds at most this many plates. */
+const RUN_MAX = 6;
+const DIMS = ['W', 'G', 'C', 'L', 'S'] as const;
 
 // ------------------------------------------------------------------ inputs
 interface LyWord { w: string; start: number; end: number; syl?: [number, number][] }
@@ -117,6 +123,8 @@ interface GateInput {
 }
 
 const pairOf = (p: PlateInfo) => `${p.module}/${p.variant}`;
+/** v4: a hosted plate's subject pair (what the host composites); the host module itself has no variants. */
+const subjectPairOf = (p: PlateInfo) => (p.subject ? `${p.subject.module}/${p.subject.variant}` : null);
 const idiomOf = (p: PlateInfo) => p.look?.idiom ?? `module:${p.module}`;
 const palOf = (p: PlateInfo): NamedPalette | undefined => (p.look ? (PALETTES as Record<string, NamedPalette>)[p.look.palette] : undefined);
 
@@ -322,62 +330,126 @@ function lookChecks(I: GateInput): Result[] {
   for (const p of P) { const pal = palOf(p); if (pal && p.look && groundClass(pal.ground) !== p.look.ground) gm.push(`${p.id}: declared ${p.look.ground}, palette '${p.look.palette}' ground ${pal.ground} is ${groundClass(pal.ground)}`); }
   R.push(gm.length ? fail('T.ground-match', list(gm)) : pass('T.ground-match', 'declared grounds match palette luminance'));
 
-  // adjacency on the canonical idiom; exempt only inside one declared sequence
+  // ---------------------------------------------------------------- v4 typing (docs/PLAN-V4.md §C7; same rules as app/scripts/plan-table.ts)
+  // nov: R (first) | 1 | 2. A 2 changes exactly one of the five dims vs the previous plate (or vs `ref`) and names it in
+  // `chg`; a 1 changes >= 4 and names a `residue`; runs are contiguous and <= RUN_MAX plates.
+  const nv: string[] = [];
+  const dimsOf = (p: PlateInfo) => p.dims;
+  const byId = new Map(P.map((p) => [p.id, p]));
+  const runsSeen = new Map<string, number[]>();
+  const novString: string[] = [];
+  P.forEach((p, i) => {
+    const d = dimsOf(p);
+    if (!p.nov || !d) { nv.push(`${p.id}: no nov/dims`); return; }
+    novString.push(p.nov);
+    if (i === 0) { if (p.nov !== 'R') nv.push(`${p.id}: first plate must be R`); return; }
+    if (p.nov === 'R') { nv.push(`${p.id}: R only on the first plate`); return; }
+    const base = p.ref ? byId.get(p.ref) : P[i - 1];
+    if (!base) { nv.push(`${p.id}: ref ${p.ref} not in the edit`); return; }
+    const bd = dimsOf(base)!;
+    const ch = DIMS.filter((k) => d[k] !== bd[k]);
+    if (p.nov === '2') {
+      if (ch.length !== 1) nv.push(`${p.id}: nov 2 but ${ch.length} dims change (${ch.join('+') || 'none'})`);
+      if ((p.chg ?? '').replace(/\s*\(.*\)$/, '') !== ch.join('+')) nv.push(`${p.id}: chg '${p.chg}' != ${ch.join('+') || 'none'}`);
+      if (!p.run && !p.ref) nv.push(`${p.id}: nov 2 needs run or ref`);
+    } else if (p.nov === '1') {
+      if (ch.length < 4) nv.push(`${p.id}: nov 1 but only ${ch.length} dims change (${ch.join('+')})`);
+      if (!p.residue) nv.push(`${p.id}: nov 1 without residue`);
+      if (p.run) nv.push(`${p.id}: a 1 cannot be inside a run`);
+    } else nv.push(`${p.id}: nov '${p.nov}'`);
+    if (p.run) runsSeen.set(p.run, [...(runsSeen.get(p.run) ?? []), i]);
+  });
+  for (const [r, idx] of runsSeen) {
+    if (idx.length > RUN_MAX) nv.push(`run ${r}: ${idx.length} plates > ${RUN_MAX}`);
+    if (idx.some((v, k) => k && v !== idx[k - 1]! + 1)) nv.push(`run ${r}: not contiguous`);
+  }
+  const ones = P.filter((p) => p.nov === '1').length;
+  R.push(nv.length ? fail('T.nov', list(nv)) : pass('T.nov', `string ${novString.join('')} — ${ones} ones / ${P.length - 1} cuts, ${runsSeen.size} runs`));
+
+  // adjacency on the canonical idiom: allowed inside one declared run or sequence, or on a ref callback; banned elsewhere
+  // effective run: the declared run, else the declared sequence; a 1/R plate immediately before a run is that run's
+  // head (it opened the world the run continues in)
+  const effRun = (i: number): string | null => {
+    const p = P[i]!;
+    if (p.run) return p.run;
+    const nx = P[i + 1];
+    if ((p.nov === '1' || p.nov === 'R') && nx?.run) return nx.run;
+    return seqOf(p);
+  };
+  const runOf = (p: PlateInfo) => effRun(P.indexOf(p));
   const adj: string[] = [];
   for (let i = 1; i < P.length; i++) {
     const a = P[i - 1]!, b = P[i]!;
     if (idiomOf(a) !== idiomOf(b)) continue;
-    if (seqOf(a) && seqOf(a) === seqOf(b)) continue;
+    if (runOf(a) && runOf(a) === runOf(b)) continue;
+    if (b.ref) continue;
     adj.push(`${a.id}→${b.id} (${idiomOf(b)})`);
   }
-  R.push(adj.length ? fail('T.adjacent', `same idiom as the previous plate outside a sequence: ${list(adj)}`) : pass('T.adjacent', 'no adjacent idiom repeats outside the declared sequences'));
+  R.push(adj.length ? fail('T.adjacent', `same idiom as the previous plate outside a run/sequence: ${list(adj)}`) : pass('T.adjacent', 'adjacent idiom repeats only inside declared runs/sequences'));
 
-  // each idiom once, except the explicit allow-list
+  // each idiom once outside runs, except the explicit allow-list; inside a run an idiom may repeat (the run IS the repeat)
   const cnt = new Map<string, string[]>();
-  for (const p of P) if (p.look) cnt.set(p.look.idiom, [...(cnt.get(p.look.idiom) ?? []), p.id]);
+  for (const p of P) if (p.look && !p.run) cnt.set(p.look.idiom, [...(cnt.get(p.look.idiom) ?? []), p.id]);
   const once: string[] = [];
   for (const [id, ps] of cnt) {
     if (IDIOM_BANNED.includes(id)) once.push(`${id} is banned (${ps.join(',')})`);
     else if (IDIOM_PLATES[id]) { const bad = ps.filter((x) => !IDIOM_PLATES[id]!.includes(x)); if (bad.length) once.push(`${id} only on ${IDIOM_PLATES[id]!.join(',')}: ${bad.join(',')}`); }
     else if (ps.length > (IDIOM_REPEAT[id] ?? 1)) once.push(`${id} ×${ps.length} > ${IDIOM_REPEAT[id] ?? 1}`);
   }
-  R.push(once.length ? fail('T.idiom-once', list(once)) : pass('T.idiom-once', `${cnt.size} idioms; repeats only ${Object.keys(IDIOM_REPEAT).join('/')} + fluid-cosmos on #5/#13`));
+  for (const p of P) if (p.look && IDIOM_BANNED.includes(p.look.idiom)) once.push(`${p.look.idiom} is banned (${p.id})`);
+  R.push(once.length ? fail('T.idiom-once', list(once)) : pass('T.idiom-once', `${cnt.size} idioms outside runs; repeats only ${Object.keys(IDIOM_REPEAT).join('/')} + fluid-cosmos on #13`));
 
-  // family: no 3 in a row; <= 3 of one family in any 8-plate window (one literal exception: the demo run/window)
+  // family: outside runs no 3 in a row and <= 3 per family in any 8-plate window; plates of one declared run count once
   const fam = (p: PlateInfo) => p.look?.family;
   const run: string[] = [];
-  for (let i = 2; i < P.length; i++) {
-    const tri = [P[i - 2]!, P[i - 1]!, P[i]!];
-    const f = fam(tri[0]!);
-    if (!f || !tri.every((p) => fam(p) === f)) continue;
-    const exempt = f === DEMO_EXCEPTION.family && tri.every((p) => DEMO_EXCEPTION.run.includes(p.id));
-    if (!exempt) run.push(`${tri.map((p) => p.id).join(',')} (${f})`);
+  const units: { ids: string[]; f: string | undefined; r: string | null }[] = [];
+  P.forEach((p, i) => {
+    const r = effRun(i), last = units[units.length - 1];
+    if (last && r && last.r === r) last.ids.push(p.id); else units.push({ ids: [p.id], f: fam(p), r });
+  });
+  for (let i = 2; i < units.length; i++) {
+    const tri = [units[i - 2]!, units[i - 1]!, units[i]!];
+    const f = tri[0]!.f;
+    if (!f || !tri.every((u) => u.f === f)) continue;
+    const ids = tri.flatMap((u) => u.ids);
+    const exempt = f === DEMO_EXCEPTION.family && ids.every((id) => DEMO_EXCEPTION.run.includes(id));
+    if (!exempt) run.push(`${ids.join(',')} (${f})`);
   }
-  R.push(run.length ? fail('T.family-run', `3 plates of one family in a row: ${list(run)}`) : pass('T.family-run', 'no family 3 in a row (demo run p38–p40 exempt by id)'));
+  R.push(run.length ? fail('T.family-run', `3 plates of one family in a row outside a run: ${list(run)}`) : pass('T.family-run', 'no family 3 in a row outside declared runs'));
   const win: string[] = [];
   for (let i = 0; i + FAMILY_WINDOW <= P.length; i++) {
     const w = P.slice(i, i + FAMILY_WINDOW);
     const c = new Map<string, number>();
-    for (const p of w) { const f = fam(p); if (f) c.set(f, (c.get(f) ?? 0) + 1); }
+    const seenRun = new Set<string>();
+    for (const p of w) {
+      const f = fam(p); if (!f) continue;
+      const r = runOf(p);
+      if (r) { if (seenRun.has(r + f)) continue; seenRun.add(r + f); }
+      c.set(f, (c.get(f) ?? 0) + 1);
+    }
     const isDemoWin = w.map((p) => p.id).join() === DEMO_EXCEPTION.window.join();
     for (const [f, n] of c) {
       const cap = isDemoWin && f === DEMO_EXCEPTION.family ? DEMO_EXCEPTION.max : FAMILY_WINDOW_MAX;
       if (n > cap) win.push(`${w[0]!.id}..${w[w.length - 1]!.id}: ${f}×${n} > ${cap}`);
     }
   }
-  R.push(win.length ? fail('T.family-window', list(win)) : pass('T.family-window', `<= ${FAMILY_WINDOW_MAX} per family in every ${FAMILY_WINDOW}-plate window (demo window p38–p45: E <= ${DEMO_EXCEPTION.max})`));
+  R.push(win.length ? fail('T.family-window', list(win)) : pass('T.family-window', `<= ${FAMILY_WINDOW_MAX} per family in every ${FAMILY_WINDOW}-plate window (a run counts once)`));
 
-  // ground: non-light at most 4 in a row
+  // ground: non-light at most 4 in a row, 7 inside a declared dark envelope (plate-number ranges, not run membership)
+  const pn = (p: PlateInfo) => p.id.slice(0, 3);
+  const inEnv = (p: PlateInfo) => DARK_ENVELOPES.some(([a, b]) => pn(p) >= a && pn(p) <= b);
   const gr: string[] = [];
   let k0 = 0;
   for (let i = 0; i <= P.length; i++) {
     const light = i < P.length && P[i]!.look?.ground === 'light';
     if (light || i === P.length) {
-      if (i - k0 > MAX_DARK_RUN) gr.push(`${P[k0]!.id}..${P[i - 1]!.id}: ${i - k0} non-light plates`);
+      const seg = P.slice(k0, i);
+      const cap = seg.length && seg.every(inEnv) ? MAX_DARK_RUN_ENVELOPE : MAX_DARK_RUN;
+      if (seg.length > cap) gr.push(`${P[k0]!.id}..${P[i - 1]!.id}: ${seg.length} non-light plates > ${cap}`);
       k0 = i + 1;
     }
   }
-  R.push(gr.length ? fail('T.ground-run', `> ${MAX_DARK_RUN} non-light plates in a row: ${list(gr)}`) : pass('T.ground-run', `non-light runs <= ${MAX_DARK_RUN}`));
+  R.push(gr.length ? fail('T.ground-run', `non-light run too long: ${list(gr)}`) : pass('T.ground-run', `non-light runs <= ${MAX_DARK_RUN} (<= ${MAX_DARK_RUN_ENVELOPE} inside ${DARK_ENVELOPES.map(([a, b]) => a + '–' + b).join(', ')})`));
 
   // B/C/O budget (and the flag must match the palette)
   const bco = P.filter((p) => p.look?.bco).map((p) => p.id);
@@ -441,12 +513,18 @@ function codeChecks(I: GateInput): Result[] {
   }
   R.push(hud.length ? fail('C.no-hud', list(hud)) : pass('C.no-hud', 'no HUD / lyricStyle / fx in engine, post, main, timeline'));
 
-  const used = [...new Set(I.plates.map((p) => p.module))];
+  const used = [...new Set(I.plates.flatMap((p) => [p.module, ...(p.subject ? [p.subject.module] : [])]))];
   // the animatic (one generic module that stands in for every plate under --animatic) obeys the same code rules
   const ANIM = S.has('scenes/animatic.ts') ? ['animatic'] : [];
-  const vocalMods = new Set([...I.plates.filter((p) => p.lines.length).map((p) => p.module), ...ANIM]);
+  // a hosted plate's lyric is drawn by its SUBJECT module (the host composites it), so the subject is the vocal module
+  const vocalMods = new Set([...I.plates.filter((p) => p.lines.length).map((p) => p.subject?.module ?? p.module), ...ANIM]);
   const missing = used.filter((m) => !S.has(`scenes/${m}.ts`));
-  const unbuilt = [...new Set(I.plates.filter((p) => S.has(`scenes/${p.module}.ts`) && !I.built.has(pairOf(p))).map(pairOf))];
+  // built pairs: a host plate is built when the host module exists (hosts have no variants) AND its subject pair is built
+  const unbuilt = [...new Set(I.plates.flatMap((p) => {
+    const sp = subjectPairOf(p);
+    if (sp) return S.has(`scenes/${p.subject!.module}.ts`) && !I.built.has(sp) ? [sp] : [];
+    return S.has(`scenes/${p.module}.ts`) && !I.built.has(pairOf(p)) ? [pairOf(p)] : [];
+  }))];
   R.push(missing.length || unbuilt.length
     ? fail('C.module-missing', [missing.length ? `no scenes/<m>.ts for: ${missing.join(', ')}` : '', unbuilt.length ? `variant not built: ${unbuilt.join(', ')}` : ''].filter(Boolean).join(' | '))
     : pass('C.module-missing', `${used.length} modules present, every module/variant built`));
@@ -521,9 +599,11 @@ function shotChecks(I: GateInput): Result[] {
   const R: Result[] = [];
   const au = I.audio, bar = barLen(au);
   // built plates use their module's shot list; the others the stand-in (the animatic), which must exist
-  const isBuilt = (p: PlateInfo) => I.built.has(pairOf(p));
-  const fnFor = (p: PlateInfo): ShotsFn | undefined => (isBuilt(p) ? I.shotsFns.get(p.module) : I.standIn);
-  const used = [...new Set(I.plates.filter(isBuilt).map((p) => p.module))];
+  // v4: a hosted plate's shots come from its subject module (the host composites the subject's shots)
+  const shotModOf = (p: PlateInfo) => p.subject?.module ?? p.module;
+  const isBuilt = (p: PlateInfo) => I.built.has(subjectPairOf(p) ?? pairOf(p));
+  const fnFor = (p: PlateInfo): ShotsFn | undefined => (isBuilt(p) ? I.shotsFns.get(shotModOf(p)) : I.standIn);
+  const used = [...new Set(I.plates.filter(isBuilt).map(shotModOf))];
   const missing = used.filter((m) => !I.shotsFns.has(m));
   const nStand = I.plates.filter((p) => !isBuilt(p)).length;
   if (nStand && !I.standIn) missing.push(`(stand-in for ${nStand} unbuilt plates: scenes/animatic.shots.ts)`);
@@ -641,7 +721,7 @@ async function realInput(): Promise<GateInput> {
   const a = loadJSON<AudioLite>('data/audio.json');
   const audio: AudioLite = { bpm: a.bpm, beats: a.beats, downbeats: a.downbeats, sections: a.sections, duration: a.duration };
   const shotsFns = new Map<string, ShotsFn>();
-  for (const m of new Set([...edit.plates.map((p) => p.module), 'animatic'])) {
+  for (const m of new Set([...edit.plates.flatMap((p) => [p.module, ...(p.subject ? [p.subject.module] : [])]), 'animatic'])) {
     const f = path.join(APP, 'src/scenes', `${m}.shots.ts`);
     if (!existsSync(f)) continue;
     // a broken shot list must not hide everyone else's status: it becomes a throwing fn (-> S.errors)
@@ -684,10 +764,10 @@ const goodShots: ShotsFn = (p, au) => {
 function compliantBase(real: GateInput): GateInput {
   const sources = new Map<string, string>();
   for (const f of ['engine/engine.ts', 'engine/post.ts', 'main.ts', 'timeline.ts']) sources.set(f, real.sources.get(f) ?? '');
-  const mods = new Set(real.plates.map((p) => p.module));
+  const mods = new Set(real.plates.flatMap((p) => [p.module, ...(p.subject ? [p.subject.module] : [])]));
   for (const m of mods) sources.set(`scenes/${m}.ts`, goodModule(m));
-  // every module/variant is "built" by a compliant synthetic module; the stand-in is never used
-  return { ...real, sources, shotsFns: new Map([...mods].map((m) => [m, goodShots])), built: new Set(real.plates.map(pairOf)), standIn: undefined };
+  // every module/variant (and every hosted subject pair) is "built" by a compliant synthetic module; the stand-in is never used
+  return { ...real, sources, shotsFns: new Map([...mods].map((m) => [m, goodShots])), built: new Set(real.plates.map((p) => subjectPairOf(p) ?? pairOf(p))), standIn: undefined };
 }
 
 interface Fixture { name: string; expect: string; make: (base: GateInput, real: GateInput) => GateInput }
@@ -726,7 +806,8 @@ const FIXTURES: Fixture[] = [
   {
     name: 'vocal module without a drawLyric call', expect: 'C.lyric-call',
     make: (b) => {
-      const m = b.plates.find((p) => p.lines.length)!.module;
+      const v = b.plates.find((p) => p.lines.length)!;
+      const m = v.subject?.module ?? v.module; // v4: the subject draws a hosted plate's lyric
       const sources = new Map(b.sources);
       sources.set(`scenes/${m}.ts`, `// drawLyric(c, line, t, opts) is mentioned only here
 import { drawLyric } from '../engine/lyric';
@@ -778,37 +859,42 @@ export default class M { render(f) { drawLyric(this.c, this.l, f.t, { x: 0, y: 0
   {
     name: 'same idiom on adjacent plates outside a sequence', expect: 'T.adjacent',
     make: (b) => {
-      // the two pop-up life plates lose their declared sequence: pop-up → pop-up is now an adjacent repeat
+      // v4: p19 loses both its sequence and its run (and p18 is relabelled a 2 so it is not a run head):
+      // pop-up → pop-up is now an adjacent repeat outside any run/sequence
       const plates = clonePlates(b.plates);
-      for (const p of plates) if (p.sequence === 'popup-life') delete p.sequence;
+      for (const p of plates) if (p.sequence === 'popup-life') { delete p.sequence; delete p.run; }
+      const p18 = plates[at(plates, 'p18-')]!; p18.nov = '2'; p18.ref = plates[at(plates, 'p01-')]!.id;
       return { ...b, plates };
     },
   },
   {
     name: '5 non-light plates in a row', expect: 'T.ground-run',
     make: (b) => {
-      // #16 claymation goes dark (with a dark palette, so ground and palette stay consistent): #12–#16 all dark
+      // v4: p27 (dawn) goes dark: p27..p31 = 5 non-light outside any declared envelope (p20–p26 ends at p26)
       const plates = clonePlates(b.plates);
-      const p = plates[at(plates, 'p16-')]!;
-      p.look = { ...p.look!, ground: 'dark', palette: 'sdo' }; p.light = false;
+      const p = plates[at(plates, 'p27-')]!;
+      p.look = { ...p.look!, ground: 'dark', palette: 'blackmarble' }; p.light = false;
       return { ...b, plates };
     },
   },
   {
     name: 'B/C/O palette on 9 plates', expect: 'T.bco',
     make: (b) => {
-      // five more dark plates switch to the legacy ink/bone/signal palette: 4 + 5 = 9 > 8
+      // v4: the real edit has 1 B/C/O plate (p28 popup-city); eight more DARK plates switch to the legacy
+      // ink/bone/signal palette: 1 + 8 = 9 > 8
       const plates = clonePlates(b.plates);
-      for (const id of ['p02-', 'p03-', 'p09-', 'p10-', 'p12-']) { const p = plates[at(plates, id)]!; p.look = { ...p.look!, palette: 'bco', bco: true }; }
+      for (const id of ['p02-', 'p03-', 'p05-', 'p06-', 'p20-', 'p21-', 'p23-', 'p24-']) { const p = plates[at(plates, id)]!; p.look = { ...p.look!, palette: 'bco', bco: true }; }
       return { ...b, plates };
     },
   },
   {
     name: 'one family 3 plates in a row outside the demo', expect: 'T.family-run',
     make: (b) => {
-      // #4 riso and #5 ocean relabelled E: #3 crt, #4, #5 = E E E
+      // v4: three consecutive non-run plates of one family: p20 (1), p21 (1) are E/H; relabel p21 and p22 as E and
+      // take p22 out of its run (p20, p21, p22 = E E E, none in a run)
       const plates = clonePlates(b.plates);
-      for (const id of ['p04-', 'p05-']) { const p = plates[at(plates, id)]!; p.look = { ...p.look!, family: 'E' }; }
+      for (const id of ['p21-', 'p22-']) { const p = plates[at(plates, id)]!; p.look = { ...p.look!, family: 'E' }; }
+      const p22 = plates[at(plates, 'p22-')]!; delete p22.run; p22.ref = plates[at(plates, 'p21-')]!.id;
       return { ...b, plates };
     },
   },

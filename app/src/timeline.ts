@@ -10,12 +10,15 @@ import type { Lyrics } from './engine/lyrics';
 import type { AudioData } from './engine/audio';
 import type { PlateInfo } from './engine/shots';
 import edit from '@root/data/edit.json';
+import { setSceneLoader } from './engine/world';
 
 const modules = import.meta.glob<{ default: SceneClass }>(['./scenes/*.ts', '!./scenes/*.shots.ts', '!./scenes/_*.ts']);
 const scene = (name: string) => () => {
   const m = modules[`./scenes/${name}.ts`];
   return m ? m() : Promise.reject(new Error(`scene module not found: scenes/${name}.ts`));
 };
+// v4 world hosts (engine/world.ts) load their subject module through the same glob.
+setSceneLoader((name) => scene(name)());
 
 export const PLATES: PlateInfo[] = (edit as unknown as { plates: PlateInfo[] }).plates;
 const ANIMATIC = typeof location !== 'undefined' && new URLSearchParams(location.search).has('animatic');

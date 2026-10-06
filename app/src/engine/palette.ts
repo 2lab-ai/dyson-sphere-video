@@ -44,6 +44,17 @@ export type NamedPalette = Readonly<Record<Role, string>>;
 const S = HEX.signal;
 /** One palette per idiom. Keys are the `look.palette` names in data/edit.json. */
 export const PALETTES = {
+  // ---- v4 run worlds (docs/PLAN-V4.md §C7). One palette per run: the G dimension is literally shared.
+  // NIGHT: the hardware wall — night brick, sodium-warm highlights, signal orange on the hardware
+  wall: { ground: '#0A0806', deep: '#231A12', mid: '#7A5A3A', hi: '#FFD9A8', text: '#FFE9CC', signal: S },
+  // COSMOS: photographic space (black, deep blue, warm highlights)
+  space: { ground: '#02030A', deep: '#0C1530', mid: '#4C6AA8', hi: '#FFE3B0', text: '#FFE3B0', signal: S },
+  // AMBER: sodium haze (light, warm) — p32–p34 share it
+  amber: { ground: '#FFB000', deep: '#6B3F00', mid: '#0A0703', hi: '#FFE7A3', text: '#3A2200', signal: S },
+  // v4 credits card: pale grey card (not cream — the cream budget is the pop-up book's), red wedge, cream disc
+  credits: { ground: '#F1F1EE', deep: '#C8102E', mid: '#0D0D0D', hi: '#EDE6D6', text: '#0D0D0D', signal: S },
+  // demoscene AI on a dark ground (v4: the bright face is the subject, the ground stays dark)
+  'demo-ai-dark': { ground: '#07070C', deep: '#1A1A24', mid: '#9A9AA8', hi: '#FFFFFF', text: '#FFFFFF', signal: S },
   // legacy black / bone / orange (B/C/O): light-trace, void (≤ 8 plates, gate-checked via look.bco)
   bco: { ground: HEX.ink, deep: HEX.ink2, mid: HEX.graphite, hi: HEX.bone, text: HEX.bone, signal: S },
   // S2 X-ray radiograph
