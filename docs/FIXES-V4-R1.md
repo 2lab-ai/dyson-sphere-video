@@ -1,0 +1,17 @@
+- p05 led/ribbon: lyric illegible on the ribbon (22.87s) — must be ≥120 px on the hardware
+- p06 sign/tubes: line is a bottom caption (25–27s), not on the tubes
+- p37 exit (186.0–186.6): ground reads mid-grey, must be dark night with glowing dots (builder: bloom 0.7→~0.2, fewer lit cells)
+- p42 end (211.4): lit panels fill the frame → mid; keep dark (dim the newest rings or widen the final framing)
+- p44: "title born from the disc" not built (only disc colour fixed)
+- p36: cut from p35 'macro' to p36 'wide' = framing jump on a nov-2 plate; carry p35's last framing into p36's first
+- p31 void/stones: "stones" render as grey crates/boxes — make them stones (dark rounded silhouettes)
+- p33 cave/fire: no visible fire at 165.1–166.9 (figures around a pale disc); the fire must ignite at 165.343 and burn (whiteout then flames)
+- p24 flipdisc/board (122.0–125.0): the board fills the frame with a cream ground → reads LIGHT, declared dark. Board must be a dark night-side object on the limb (dark discs, lit glyphs), ground stays dark; 123.55 is a full-frame dot grid = not the subject
+- p25 jamo/ahn (126.56): glyphs are faint blue outlines, illegible — solid, ≥120 px, on the limb glow
+- p04 sign/neon at 20.58: orange flood covers the frame (declared dark may read mid); the 'RST / CLASS' label lower-right = diagnostic chrome, remove
+- p02 ecg/scope: trace+glass 860×600 over a 220×168 cart CRT — reads as a floating trace, not the tube face; scale the cart CRT up in wall.ts so the trace sits inside the tube
+- FILM (p08–p12) REWORK: the world is an empty beige wall; "overexposed" became "faint". Needs: the NIGHT hardware wall recognisably present (cart, TV wall, sign, ribbon, clock) as blown-out film with hard ink shadows/halation; subjects as DARK INK on the stock (strong contrast), not pale
+  - p08: thick ink headlight trails writing the line (≥130 px), line on the clock wall
+  - p10 (44–50): nearly blank — the room behind the shop window must be visible (walls, furniture) with two figure silhouettes; the light sweep per beat; lyric on the window glass
+  - p12: lyric is a bottom caption — put it on the orbit/figures; the final point at the anchor is fine
+  - p09 close shot (40.38) crops the lyric to partial glyphs
