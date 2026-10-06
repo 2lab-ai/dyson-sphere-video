@@ -627,7 +627,10 @@ export default class Orbit extends Scene {
       ov.bloom = 0.3; ov.bloomThreshold = 1.2;
     }
 
-    // star + corona
+    // star + corona. Hosted (p26 on the ORBIT limb): no star of its own — it leaked through 'screen' as a bright disc
+    // top-left and lifted the night ground to mid; the light that rakes the cage stays
+    const ownStar = !this.ctx.params.hosted;
+    this.star.visible = ownStar; this.corona.visible = ownStar;
     this.star.scale.setScalar(starScale);
     this.starMat.uniforms.uExpo!.value = expo;
     this.starMat.uniforms.uSil!.value = sil;

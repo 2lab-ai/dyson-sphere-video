@@ -246,6 +246,13 @@ export default class Jamo extends Scene {
     if (line) line.words.forEach((w, i) => { if (t >= w.start) cur = i; });
 
     c.save();
+    // hosted (ORBIT limb): every beat jolts the whole line to a new resting place (>= 28 px) and it holds until the next
+    if (hosted) {
+      const nb = this.beats.filter((b) => b <= t).length;
+      const J: [number, number][] = [[0, 0], [34, -18], [-30, 20], [38, 12], [-34, -16], [28, 22], [-36, 6]];
+      const [jx, jy] = J[nb % J.length]!;
+      c.translate(jx, jy);
+    }
     c.translate(camF.sx, camF.sy);
     c.rotate(camF.rot);
     c.scale(camF.s * punch, camF.s * punch);
@@ -260,7 +267,7 @@ export default class Jamo extends Scene {
           const scale = (lay?.size ?? size) / size;
           const u0 = U * scale, sw = SW * u0;
           const bw = st.box.w;
-          if (!syl) { cc.fillStyle = pcss(P, 'deep'); cc.fillText(ch, 0, 0); return; }
+          if (!syl) { cc.fillStyle = pcss(P, hosted ? 'hi' : 'deep'); cc.fillText(ch, 0, 0); return; }
           const ox = (bw - syl.w * u0) / 2, oy = -size * scale * 0.8;
           // syllable timing (never early): time since this syllable's own start
           const w = line.words[st.word]!;
@@ -287,7 +294,9 @@ export default class Jamo extends Scene {
             px += Math.cos(ang) * dpx;
             py += Math.sin(ang) * dpx * 0.8;
             const rot = (h3 - 0.5) * 2 * (spread * wf / 90) + (scatter ? 0 : (h3 - 0.5) * 0.12 * kp * (stage === 'burst' ? 1 : 0));
-            const alpha = st.sung ? lerp(0.22, 1, clamp(since / 0.06)) : 0.22;
+            // hosted on the night limb the palette's deep/mid are dark blues that vanish under 'screen': every piece is
+            // the warm 'hi' (solid), the unsung ones dimmer, the downbeat lock stamps signal
+            const alpha = st.sung ? lerp(hosted ? 0.4 : 0.22, 1, clamp(since / 0.06)) : hosted ? 0.4 : 0.22;
             cc.save();
             cc.translate(ox + px * u0, oy + py * u0);
             if (rot) cc.rotate(rot);
@@ -295,7 +304,7 @@ export default class Jamo extends Scene {
             cc.translate(-q.cx * u0, -q.cy * u0);
             cc.globalAlpha *= alpha;
             // downbeat lock: every sung piece stamps red for a moment (Ahn's red), then settles to its own colour
-            const role: Role = !st.sung ? 'deep' : lockRed ? 'hi' : q.role;
+            const role: Role = hosted ? (st.sung && lockRed ? 'signal' : 'hi') : !st.sung ? 'deep' : lockRed ? 'hi' : q.role;
             const g = q.p;
             if (g.k === 'bar') {
               cc.fillStyle = pcss(P, role);

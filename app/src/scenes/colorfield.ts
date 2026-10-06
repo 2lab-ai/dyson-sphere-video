@@ -116,21 +116,26 @@ export default class Colorfield extends Scene {
   private dawn(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
     const { renderer, audio } = this.ctx;
     const t = f.t, P = this.P, start = this.ctx.start, end = this.ctx.end;
-    const u = clamp((t - start) / Math.max(0.1, end - start));
-    const bp = beatPulse(audio, t, 0.14), db = downbeatPulse(audio, t, 0.25), kp = kickPulse(audio, t, 0.1);
-    const nb = audio.beats.filter((b) => b > start && b <= t).length;
-    const gone = clamp(0.05 + 0.045 * nb + 0.25 * ease.inQuad(u), 0, 0.92);
+    const db = downbeatPulse(audio, t, 0.25);
+    const nb = audio.beats.filter((b) => b > start + 0.05 && b <= t).length;
+    // segments go only on the beats (held steps, no continuous fade); the plate's last downbeat takes the last of them
+    const dbs = (audio.downbeats ?? []).filter((b) => b > start + 0.05 && b < end - 0.02);
+    const lastDb = dbs[dbs.length - 1] ?? Infinity;
+    const gone = t >= lastDb ? 1.01 : clamp(0.06 + 0.085 * nb, 0, 0.9);
+    // the jolt: every beat shoves the cage to a new resting place, ≥ 24 px, and it stays there until the next beat
+    const JOLT: [number, number][] = [[0, 0], [30, -14], [-26, 18], [34, 10], [-32, -16], [24, 22], [-30, 8], [28, -20], [-24, -12], [32, 16]];
+    const [jx, jy] = JOLT[nb % JOLT.length]!;
     const L = this.layer, c = L.ctx, cx = 960, cy = 540;
     L.clear();
     const RINGS = 7, SEGS = 56;
     for (let r = 0; r < RINGS; r++) {
       const tilt = -0.5 + (r / (RINGS - 1)) * 1.0, inc = 0.18 + 0.1 * (r % 3);
-      const rx = (600 + 40 * (r % 2)) * (1 + 0.035 * bp), ry = rx * inc;
+      const rx = 600 + 40 * (r % 2), ry = rx * inc;
       c.save();
-      c.translate(cx, cy + 6 * kp);
+      c.translate(cx + jx, cy + jy);
       c.rotate(tilt + 0.05 * t);
       c.strokeStyle = pcss(P, r % 2 ? 'text' : 'mid', 0.9);
-      c.lineWidth = 5;
+      c.lineWidth = 9;
       c.lineCap = 'round';
       for (let s = 0; s < SEGS; s++) {
         if (hash(r * 97 + s, 4.1) < gone) continue;

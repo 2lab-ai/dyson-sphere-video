@@ -21,6 +21,8 @@ import { ORBIT_CIRCLE as IRIS } from '../engine/anchor';
 
 /** Where a non-disc subject's centre goes (px): near the frame centre, on the Earth's face. */
 const SUBJECT = { x: 990, y: 470 };
+/** The jamo line's centre height (px): its glyphs sit across the lower limb arc (anchor bottom = 413 + 620). */
+const JAMO_Y = 760;
 
 const FRAG = /* glsl */ `
 uniform vec2 uRes;
@@ -90,10 +92,10 @@ export default class Limb extends WorldHost {
   override renderWorld(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
     const { renderer, audio } = this.ctx;
     const t = f.t, u = this.pass.u;
-    const prog = Math.min(1, Math.max(0, (t - this.ctx.start) / Math.max(0.1, this.ctx.end - this.ctx.start)));
     u.uT!.value = t;
-    // p27: light at the cut (ground 'light'), the flood completing over the plate
-    u.uDawn!.value = this.dawn ? 0.85 + 0.15 * prog : 0;
+    // p27: light at the cut (ground 'light'); the flood completes in held steps, one per downbeat (the last one = full)
+    const dbs = this.dawn ? (audio.downbeats ?? []).filter((b) => b > this.ctx.start + 0.05 && b < this.ctx.end - 0.02) : [];
+    u.uDawn!.value = this.dawn ? 0.78 + 0.22 * (dbs.filter((b) => b <= t).length / Math.max(1, dbs.length)) : 0;
     u.uBp!.value = beatPulse(audio, t, 0.14);
     u.uBar!.value = audio.downbeats ? audio.downbeats.filter((b) => b > this.ctx.start && b <= t).length : 0;
     this.pass.render(renderer, out);
@@ -104,11 +106,14 @@ export default class Limb extends WorldHost {
   override slot(_f: Frame): Slot {
     // the disc subject (p23 blackmarble: the iris's circle, face-on) goes exactly onto the anchor circle; the others keep
     // their full-width line in frame, so their centre sits between the anchor and the frame centre, at scale 1 (the
-    // lyric keeps its fitted size). The flip board's stock is pale: dimmed so the night side stays the dark ground.
+    // lyric keeps its fitted size). The flip board is a dark object on the night side (its own stock drops out under
+    // 'screen'); the jamo line hangs lower, its glyphs straddling the lower limb's glow.
     const disc = this.subjectName.startsWith('blackmarble/');
-    const cx = disc ? IRIS.x : SUBJECT.x, cy = disc ? IRIS.y : SUBJECT.y;
+    const jamo = this.subjectName.startsWith('jamo/');
+    const cx = disc ? IRIS.x : SUBJECT.x, cy = disc ? IRIS.y : jamo ? JAMO_Y : SUBJECT.y;
     const ax = cx / W - 0.5, ay = 1 - cy / H - 0.5; // uv y runs up
-    const dim = this.subjectName.startsWith('flipdisc/') ? 0.72 : 1;
+    // the lit cage + its white line add up to the night ground's limit: a touch dimmer keeps p26 dark with margin
+    const dim = this.subjectName.startsWith('orbit/') ? 0.86 : 1;
     return { scale: [1, 1], offset: [-ax, -ay], mode: this.dawn ? 'multiply' : 'screen', tint: [dim, dim, dim] };
   }
 

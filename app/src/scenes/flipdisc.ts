@@ -158,9 +158,15 @@ export default class Flipdisc extends Scene {
       uState: { value: this.tex }, uRes: { value: new THREE.Vector2(1920, 1080) },
       uPos: { value: new THREE.Vector3() }, uFwd: { value: new THREE.Vector3() }, uRight: { value: new THREE.Vector3() }, uUp: { value: new THREE.Vector3() },
       uFocal: { value: 3 }, uGlint: { value: 1 },
-      uGround: { value: v3(plin(this.P, this.ctx.params.hosted ? 'hi' : 'ground')) }, uHosted: { value: this.ctx.params.hosted ? 1 : 0 }, uDeep: { value: v3(plin(this.P, 'deep')) },
+      uGround: { value: v3(plin(this.P, this.ctx.params.hosted && !this.night() ? 'hi' : 'ground')) }, uHosted: { value: this.ctx.params.hosted && !this.night() ? 1 : 0 }, uDeep: { value: v3(plin(this.P, 'deep').map((c) => c * (this.night() ? 0.45 : 1)) as [number, number, number]) },
       cPalMid: { value: v3(plin(this.P, 'mid')) }, uHi: { value: v3(plin(this.P, 'hi')) },
     });
+  }
+
+  /** Hosted on the ORBIT night limb (p24 `board`): a dark object — dark surround and disc faces, lit glyphs only, so the
+   *  host's Earth shows through under 'screen'. `years` (p09, hosted on the light FILM stock) keeps the pale stock. */
+  private night(): boolean {
+    return !!this.ctx.params.hosted && this.plate.variant !== 'years';
   }
 
   /** Writes one dot-font glyph into the choice map; returns the column after it. */
@@ -221,7 +227,16 @@ export default class Flipdisc extends Scene {
       const d = (focal * 540) / pitch;
       return { pos: new THREE.Vector3(cx, -cy, d), look: new THREE.Vector3(cx, -cy, 0), focal };
     };
-    if (cam === 'wide') return front(COLS / 2, ROWS / 2 - 0.5, 10 * (1 + 0.035 * (t - t0)));
+    if (cam === 'wide') return front(COLS / 2, ROWS / 2 - 0.5, (this.night() ? 8.5 : 10) * (1 + 0.035 * (t - t0)));
+    if (cam === 'close' && this.night()) {
+      // night host: never a full-frame dot grid — the whole board stays an object in frame (the limb behind it); on
+      // every beat it steps sideways along line 22 (a stepper motor) and holds there
+      const n = this.beats.filter((b) => b <= t).length, tb = this.beats[n - 1] ?? t0;
+      const STEP = [0, 9, -8, 10, -10, 7, -9, 8]; // cols: the board's edges stay in frame, no glyph cropped
+      const xs = (k: number) => COLS / 2 + STEP[Math.max(0, k) % STEP.length]!;
+      const x = xs(n - 1) + (xs(n) - xs(n - 1)) * smoothstep(0, 0.09, t - tb);
+      return front(x, ROWS / 2 - 0.5, 9.6);
+    }
     if (cam === 'close') {
       // steps along the line: on every beat the camera jumps to the latest sung character (a stepper motor)
       const target = (tb: number) => {
@@ -253,8 +268,11 @@ export default class Flipdisc extends Scene {
   override render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
     const { renderer, audio } = this.ctx;
     const t = f.t;
-    const sh = shotAt(this.list, t), cam = sh.shot.s.cam as Cam;
+    const sh = shotAt(this.list, t);
     if (this.plate.variant === 'years') return this.years(f, out);
+    // night host: the macro (one syllable filling the frame = a full-frame dot grid, not the object) stays on the close
+    const night = this.night();
+    const cam = (night && sh.shot.s.cam === 'macro' ? 'close' : sh.shot.s.cam) as Cam;
     const [L21, L22] = this.lines as [Line, Line];
     const tSwap = L22.start;
     const WIPE = 0.0013; // s per disc column: the line-change wave
@@ -274,7 +292,8 @@ export default class Flipdisc extends Scene {
       if (cr >= 0) {
         // choice rows: bottom row first, one per beat; a left-to-right wave with a small per-disc stagger
         const k = CH_N - 1 - cr, tb = this.beats[k] ?? this.exitT;
-        a = this.turn(PI, 0, tb + x * 0.0016 + (y - CH_TOP - cr * CH_H) * 0.004, t);
+        // night host: the rows flip ON instead (dark board, lit digits), one per beat, and hold — the beat mark
+        a = night ? this.turn(0, PI, tb + x * 0.0016 + (y - CH_TOP - cr * CH_H) * 0.004, t) : this.turn(PI, 0, tb + x * 0.0016 + (y - CH_TOP - cr * CH_H) * 0.004, t);
       } else if (y >= BAND_TOP && y < BAND_TOP + BAND) {
         const by = y - BAND_TOP;
         const bi = by * COLS + x;
