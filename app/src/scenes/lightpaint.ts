@@ -293,7 +293,8 @@ export default class Lightpaint extends Scene {
     const u = clamp((t - sh.t0) / Math.max(0.1, (sh.t1 === Infinity ? this.ctx.end : sh.t1) - sh.t0));
     let M: Aff;
     if (hosted) {
-      M = affine(1.0, 0, 150, orbit ? -330 : -60); // fx 150: the host shifts this frame right
+      // fx 150: the host shifts this frame right; orbit: the line sits inside the ellipse, just under the anchor
+      M = orbit ? affine(1.0, 0, -47, -23) : affine(1.0, 0, 150, -60);
     } else if (frame === 'wide') {
       M = affine(0.7 + 0.06 * ease.inOutQuad(u), 0.012, 120 - 40 * u, -150);
     } else if (frame === 'track') {
@@ -393,7 +394,7 @@ export default class Lightpaint extends Scene {
         drawChar: (cc, ch, s) => {
           const pp = /[가-힣]/.test(ch) ? glyphPen(ch) : null;
           if (!pp) return;
-          light(cc, s.sung ? this.Pink : P, pp, lay.size, 0, pp.n - 1, { halo: s.sung ? 0.25 : 0, glow: 0, core: 1, warm: 0, w: s.sung ? 3.4 + 1.6 * bp : 1.6 });
+          light(cc, s.sung ? this.Pink : P, pp, lay.size, 0, pp.n - 1, { halo: s.sung ? 0.25 : 0, glow: 0, core: 1, warm: 0, w: s.sung ? 6 + 2 * bp : 2.4 }); // thick ink: the hosted print reads dark, never pale
         },
       });
     } else drawLyric(c, this.line, t, {
@@ -482,8 +483,11 @@ export default class Lightpaint extends Scene {
     };
     // the last beat: the history burns off (only the final turns stay), the figures go, the point is all that is left
     const burn = smoothstep(lastB - 0.05, lastB + 0.05, t), from = Math.max(s0, t - (burn > 0 ? 0.35 : 99));
+    // hosted on the FILM stock (white): the exposure prints as ink (source-over), not as added light
+    const hosted = !!this.ctx.params.hosted, op: GlobalCompositeOperation = hosted ? 'source-over' : 'lighter';
+    const tb = [...this.beats].reverse().find((b) => b <= t) ?? s0; // the held beat: the figures stand where it put them
     c.setTransform(1, 0, 0, 1, 0, 0);
-    c.globalCompositeOperation = 'lighter';
+    c.globalCompositeOperation = op;
     c.lineCap = 'round'; c.lineJoin = 'round';
     for (let k = 0; k < 2; k++) {
       // the figure, double-exposed: a ghost on the orbit at every beat it has passed
@@ -491,12 +495,17 @@ export default class Lightpaint extends Scene {
         if (b > t) break;
         const q = pos(b, k), sc = 0.12 + 0.3 * (rad(b) / 520);
         c.setTransform(sc, 0, 0, sc, q.x, q.y + 120 * sc);
-        this.figure(c, 0, { x: 0, y: -380 }, 0.22 * (1 - burn), 1);
+        this.figure(c, 0, { x: 0, y: -380 }, (hosted ? 0.4 : 0.22) * (1 - burn), 1);
+      }
+      if (hosted && burn < 1) { // the figure itself, full ink, held at the last beat's place on the orbit
+        const q = pos(tb, k), sc = 0.16 + 0.34 * (rad(tb) / 520);
+        c.setTransform(sc, 0, 0, sc, q.x, q.y + 120 * sc);
+        this.figure(c, 0, { x: 0, y: -380 }, 1 - burn, 1);
       }
       c.setTransform(1, 0, 0, 1, 0, 0);
-      c.globalCompositeOperation = 'lighter';
-      c.strokeStyle = pcss(this.P, 'hi', 0.9);
-      c.lineWidth = 7 + 6 * bp;
+      c.globalCompositeOperation = op;
+      c.strokeStyle = hosted ? pcss(this.P, 'deep', 0.95) : pcss(this.P, 'hi', 0.9);
+      c.lineWidth = (hosted ? 16 : 7) + 6 * bp;
       c.beginPath();
       for (let i = 0; i <= 160; i++) {
         const q = pos(from + ((Math.min(t, s1) - from) * i) / 160, k);
@@ -506,9 +515,9 @@ export default class Lightpaint extends Scene {
     }
     // the anchor point: burned in once the orbit has closed (from the last beat to the cut)
     if (burn > 0) {
-      c.fillStyle = pcss(this.P, 'hi', burn);
+      c.fillStyle = pcss(this.P, hosted ? 'deep' : 'hi', burn);
       c.beginPath(); c.arc(ax, ay, 48 + 12 * dp, 0, TAU); c.fill();
-      c.strokeStyle = pcss(this.P, 'hi', burn); c.lineWidth = 10;
+      c.strokeStyle = pcss(this.P, hosted ? 'deep' : 'hi', burn); c.lineWidth = 10;
       c.beginPath(); c.arc(ax, ay, 110 + 16 * dp, 0, TAU); c.stroke();
     }
     c.globalCompositeOperation = 'source-over';
