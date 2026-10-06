@@ -25,7 +25,7 @@ import { shots, type Cam, type LifeCam } from './popup.shots';
 // ------------------------------------------------------------------ layout (world units; book spine along x at z = 0)
 const PAGE_W = 10, PAGE_D = 3.5, BOARD = 0.1;
 const PX = 150; // texture px per world unit
-const RISE = 0.34; // s for a piece to hinge up
+const RISE = 0.12; // s for a piece to hinge up (v4 fix: the building is UP within 3 frames of its beat, and stays)
 /** Half-width of the street (it runs along z, narrowing toward the back: the passage gets squeezed). */
 const streetHW = (z: number) => 0.92 + 0.26 * (z / PAGE_D);
 
@@ -1318,7 +1318,10 @@ export default class Popup extends Scene {
     const db = downbeatPulse(au, t, 0.14);
     this.nearPage.rotation.x = -Math.PI * (1 - open) - Math.PI * shut * open - 0.03 * (1 - shut);
     this.farPage.rotation.x = 0.03;
-    this.book.position.y = -0.07 * db;
+    // v4 fix: the page jolts on every downbeat and HOLDS the new seat until the next (alternating drop / recoil)
+    const dbN = au.downbeats.filter((d) => d >= this.ctx.start - 1e-3 && d <= t + 1e-4).length;
+    const seat = dbN % 2, bN = au.beats.filter((b) => b >= this.ctx.start + 0.05 && b <= t + 1e-4).length % 2;
+    this.book.position.y = -0.07 * db - 0.22 * seat - 0.12 * bN; // every beat the spread settles a notch and holds
     this.book.scale.setScalar(1 + 0.012 * db);
 
     // --- pieces
@@ -1393,7 +1396,7 @@ export default class Popup extends Scene {
     const sk = Math.min(1, 14 / Math.max(1e-6, Math.hypot(sx, sy))); // T2 cap: shake <= 14 px
     return {
       shake: [sx * sk, sy * sk],
-      zoom: Math.min(1.06, 1 + 0.045 * db + 0.06 * impact),
+      zoom: Math.min(1.1, 1 + 0.03 * seat + 0.025 * bN + 0.03 * db + 0.06 * impact),
       bloom: ld.bloom,
       bloomThreshold: 0.92,
       grain: 0.05,

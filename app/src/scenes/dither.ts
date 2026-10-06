@@ -65,7 +65,10 @@ export function bombFrame(t: number, list: Shot[], au: { beats: number[]; downbe
   const c = CAMS[camKey] ?? CAMS.flat!;
   // the orbit: continuous through the plate; each framing has its own start angle
   // (the exit settles static: the orbit stops at the lamps shot)
-  const yaw = c.yaw + (st.stage === 'lamps' ? 0 : OMEGA * (t - sh.t0));
+  // v4 fix: the orbit advances in HELD notches, one per beat (1-bit stop-motion) — the tower and the horizon dither
+  // step on the beat and hold, instead of a continuous drift that buried the beat in the plate's median motion
+  const nIn = au.beats.filter((b) => b > sh.t0 + 1e-3 && b <= t + 1e-4).length;
+  const yaw = c.yaw + (st.stage === 'lamps' ? 0 : OMEGA * 2.4 * nIn);
   const pos: V3 = [Math.sin(yaw) * c.dist, c.h, Math.cos(yaw) * c.dist];
   const f = norm(sub(c.target, pos));
   const r = norm(cross(f, [0, 1, 0]));
@@ -109,7 +112,7 @@ export function bombFrame(t: number, list: Shot[], au: { beats: number[]; downbe
     white, lamp,
     cell, dots: lamps ? 1 : 0, night, zoom, shift,
     // 1-bit purity: no grain, no CA, no vignette, no bloom. The whiteout is drawn in pass B (paper -> hi).
-    post: { grain: 0, ca: 0, vignette: 0, bloom: 0.7 * night, halation: 0, flash: 0, exposure: 1 },
+    post: { grain: 0, ca: 0, vignette: 0, bloom: 0.2 * night, halation: 0, flash: 0, exposure: 1 },
   };
 }
 
@@ -353,7 +356,8 @@ void main() {
   vec3 paper = mix(uPaper, uHi, uWhiteB);
   vec3 col = mix(uInk, paper, on);
   // night (the exit): the ground goes dark; every lit cell of the sky becomes a glowing round dot on the grid
-  float lit = step(bayer8(ivec2(cellC)), lum) * (1.0 - step(0.3, length(fract(g / uCell) - 0.5)));
+  // v4 fix: fewer, smaller lit cells (only the brightest sky) so the exit reads as dots glowing on near-black
+  float lit = step(bayer8(ivec2(cellC)), lum * lum * 0.55) * (1.0 - step(0.24, length(fract(g / uCell) - 0.5)));
   col = mix(col, mix(uInk, uHi * 1.6, lit), uNight);
   fragColor = vec4(col, 1.0);
 }

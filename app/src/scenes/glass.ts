@@ -42,7 +42,7 @@ uniform vec3 uGround, uDeep, cPalMid, uHi, uText, uSignal;
 const float WR = ${WR.toFixed(2)};
 const float RB0 = 0.17, RB1 = 0.40, RB2 = 0.66, RB3 = 0.86, RB4 = 1.0, RB5 = 1.1, RF = 1.26;
 const float VCELL = 0.075;   // Voronoi cell (window units)
-const float SWEEP = 0.16;    // seconds for the pane-by-pane sweep around one ring
+const float SWEEP = 0.03;    // v4 fix: a whole ring lights on the beat (near-instant sweep) and stays lit
 
 float vn3(vec3 p) {
   vec3 i = floor(p), f = fract(p);
@@ -132,10 +132,10 @@ vec3 jewel(float cls) {
 // 0 before the piece's onset; on the onset a fast rise and a flash that settles to 1
 float lit(Pc pc) {
   int ri = int(pc.ring + 0.5);
-  float on = uRing[ri] + pc.sec / pc.n * SWEEP + pc.h * 0.03;
+  float on = uRing[ri] + pc.sec / pc.n * SWEEP + pc.h * 0.008;
   float x = uLt - on;
   if (x < 0.0) return 0.0;
-  return sat(x / 0.035) * (1.0 + 1.1 * exp(-x / 0.12));
+  return sat(x / 0.02) * (1.0 + 0.25 * exp(-x / 0.12));
 }
 
 // the light a piece passes (what reaches the air and the floor)
@@ -327,20 +327,20 @@ export default class Glass extends Scene {
   }
 
   // v4 camera = the nave, tilt-up; layout = the rose centred (x = 0 on every framing, no pan)
-  private pose(cam: Cam, k: number): Pose {
+  private pose(cam: Cam, k: number, n: number): Pose {
     const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+    // v4 fix: every framing is HELD (no drift); p36 opens on p35's last framing (macro) and steps out one notch per beat
+    if (this.thermal && cam === 'wide') return { pos: V(0, 2.2, 24), look: V(0, 11, 0), focal: [9.0, 6.4, 4.6][Math.min(2, Math.max(0, n))]! };
+    void k;
     switch (cam) {
       // bar 1: tight on the centre of the rose (the first pane), widening as the rings light
-      case 'wide': return { pos: V(0, 2.2, 27), look: V(0, 11, 0), focal: 4.1 + 9.5 * Math.exp(-k / 0.9) };
+      case 'wide': return { pos: V(0, 2.2, 27), look: V(0, 11, 0), focal: 4.6 };
       // beat 3: the camera drops to the pool on the flagstones and tilts up the nave to the rose
-      case 'floor': {
-        const e = smoothstep(0, 1.1, k);
-        return { pos: V(0, 2.2, 27), look: V(0, 1.2 + 9.8 * e, 13 - 13 * e), focal: 2.6 + 1.5 * e };
-      }
+      case 'floor': return { pos: V(0, 2.2, 27), look: V(0, 1.2, 13), focal: 2.6 };
       // bar 2: the rose centred, ablaze, a slow push
-      case 'up': return { pos: V(0, 2.2, 27 - 1.2 * k), look: V(0, 11, 0), focal: 4.1 };
+      case 'up': return { pos: V(0, 2.2, 26), look: V(0, 11, 0), focal: 5.2 };
       // beat 7: tight on the centre panes (still centred), the light turning to heat
-      case 'macro': return { pos: V(0, 2.2, 24 - 0.4 * k), look: V(0, 11, 0), focal: 9.0 + 0.6 * k };
+      case 'macro': return { pos: V(0, 2.2, 24), look: V(0, 11, 0), focal: 9.0 };
     }
   }
 
@@ -360,27 +360,30 @@ export default class Glass extends Scene {
     const litRings = B.slice(off, off + 6).filter((b) => b <= t).length;
     u.uSquare!.value = this.thermal ? 0 : 1 - smoothstep((B[1] ?? end) - start, (B[1] ?? end) - start + 0.35, lt);
     // bar 4 of the plate (its last quarter, beats 7–8): a gear train, then a locomotive, slide behind the panes
-    const tm = B[6] ?? end;
-    u.uMach!.value = this.thermal ? smoothstep(tm, tm + 0.08, t) * (1 - smoothstep(end - 0.08, end, t)) : 0;
-    u.uMachX!.value = -2.0 + 6.6 * clamp((t - tm) / Math.max(0.1, end - tm));
+    const tm = B[4] ?? end; // the bar-2 downbeat
+    const nB = B.filter((b) => b <= t + 1e-4).length; // beats landed so far (held state index)
+    u.uMach!.value = this.thermal ? (t >= tm ? 1 : 0) : 0;
+    u.uMachX!.value = -1.2 + 1.3 * Math.max(0, nB - 5); // the train advances a held notch per beat
     // the sun behind the glass surges on every beat (the shafts, the pool and the panes flare together)
     const bp = beatPulse(audio, t, 0.14), db = downbeatPulse(audio, t, 0.22), kp = kickPulse(audio, t, 0.08);
-    u.uSun!.value = 0.85 + 0.75 * bp + 0.45 * db + 0.15 * kp;
+    // v4 fix: the sun and the nave step up and HOLD with every lit ring (the pulse is a small accent on top)
+    u.uSun!.value = 0.9 + 0.12 * litRings + 0.2 * bp + 0.1 * db;
     const b7 = B[6] ?? end, b8 = B[7] ?? end;
-    u.uSurge!.value = t >= b7 ? 0.25 + 0.55 * Math.exp(-(t - b7) / 0.18) : 0;
-    u.uHeat!.value = smoothstep(b8, end - 0.04, t);
-    u.uGlow!.value = clamp(litRings / 6) * (0.7 + 0.5 * bp);
+    u.uSurge!.value = t >= b7 ? 0.45 + 0.15 * Math.exp(-(t - b7) / 0.18) : 0;
+    // rose: heat on beat 8; thermal: a held heat step per beat from beat 4 (the lit bands flip to hot and stay)
+    u.uHeat!.value = this.thermal ? clamp((nB - 3) / 5) : (t >= b8 ? 1 : 0);
+    u.uGlow!.value = clamp(litRings / 6) * 1.2;
     u.uSunQ!.value.set(0.35 - 0.08 * lt, 0.42 - 0.03 * lt);
     u.uT!.value = t; u.uLt!.value = lt;
 
-    const pose = this.pose(cam, k);
+    const pose = this.pose(cam, k, B.filter((b) => b > sh.t0 + 1e-3 && b <= t + 1e-4).length);
     const fwd = pose.look.clone().sub(pose.pos).normalize();
     const right = fwd.clone().cross(new THREE.Vector3(0, 1, 0)).normalize();
     const up = right.clone().cross(fwd).normalize();
     u.uPos!.value.copy(pose.pos); u.uFwd!.value.copy(fwd); u.uRight!.value.copy(right); u.uUp!.value.copy(up);
     u.uFocal!.value = pose.focal;
     u.uShaft!.value = cam === 'wide' ? 0.05 : cam === 'floor' ? 0.045 : cam === 'up' ? 0.012 : 0.01;
-    u.uWall!.value = cam === 'up' ? 0.4 : 1; // the rose ablaze in a near-black wall
+    u.uWall!.value = (cam === 'up' ? 0.5 : 1) * (0.55 + 0.15 * litRings); // the nave brightens a held step per ring
 
     clearRT(renderer, out, plin(this.P, 'ground'));
     this.pass.render(renderer, out);
@@ -389,10 +392,10 @@ export default class Glass extends Scene {
     const cut = Math.exp(-Math.max(0, k) / 0.11);
     const glow = cam === 'up' ? 0.6 : cam === 'macro' ? 0.4 : 0.25;
     return {
-      zoom: 1 + 0.05 * cut + 0.035 * db + 0.012 * kp,
+      zoom: 1 + 0.02 * cut + 0.035 * db + 0.012 * kp,
       shake: [3 * kp * Math.sin(t * 91), 4 * kp],
       flash: cam === 'up' ? 0.12 * downbeatPulse(audio, t, 0.07) : 0,
-      bloom: glow + 0.3 * bp,
+      bloom: glow + 0.1 * bp,
       bloomThreshold: 0.9,
       halation: 0,
       ca: 0.3, grain: 0.04, vignette: 0.55,

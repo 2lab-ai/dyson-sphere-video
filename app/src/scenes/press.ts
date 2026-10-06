@@ -415,7 +415,9 @@ export default class Press extends Scene {
     }
     // paper jolt on each stamp (kicks jolt harder)
     const jolt = 7 * bp + 14 * Math.min(1, 3.5 * kp);
-    M[5] += jolt;
+    // v4 fix: the card jolts on every downbeat and HOLDS the new seat (24 px, alternating) until the next downbeat
+    const dbN = au.downbeats.filter((d) => d >= start - 1e-3 && d <= t + 1e-4).length;
+    M[5] += jolt + 24 * (dbN % 2);
     // --- draw
     const L = this.L, c = L.ctx;
     L.clear(this.css('ground'));
@@ -426,6 +428,17 @@ export default class Press extends Scene {
     c.strokeStyle = this.css('text'); c.lineWidth = 5;
     if (pk < 0) {
       c.beginPath(); c.arc(disc.x, disc.y, disc.r, 0, Math.PI * 2); c.fill(); c.stroke();
+      // v4 fix: the title is born from the disc — through the first bar it sits in ink inside the cream disc, growing a
+      // held step per beat (one more letter-line each beat), until it leaves the disc for the wedge's edge on beat 2
+      if (t < beatT(2)) {
+        const sc = [0.42, 0.62][Math.min(1, k)]!;
+        c.fillStyle = this.css('deep'); c.font = font(tf, tSize * sc);
+        const lines = k < 1 ? ['DYSON'] : ['DYSON', 'SPHERE'];
+        lines.forEach((w, i) => {
+          const wd = c.measureText(w).width;
+          c.fillText(w, disc.x - wd / 2, disc.y + (i - (lines.length - 1) / 2) * tSize * sc * 1.05 + tSize * sc * 0.35);
+        });
+      }
     } else {
       const split = 16 + 14 * pk + 10 * bp;
       for (const sgn of [-1, 1]) {

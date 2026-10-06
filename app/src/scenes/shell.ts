@@ -348,7 +348,8 @@ export default class Shell extends Scene {
         c.setTransform(jx[0]!, jx[1]!, jy[0]!, jy[1]!, p0[0], p0[1]);
         if (paint < 1) this.bareHex(c);
         if (paint > 0) {
-          c.globalAlpha = paint * base;
+          // v4 fix (p42 end): the newest rings land dimmer (in the shell's shadow) so the sealed vault stays a dark ground
+          c.globalAlpha = paint * base * (r >= CLOSE - 2 ? 0.5 : r >= CLOSE - 4 ? 0.75 : 1);
           c.drawImage(this.sprites[motifOf(r, i)]!, -1, -1, 2, 2);
           c.globalAlpha = base;
         }
@@ -539,6 +540,22 @@ export default class Shell extends Scene {
     const C3 = this.outCam(cam, u);
     L.clear(pcss(P, 'ground'));
     c.setTransform(1, 0, 0, 1, 0, 0);
+    // v4 fix: the star clouds behind the sphere go dark in HELD bands, one band per beat (outer edges first, closing on
+    // the anchor), so every beat removes ~1/7 of the lit sky and the plate ends on a black field
+    const ORDER = [0, 6, 1, 5, 2, 4, 3], BW = W / 7;
+    c.save();
+    for (let k = 0; k < 7; k++) {
+      const tk = this.beats[k + 1] ?? end;
+      if (t >= tk) continue;
+      const x0 = ORDER[k]! * BW;
+      c.globalAlpha = 0.17; c.fillStyle = pcss(P, 'text'); c.fillRect(x0, 0, BW, H);
+      c.globalAlpha = 0.9;
+      for (let i = 0; i < 70; i++) {
+        const r = 0.8 + 1.8 * hash(k, i, 3) ** 3;
+        c.beginPath(); c.arc(x0 + hash(k, i, 1) * BW, hash(k, i, 2) * H, r, 0, Math.PI * 2); c.fill();
+      }
+    }
+    c.restore();
 
     // ---- stars (and the shells that close over them), far to near
     const sorted = this.stars

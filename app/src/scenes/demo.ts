@@ -286,7 +286,8 @@ export default class Demo extends Scene {
     const au = this.ctx.audio, W = this.W, Hh = this.H;
     const bp = beatPulse(au, t, 0.07), ph = beatPhase(au, t);
     const SX = 40, SY = 22, SW = 240, SH = 136; // 30 x 17 character cells
-    const border = bp > 0.35 ? H : M; // POKE 53280: the border flips on every beat
+    void bp;
+    const border = beatIndex(au, t) % 2 ? M : D; // POKE 53280: the border flips on every beat and HOLDS until the next
     this.buf.fill(border);
     this.rect(SX, SY, SW, SH, D);
     const lines = ['**** SENTIENT 64 BASIC V2 ****', '', '64K RAM SYSTEM 38911 FREE', '', 'READY.'];
@@ -542,7 +543,7 @@ export default class Demo extends Scene {
     for (let by = 0; by < Hh / B; by++) for (let bx = 0; bx < W / B; bx++) {
       const cxb = bx * B + B / 2, cyb = by * B + B / 2;
       if (Math.hypot(cxb - this.eye.x, cyb - this.eye.y) < R2 + 8) continue; // a clear ring around the disc
-      if (eyeOnly && t >= tEye + 0.03 + 0.3 * hash(bx, by, 31)) continue; // the face drops away through the last beat
+      if (eyeOnly && t >= tEye) continue; // the face drops away ON the last beat (a held step: only the eye is left)
       const locked = hash(bx, by, 7) < cond;
       const dens = locked ? this.faceD(cxb, cyb) : 0.8 * hash(bx, by, bi);
       const seed = locked ? 0 : bi;
@@ -568,11 +569,15 @@ export default class Demo extends Scene {
     const t = f.t, sh = shotAt(this.list, t), s = sh.shot.s;
     const fx = s.fx as string, stage = s.stage as string;
     const tOf = (st: string) => this.list.find((x) => x.s.stage === st)?.t ?? sh.t0;
+    // v4 fix (p39): the internet effects move in HELD steps — the waveform, the scroller and the graph advance one notch
+    // on each beat and hold until the next (a stop-motion burst per beat, not a continuous scroll)
+    const lastB = audio.beats[beatIndex(audio, t)] ?? sh.t0;
+    const tq = this.variant === 'internet' ? Math.max(lastB, sh.t0) + 0.3 : t;
     if (fx === 'eniac') stage === 'corridor' ? this.corridor(t, sh.t0) : this.accumulator(t, sh.t0);
     else if (fx === 'c64') this.c64(t, tOf('ready'), stage === 'raster', tOf('raster'));
-    else if (fx === 'modem') this.modem(t, sh.t0, stage === 'carrier');
-    else if (fx === 'copper') this.copper(t, tOf('scroll'), stage === 'mirror');
-    else if (fx === 'net') this.net(t, sh.t0, stage === 'flood', tOf('flood'));
+    else if (fx === 'modem') this.modem(tq, sh.t0, stage === 'carrier');
+    else if (fx === 'copper') this.copper(tq, tOf('scroll'), stage === 'mirror');
+    else if (fx === 'net') this.net(tq, sh.t0, stage === 'flood', tOf('flood'));
     else if (fx === 'flood') this.flood(t, tOf('bars'), stage === 'matrix');
     else this.face(t, sh.t0, stage === 'eye', tOf('eye'));
     this.paint();
@@ -588,7 +593,9 @@ export default class Demo extends Scene {
     if (this.variant === 'ai') {
       // crisp: no grain/vignette/aberration; the last beat holds still so the disc sits exactly on the anchor
       const still = stage === 'eye';
-      return { zoom: still ? 1 : 1 + 0.05 * db, flash: 0, shake: [0, 0], ca: 0, grain: 0.015, vignette: 0 };
+      // the face condenses a held push-in notch per beat; the eye beat returns to 1 (the disc on the anchor)
+      const notch = fx === 'face' && !still ? 0.07 * Math.min(3, Math.max(0, beatIndex(audio, t) - beatIndex(audio, tOf('condense') + 1e-3) + 1)) : 0;
+      return { zoom: still ? 1 : 1 + notch + 0.03 * db, flash: 0, shake: [0, 0], ca: 0, grain: 0.015, vignette: 0 };
     }
     const push = fx === 'c64' ? 0.05 * clamp((t - tOf('ready')) / 2.3) : 0; // the close-up keeps pushing in
     const land = fx === 'copper' ? bp : 0;
