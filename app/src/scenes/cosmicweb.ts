@@ -419,7 +419,7 @@ vec3 plate(vec2 p) {
   float knot = exp(-pow(r / 0.5, 2.0) * 1.6);
   vec3 c = mix(cMid, cHi, clump) * fil * clump * knot * 1.3;
   float node = exp(-v.z * v.z / 0.004) * step(v.y, uNb / 16.0) * knot;   // lit nodes: one more per beat
-  c += heat(0.9) * node * (1.2 + 0.8 * uBp);
+  c += spaceHeat(0.9) * node * (1.2 + 0.8 * uBp);
   c += cHi * 0.35 * exp(-r * r / 0.012);                                  // the knot's core
   return c;
 }

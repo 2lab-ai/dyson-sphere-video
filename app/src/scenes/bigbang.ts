@@ -220,8 +220,8 @@ vec3 plate(vec2 p) {
   float fil = pow(1.0 - abs(fbm(w * 1.4, 5)), 3.0);
   float env = exp(-pow(r / R, 2.0) * 2.4);
   float T = clamp(1.25 - 0.09 * uNb, 0.55, 1.25);
-  vec3 c = heat(fil * env * T * 1.5) * (1.0 + 0.4 * uBp);
-  c += heat(1.1) * exp(-r * r / (0.016 * 0.016));            // the singular point: hot core
+  vec3 c = spaceHeat(fil * env * T * 1.5) * (1.0 + 0.4 * uBp);
+  c += spaceHeat(1.1) * exp(-r * r / (0.016 * 0.016));            // the singular point: hot core
   c += cSig * 0.6 * exp(-r / 0.045);                         // its orange halo
   return c;
 }

@@ -349,14 +349,14 @@ vec3 plate(vec2 p) {
   float Rd = 0.27 * clamp((uP - 0.35) / 0.5, 0.0, 1.0);
   vec3 n = vec3(0.0, 0.0, 1.0); float cov = Rd > 0.001 ? sphere(p, vec2(0.0), Rd, n) : 0.0;
   vec2 rg = debrisRing(p, mix(0.6, 0.12, g), mix(0.07, 0.03, g), uLt * (1.0 + 2.0 * g));
-  vec3 c = heat(0.55 + 0.4 * g) * rg.x * (1.0 - g * 0.85) * (1.0 - cov * rg.y);
+  vec3 c = spaceHeat(0.55 + 0.4 * g) * rg.x * (1.0 - g * 0.85) * (1.0 - cov * rg.y);
   float crust = fbm(n * 3.5, 5) * 0.5 + 0.5, dif = max(dot(n, LDIR), 0.0);
-  vec3 disc = heat(0.5 + 0.25 * crust) * (0.55 + 0.45 * dif);
+  vec3 disc = spaceHeat(0.5 + 0.25 * crust) * (0.55 + 0.45 * dif);
   for (int k = 0; k < 16; k++) {
     if (float(k) >= uNb) break;
     float a = 6.2832 * hash11(float(k) * 5.13 + 3.0);
     vec2 s = 0.75 * Rd * vec2(cos(a), sin(a));
-    disc += heat(1.0) * exp(-dot(p - s, p - s) / (0.0008 + 0.0004 * uBp));
+    disc += spaceHeat(1.0) * exp(-dot(p - s, p - s) / (0.0008 + 0.0004 * uBp));
   }
   c = mix(c, disc, cov);
   c += cSig * 0.5 * exp(-max(length(p) - Rd, 0.0) / 0.03) * (1.0 - cov) * step(0.001, Rd);   // molten glow

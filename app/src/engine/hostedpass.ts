@@ -16,7 +16,7 @@ import type { Frame, SceneCtx } from './scene';
 export const SPACE_GLSL = /* glsl */ `
 const vec3 LDIR = normalize(vec3(-0.62, 0.42, 0.66));          // the Sun, upper left, slightly in front
 // black body-ish heat ramp: 0 black -> signal red-orange -> gold -> white (runs over 1 in the core)
-vec3 heat(float x) {
+vec3 spaceHeat(float x) {
   vec3 c = mix(vec3(0.0), cSig, smoothstep(0.0, 0.35, x));
   c = mix(c, cHi, smoothstep(0.3, 0.75, x));
   return mix(c, vec3(1.6), smoothstep(0.8, 1.35, x));

@@ -436,15 +436,15 @@ vec3 plate(vec2 p) {
   vec3 n; float cov = sphere(p, vec2(0.0), RE, n);
   vec3 c = rock(n, 0.0) * cov;
   vec2 hp = dir * RE;
-  float wound = exp(-dot(p - hp, p - hp) / (0.012 + 0.02 * since)) * hit;
+  float wound = exp(-dot(p - hp, p - hp) / (0.003 + 0.0025 * since)) * hit;
   float cracks = smoothstep(0.6, 0.95, 1.0 - abs(fbm(n * 6.0, 4)));
-  c += heat(0.9 + 0.3 * uBp) * wound * mix(0.6, 1.4, cracks) * cov;
+  c += spaceHeat(0.9 + 0.3 * uBp) * wound * mix(0.6, 1.4, cracks) * cov;
   vec3 nt; float covT = sphere(p, cT, RT * (1.0 - 0.6 * hit), nt) * (1.0 - hit);
   c = mix(c, rock(nt, 7.0), covT);
-  c += heat(1.2) * hit * exp(-length(p - hp) / (0.03 + 0.05 * since)) * exp(-since * 0.35);   // the hot plume
+  c += spaceHeat(1.2) * hit * exp(-length(p - hp) / (0.025 + 0.012 * since)) * exp(-since * 0.4);   // the hot plume
   vec2 rg = debrisRing(p, 0.6, 0.07, uLt);
   float ring = rg.x * smoothstep(0.72, 0.92, uP) * (1.0 - cov * rg.y);
-  c += heat(0.55 + 0.3 * rg.x) * ring;
+  c += spaceHeat(0.55 + 0.3 * rg.x) * ring;
   return c;
 }
 `;
