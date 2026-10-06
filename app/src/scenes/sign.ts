@@ -214,7 +214,7 @@ export default class Sign extends Scene {
     this.wall(c);
 
     // light spill on the brick, per lit word (the wide shot floods)
-    const flood = fr === 'flood' && !cut ? 1 : 0;
+    const flood = fr === 'flood' && !cut && !this.ctx.params.hosted ? 1 : 0; // hosted: no flood (NIGHT ground stays dark)
     c.globalCompositeOperation = 'lighter';
     this.rows.forEach((r, ri) => r.words.forEach((w, wi) => {
       const lit = cut ? 0 : flickerOn(t - w.start);
@@ -241,11 +241,7 @@ export default class Sign extends Scene {
         c.stroke();
       }
     }));
-    c.fillStyle = rgba('ink', 1); c.fillRect(tx, ty - 20, 190, 110);
-    c.strokeStyle = rgba('graphite', 0.9); c.lineWidth = 2; c.strokeRect(tx, ty - 20, 190, 110);
-    c.fillStyle = rgba('graphite', 1); c.font = `18px "${F.mono(500)}"`; c.textAlign = 'left';
-    c.fillText('NST 15kV 30mA', tx + 16, ty + 16);
-    c.fillText('CLASS 2  60Hz', tx + 16, ty + 44);
+    c.fillStyle = rgba('ink', 1); c.fillRect(tx, ty - 20, 190, 110); // the transformer (unlabelled)
 
     // border tubes: one segment ignites per beat
     for (const b of this.border()) {
@@ -295,10 +291,10 @@ export default class Sign extends Scene {
     c.restore();
 
     const floodIn = fr === 'flood' ? Math.exp(-(t - floodT) / 0.15) : 0;
-    const bloom = cut ? 0 : { front: 0.35, tight: 0.5, oblique: 0.45, flood: 0.75 }[fr];
+    const bloom = cut ? 0 : this.ctx.params.hosted ? Math.min(0.4, { front: 0.35, tight: 0.5, oblique: 0.45, flood: 0.75 }[fr]) : { front: 0.35, tight: 0.5, oblique: 0.45, flood: 0.75 }[fr];
     return {
-      bloom, bloomThreshold: 0.72, bloomRadius: fr === 'flood' ? 0.9 : 0.7, halation: cut ? 0 : 0.25,
-      zoom: 1 + 0.012 * dp + 0.006 * bp, flash: 0.12 * floodIn, shake: [0, 0],
+      bloom, bloomThreshold: 0.72, bloomRadius: fr === 'flood' && !this.ctx.params.hosted ? 0.9 : 0.7, halation: cut ? 0 : 0.25,
+      zoom: 1 + 0.012 * dp + 0.006 * bp, flash: this.ctx.params.hosted ? 0 : 0.12 * floodIn, shake: [0, 0],
     };
   }
 
@@ -530,9 +526,9 @@ export default class Sign extends Scene {
       Array.from({ length: 40 }, (_, i) => { const u = i / 39; return u < 0.6 ? [cx + 470, cy - 180 + 400 * u] as [number, number] : [cx + 470 - 120 * Math.sin((u - 0.6) / 0.4 * Math.PI), cy + 60 + 120 * Math.cos((u - 0.6) / 0.4 * Math.PI)] as [number, number]; }),
     ];
     shapes.forEach((s, i) => tube(s, nb > i ? 0.85 + 0.15 * bp : 0.12));
-    // the line bent in tube under the shapes, in the sign's two rows (it glows like one)
+    // the line bent in tube across the shapes, in the sign's two rows (it glows like one; on the tubes, not a caption)
     c.save(); c.shadowColor = rgba('signal', 0.8); c.shadowBlur = 26;
-    this.rows.slice(0, 2).forEach((row, i) => drawLyric(c, row, t, { x: cx, y: cy + 300 + 150 * i, size: 132, maxWidth: 1300, align: 'center', family: F.hangul(), sungColor: 'signal', unsungColor: 'bone', unsungAlpha: 0.25 }));
+    this.rows.slice(0, 2).forEach((row, i) => drawLyric(c, row, t, { x: cx, y: cy - 40 + 150 * i, size: 132, maxWidth: 1300, align: 'center', family: F.hangul(), sungColor: 'signal', unsungColor: 'bone', unsungAlpha: 0.25 }));
     c.restore();
     return {};
   }

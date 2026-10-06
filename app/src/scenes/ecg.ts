@@ -116,7 +116,7 @@ export default class Ecg extends Scene {
   // bar; each beat lands an R-spike (the beat mark is the trace itself); the old sweep decays as phosphor.
   private scopePlate(f: Frame): PostOverrides {
     const c = this.layer.ctx, t = f.t, au = this.au, P = this.P;
-    const cx = W / 2, cy = H / 2, gw = 860, gh = 600;
+    const cx = W / 2, cy = H / 2, gw = 800, gh = 560; // inside the cart's 820×580 tube face (wall.ts)
     const bp = beatPulse(au, t, 0.12), db = downbeatPulse(au, t, 0.3);
     const on = Math.min(1, Math.max(0, (t - this.ctx.start) / 0.25)); // the tube warms up over the first frames
     // glass: a faint phosphor bloom inside the tube face (curved: brighter in the middle)
@@ -133,7 +133,7 @@ export default class Ecg extends Scene {
     let d1 = d0 + 2;
     for (const d of downs) if (d > d0 + 1e-3) { d1 = d; break; }
     const sweep = Math.min(1, (t - d0) / Math.max(0.2, d1 - d0));
-    const yTrace = cy - 70, amp = 210;
+    const yTrace = cy - 110, amp = 150;
     const heart = (tt: number) => {
       let best = 9;
       for (const b of beats) { const dd = tt - b; if (Math.abs(dd) < Math.abs(best)) best = dd; else if (b > tt) break; }
@@ -163,7 +163,15 @@ export default class Ecg extends Scene {
     c.restore();
     // line 2 on the glass, lit by the phosphor (stamp: sung = signal)
     const line = this.lines[0];
-    if (line) drawLyric(c, line, t, { x: cx, y: cy + 210, size: 132, maxWidth: gw - 80, align: 'center', family: F.slam(), sungColor: 'signal', unsungColor: 'bone', unsungAlpha: 0.32 });
+    // two rows (split at the word nearest the middle) so the line keeps 120 px on the glass
+    if (line) {
+      const n = line.words.length, tot = line.words.reduce((a, w) => a + w.w.length, 0);
+      let cut = 1, acc = 0;
+      for (let i = 0; i < n - 1; i++) { acc += line.words[i]!.w.length; if (acc * 2 >= tot) { cut = i + 1; break; } }
+      const rows = n > 1 ? [line.words.slice(0, cut), line.words.slice(cut)] : [line.words];
+      rows.forEach((ws, i) => drawLyric(c, { ...line, words: ws, text: ws.map((w) => w.w).join(' '), start: ws[0]!.start, end: ws[ws.length - 1]!.end }, t,
+        { x: cx, y: cy + 95 + 130 * i, size: 120, maxWidth: gw - 40, align: 'center', family: F.slam(), sungColor: 'signal', unsungColor: 'bone', unsungAlpha: 0.32 }));
+    }
     return {};
   }
 

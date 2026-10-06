@@ -86,25 +86,38 @@ export default class Led extends ShaderScene {
     const bp = beatPulse(au, t, 0.12), db = downbeatPulse(au, t, 0.25);
     const bi = beatIndex(au, t) - this.b0, bar = Math.floor(Math.max(0, bi) / 4);
     const dir = bar % 2 ? -1 : 1;
-    const NX = 120, NY = 14, pitch = 15, x0 = FW / 2 - (NX * pitch) / 2, yc = FH / 2;
-    const ph = t * 2.4 * dir + 0.35 * Math.max(0, bi);
-    const crest = ((Math.max(0, bi) * 9 + (t - this.ctx.start) * 26) % (NX + 40)) - 20;
+    // dot pitch 7 px: the 150 px line covers ~21 dot rows, so the Hangul reads in the dots (14 rows at 15 px did not)
+    const NX = 250, NY = 42, pitch = 7, x0 = FW / 2 - (NX * pitch) / 2, yc = FH / 2;
+    const ph = t * 1.2 * dir + 0.35 * Math.max(0, bi);
+    // the lit band jumps 46 columns on every beat and holds there until the next (the ribbon's held beat mark)
+    const crest = ((Math.max(0, bi) * 46) % (NX + 60)) - 30;
     // the lyric rasterised into the strip's dot grid (stamp: sung = signal, via drawLyric on a mask)
     const MW = NX * pitch, MH = NY * pitch;
     const M = (this.mask ??= new Layer2D(MW, MH, 1)), m = M.ctx;
     m.clearRect(0, 0, MW, MH);
-    drawLyric(m, this.line, t, { x: MW / 2, y: MH - 34, size: 150, maxWidth: MW - 40, align: 'center', family: FAM, sungColor: 'signal', unsungColor: 'bone', unsungAlpha: 0.5, lead: 0.4 });
+    // two rows (split at the word nearest the middle), each kept inside the span both framings show (≤1380 px wide)
+    const line = this.line;
+    if (line) {
+      // split by drawn width (Latin ≈ half a Hangul cell), so 'High-tec의' doesn't push row 1 past the frame
+      const wid = (w: string) => Array.from(w).reduce((a, ch) => a + (/[가-힣]/.test(ch) ? 1 : 0.55), 0);
+      const n = line.words.length, tot = line.words.reduce((a, w) => a + wid(w.w), 0);
+      let cut = 1, acc = 0;
+      for (let i = 0; i < n - 1; i++) { acc += wid(line.words[i]!.w); if (acc * 2 >= tot) { cut = i + 1; break; } }
+      const rows = n > 1 ? [line.words.slice(0, cut), line.words.slice(cut)] : [line.words];
+      rows.forEach((ws, i) => drawLyric(m, { ...line, words: ws, text: ws.map((w) => w.w).join(' '), start: ws[0]!.start, end: ws[ws.length - 1]!.end }, t,
+        { x: MW / 2, y: rows.length > 1 ? 132 + 140 * i : MH - 90, size: 126, maxWidth: 1380, align: 'center', family: FAM, sungColor: 'signal', unsungColor: 'bone', unsungAlpha: 0.5, lead: 0.4 }));
+    }
     const px = m.getImageData(0, 0, MW, MH).data;
     for (let i = 0; i < NX; i++) {
-      const yo = 70 * Math.sin(i * 0.09 + ph) + 26 * db * Math.sin(i * 0.3);
-      const band = Math.exp(-(((i - crest) / 10) ** 2));
+      const yo = 22 * Math.sin(i * 0.04 + ph) + 10 * db * Math.sin(i * 0.15); // gentle bend: the line stays legible
+      const band = Math.abs(i - crest) < 24 ? 1 : 0;
       for (let j = 0; j < NY; j++) {
         const k = ((j * pitch + (pitch >> 1)) * MW + (i * pitch + (pitch >> 1))) * 4;
         const a = px[k + 3]! / 255, sungR = px[k]! > 200 && px[k + 1]! < 160;
         const x = x0 + i * pitch, y = yc + yo + (j - NY / 2) * pitch;
-        const base = 0.22 + 0.18 * bp + 0.55 * band;
-        c.fillStyle = a > 0.3 ? (sungR ? pcss(P, 'signal', 1) : pmix(P, 'hi', 'text', 0.5, 0.75)) : pcss(P, 'signal', base * 0.55);
-        c.beginPath(); c.arc(x, y, a > 0.3 ? 5.6 : 4.2, 0, Math.PI * 2); c.fill();
+        const base = 0.16 + 0.1 * bp + 0.84 * band;
+        c.fillStyle = a > 0.3 ? (sungR ? pcss(P, 'signal', 1) : pmix(P, 'hi', 'text', 0.5, 0.8)) : pcss(P, 'signal', base * 0.6);
+        c.fillRect(x - 3, y - 3, 6, 6);
       }
     }
     L.upload();

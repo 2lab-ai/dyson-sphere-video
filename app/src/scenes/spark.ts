@@ -880,9 +880,12 @@ export default class Spark extends Scene {
     const full = 2400, vis = 300;
     const hl = t < tUn ? full : vis * (1 - steps(unBeats, t, 0.06) / Math.max(1, unBeats.length));
     let M: Aff;
-    if (frame === 'wide') M = affine(1, 0, 0, 0);
-    else if (frame === 'mid') M = affine(1.7, 0, pt.x - 120, pt.y);
-    else M = affine(2.8, 0, pt.x - 60, pt.y);
+    // the point sits on the anchor (wall.ts pins this frame's centre there) and steps 24 px forward per beat, held
+    const fwd = 24 * (steps(beats, t, 0.05) - (beats.length - 1) / 2);
+    if (frame === 'wide') M = affine(1, 0, pt.x, pt.y);
+    else if (frame === 'mid') M = affine(1.7, 0, pt.x, pt.y);
+    else M = affine(2.8, 0, pt.x, pt.y);
+    M[4] += fwd;
     const sc = M[0];
     const bp = beatPulse(au, t, 0.12);
     const dead = t >= last + 1 / 60;
@@ -894,6 +897,14 @@ export default class Spark extends Scene {
       if (hl > 1) { c.beginPath(); c.moveTo(pt.x - hl, pt.y); c.lineTo(pt.x, pt.y); c.stroke(); }
       c.setTransform(1, 0, 0, 1, 0, 0);
       const p = apply(M, pt);
+      // the trail: a lit run from where the point started to where it stands now (grows 24 px per beat, held)
+      const x0 = p.x - fwd - 12 * (beats.length - 1);
+      c.strokeStyle = rgba('ember', 0.85); c.lineWidth = 7; c.lineCap = 'round';
+      if (p.x - x0 > 1) { c.beginPath(); c.moveTo(x0, p.y); c.lineTo(p.x, p.y); c.stroke(); }
+      // the point's flare persists: a held halo that travels with the point (fades only as the point dies)
+      const fl = 0.42 * Math.max(0.35, 1 - k / n);
+      c.fillStyle = rgba('ember', fl); c.beginPath(); c.arc(p.x, p.y, 54, 0, Math.PI * 2); c.fill();
+      c.fillStyle = rgba('signal', fl * 0.8); c.beginPath(); c.arc(p.x, p.y, 26, 0, Math.PI * 2); c.fill();
       drawPoint(c, p.x, p.y, r * (sc > 1 ? Math.sqrt(sc) : 1) * (1 + 0.4 * bp), 1);
     }
     return { bloom: dead ? 0 : 0.45, bloomThreshold: 0.75, shake: [0, 0] };

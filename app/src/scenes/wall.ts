@@ -10,19 +10,19 @@ import { WorldHost, type Slot } from '../engine/world';
 import type { Frame, PostOverrides } from '../engine/scene';
 import { Layer2D, clearRT, W, H } from '../engine/gl';
 import { palette, pcss, pmix, type NamedPalette } from '../engine/palette';
-import { beatPulse, downbeatPulse, barIndex } from '../engine/beat';
+import { beatPulse, downbeatPulse, barIndex, beatIndex } from '../engine/beat';
 import { clamp, hash, smoothstep } from '../engine/util';
 
 type P2 = [number, number];
 /** World positions (wide framing = world px) of the hardware pieces. */
 const PIECE: Record<string, P2> = {
   brick: [1180, 520], // the open brick between the pieces: the point writes here (p01, p29, p45)
-  scope: [905, 640], // the cart's CRT
-  tvwall: [1430, 480],
-  neon: [1240, 175],
-  ribbon: [1280, 335],
+  scope: [600, 590], // the cart's CRT (tube face 820×580: p02's trace and its two 120 px rows sit on the glass)
+  tvwall: [1500, 520],
+  neon: [1240, 110],
+  ribbon: [1280, 215],
   tubes: [1690, 770],
-  clock: [1035, 360],
+  clock: [1140, 350],
 };
 const SUBJECT_PIECE: Record<string, string> = {
   'ecg/scope': 'scope', 'crt/wall': 'tvwall', 'sign/neon': 'neon', 'led/ribbon': 'ribbon', 'sign/tubes': 'tubes', 'press/clock': 'clock',
@@ -31,6 +31,10 @@ const ANCHOR: P2 = [1180, 540]; // where a cut-in puts the lit piece (centre-rig
 const CUT = 1.8;
 const KMAX = 1.3; // the subject's magnification on a cut-in (the world takes the full CUT)
 const HIT = 142.035; // p29: the one whiteout of the unit
+const ROI: P2 = [1187, 413]; // the point's anchor on screen (p45 ends on it; scripts/hit-gate.py measures p45 there)
+/** Per-beat held mark: the lit piece throws its light on the brick from one side, then the other — the swap lands on
+ *  the beat and holds the whole beat (no flash). Half-spread (world px) of the two light lobes per piece. */
+const MARK: Record<string, number> = { brick: 230, scope: 300, neon: 280, ribbon: 360, tubes: 170, clock: 200 };
 
 export default class Wall extends WorldHost {
   private L!: Layer2D;
@@ -67,6 +71,7 @@ export default class Wall extends WorldHost {
     c.translate(cam.ax, cam.ay); c.scale(cam.z, cam.z); c.translate(-cam.fx, -cam.fy);
     this.brick(c);
     this.hardware(c, bp);
+    this.mark(c, t);
     c.restore();
     // the street light: a sodium-warm wash from the upper left (falls off into the dark)
     const g = c.createRadialGradient(W * 0.18, -H * 0.2, 60, W * 0.18, -H * 0.2, W * 0.95);
@@ -86,9 +91,28 @@ export default class Wall extends WorldHost {
     // the subject follows the camera but its magnification is capped (KMAX) so a long line still fits the frame
     const cut = cam.z > 1.2, k = cut ? KMAX * (cam.z / CUT) : cam.z;
     // screen position of the piece, held inside the centre-right band so the child's frame (and its line) stays on screen
-    const sx = cut ? W * 0.5 : clamp(cam.ax + (px - cam.fx) * cam.z, W * 0.42, W * 0.6), sy = clamp(cam.ay + (py - cam.fy) * cam.z, H * 0.42, H * 0.58);
+    if (this.subjectName.startsWith('spark/outro')) { // p45: the point stays on its anchor in every framing
+      return { scale: [1 / k, 1 / k], offset: [-(ROI[0] / W - 0.5) / k, -(0.5 - ROI[1] / H) / k], mode: 'screen' };
+    }
+    const sx = cut ? W * 0.5 : clamp(cam.ax + (px - cam.fx) * cam.z, W * 0.3, W * 0.6), sy = clamp(cam.ay + (py - cam.fy) * cam.z, H * 0.42, H * 0.58);
     const u = sx / W, v = 1 - sy / H;
     return { scale: [1 / k, 1 / k], offset: [-(u - 0.5) / k, -(v - 0.5) / k], mode: 'screen' };
+  }
+
+  /** The beat mark (held): the lit piece's light on the brick swaps sides on every beat and stays until the next. */
+  private mark(c: CanvasRenderingContext2D, t: number) {
+    const key = SUBJECT_PIECE[this.subjectName.replace(/\/-$/, '')] ?? (this.subjectName.startsWith('spark/write') ? 'brick' : '');
+    const spread = MARK[key];
+    if (!spread) return;
+    const bi = beatIndex(this.ctx.audio, t);
+    if (bi < 0 || t < this.ctx.start) return;
+    const [px, py] = this.piece, r = Math.max(240, spread * 1.1);
+    for (const side of [-1, 1]) {
+      const lit = (bi + (side > 0 ? 1 : 0)) % 2 === 0 ? 0.3 : 0.025;
+      const x = px + side * spread, g = c.createRadialGradient(x, py, 0, x, py, r);
+      g.addColorStop(0, pcss(this.P, 'signal', lit)); g.addColorStop(0.6, pcss(this.P, 'signal', lit * 0.9)); g.addColorStop(1, pcss(this.P, 'signal', 0));
+      c.fillStyle = g; c.fillRect(x - r, py - r, 2 * r, 2 * r);
+    }
   }
 
   // ---------------------------------------------------------------- the world
@@ -122,12 +146,12 @@ export default class Wall extends WorldHost {
     // the cart + the scope CRT
     const [sx, sy] = PIECE.scope!;
     c.strokeStyle = edge; c.lineWidth = 6;
-    c.beginPath(); c.moveTo(sx - 150, 920); c.lineTo(sx - 150, sy + 130); c.moveTo(sx + 150, 920); c.lineTo(sx + 150, sy + 130); c.stroke();
-    box(sx - 180, sy + 120, 360, 22, 4); box(sx - 180, sy + 260, 360, 18, 4);
-    for (const wx of [sx - 150, sx + 150]) { c.fillStyle = body; c.beginPath(); c.arc(wx, 925, 14, 0, Math.PI * 2); c.fill(); }
-    box(sx - 160, sy - 120, 320, 236, 14);
-    c.fillStyle = glass; c.beginPath(); c.roundRect(sx - 132, sy - 98, 220, 168, 34); c.fill();
-    for (let k = 0; k < 3; k++) { c.fillStyle = pcss(P, 'mid', 0.3); c.beginPath(); c.arc(sx + 122, sy - 70 + k * 46, 9, 0, Math.PI * 2); c.fill(); }
+    c.beginPath(); c.moveTo(sx - 380, 1000); c.lineTo(sx - 380, sy + 330); c.moveTo(sx + 380, 1000); c.lineTo(sx + 380, sy + 330); c.stroke();
+    box(sx - 430, sy + 320, 860, 24, 4); box(sx - 430, sy + 380, 860, 18, 4);
+    for (const wx of [sx - 380, sx + 380]) { c.fillStyle = body; c.beginPath(); c.arc(wx, 1005, 16, 0, Math.PI * 2); c.fill(); }
+    box(sx - 440, sy - 320, 880, 640, 26);
+    c.fillStyle = glass; c.beginPath(); c.roundRect(sx - 410, sy - 290, 820, 580, 90); c.fill();
+    c.fillStyle = pcss(P, 'hi', 0.04); c.beginPath(); c.ellipse(sx - 230, sy - 190, 120, 40, -0.35, 0, Math.PI * 2); c.fill(); // glass reflection
     // the neon script sign: unlit glass tube on a backing rail
     const [nx, ny] = PIECE.neon!;
     c.strokeStyle = pcss(P, 'mid', 0.25); c.lineWidth = 4; c.beginPath(); c.moveTo(nx - 330, ny - 70); c.lineTo(nx + 330, ny - 70); c.stroke();

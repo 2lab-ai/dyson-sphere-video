@@ -157,7 +157,7 @@ export default class Press extends Scene {
   private clock(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
     const L = (this.CL ??= new Layer2D()), c = L.ctx, t = f.t, au = this.au;
     L.clear();
-    const cx = 960, cy = 500, R = 290;
+    const cx = 960, cy = 500, R = 230; // smaller sheet: the brick stays dominant (NIGHT ground dark)
     const bi = Math.max(0, beatIndex(au, t) - beatIndex(au, this.ctx.start));
     const bp = beatPulse(au, t, 0.1), dp = downbeatPulse(au, t, 0.2);
     const bars = Math.floor(bi / 4);
@@ -171,7 +171,7 @@ export default class Press extends Scene {
       if (i) c.lineTo(x, y); else c.moveTo(x, y);
     }
     c.closePath();
-    c.fillStyle = pmix(this.P, 'mid', 'hi', 0.22, 0.9); c.fill(); // mustard print (subject accent, kept dim: the plate's ground stays dark)
+    c.fillStyle = pmix(this.P, 'ground', 'mid', 0.75, 0.9); c.fill(); // mustard print (subject accent, kept dim: the plate's ground stays dark)
     // paste wrinkles: faint diagonal creases (seeded, static)
     c.strokeStyle = this.css('deep', 0.35); c.lineWidth = 2;
     for (let i = 0; i < 7; i++) { const y = -S + 2 * S * hash(i, 3); c.beginPath(); c.moveTo(-S, y); c.lineTo(S, y + (hash(i, 5) - 0.5) * 160); c.stroke(); }
@@ -196,7 +196,7 @@ export default class Press extends Scene {
     c.restore();
     // the line printed across the lower face, in the paper's ink (sung = signal)
     const line = this.lines[0];
-    if (line) drawLyric(c, line, t, { x: cx, y: cy + 200, size: 128, maxWidth: 2 * R + 60, align: 'center', family: F.slam(), sungColor: 'signal', unsungColor: 'ink', unsungAlpha: 0.8, rotation: -0.035 });
+    if (line) drawLyric(c, line, t, { x: cx, y: cy + 165, size: 122, maxWidth: 2 * R + 160, align: 'center', family: F.slam(), sungColor: 'signal', unsungColor: 'ink', unsungAlpha: 0.8, rotation: -0.035 });
     L.upload();
     clearRT(this.ctx.renderer, out, [0, 0, 0], 0);
     this.ctx.comp.draw(this.ctx.renderer, L.texture, out, { mode: 'normal' });
