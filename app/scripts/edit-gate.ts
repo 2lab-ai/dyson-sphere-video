@@ -63,7 +63,7 @@ const ANNOTATION_RE = /titleBlock|crosshair|dimension/i;
  */
 const BUILT = new Set([
   'spark/write', 'spark/merge', 'spark/outro', 'sign/neon', 'lens/gaze', 'lens/ai', 'engrave/hand',
-  'orbit/capture', 'orbit/swarm', 'void/descent', 'void/stones', 'popup/city', 'press/credits', 'press/riso', 'bigbang/bang', 'solar/sun', 'lightpaint/time', 'cosmicweb/web', 'impact/theia', 'moon/sumuk', 'crt/wall', 'jamo/ahn', 'xray/heart', 'flipdisc/choice', 'colorfield/freedom', 'blackmarble/future', 'sodium/sun', 'led/ticker', 'lidar/room', 'thermal/steam', 'ecg/xy', 'ecg/ridge', 'cave/fire', 'gauge/bass', 'wave/ocean', 'clay/tablet', 'dither/bomb', 'demo/boot', 'demo/internet', 'demo/ai', 'split/ascii', 'glass/rose', 'glass/thermal', 'shell/dancheong', 'shell/pullback', 'popup/life-sea', 'popup/life-land',
+  'orbit/capture', 'orbit/swarm', 'void/descent', 'void/stones', 'popup/city', 'press/credits', 'press/riso', 'bigbang/bang', 'solar/sun', 'lightpaint/time', 'cosmicweb/web', 'impact/theia', 'moon/sumuk', 'crt/wall', 'jamo/ahn', 'xray/heart', 'flipdisc/choice', 'colorfield/freedom', 'blackmarble/future', 'sodium/sun', 'led/ticker', 'lidar/room', 'thermal/steam', 'ecg/xy', 'ecg/ridge', 'cave/fire', 'gauge/bass', 'wave/ocean', 'clay/tablet', 'dither/bomb', 'demo/boot', 'demo/internet', 'demo/ai', 'split/ascii', 'glass/rose', 'glass/thermal', 'shell/dancheong', 'shell/pullback', 'popup/life-sea', 'popup/life-land', 'engrave/iris', 'flipdisc/board', 'colorfield/dawn',
 ]);
 /** Idioms allowed to repeat, with their max count. Everything else: at most once. */
 const IDIOM_REPEAT: Record<string, number> = { 'pop-up': 3, demoscene: 3, 'light-trace': 3, aperture: 2, '3d-lit': 3 };
