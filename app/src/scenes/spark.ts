@@ -260,6 +260,15 @@ export default class Spark extends Scene {
     const ign = igniteRamp(t, tIgn - 0.02, 0.35);
     setM();
     c.lineCap = 'round';
+    // v4 hosted: the point's light pool on the brick grows one held step per beat from the first beat (the intro's
+    // beats are otherwise only a 24 px hairline step — too small to read as a beat)
+    if (this.ctx.params.hosted && ign > 0) {
+      const nb = Math.min(6, this.beats.filter((b) => b <= t + 0.03).length);
+      const r = (70 + 48 * nb) / sc;
+      const g = c.createRadialGradient(pen.x, pen.y, 0, pen.x, pen.y, r);
+      g.addColorStop(0, rgba('signal', 0.55)); g.addColorStop(0.45, rgba('ember', 0.28)); g.addColorStop(1, rgba('ember', 0));
+      c.fillStyle = g; c.beginPath(); c.arc(pen.x, pen.y, r, 0, Math.PI * 2); c.fill();
+    }
     const hairEnd = t < l0start ? pen.x : x1 + 24 * steps(this.beats.filter((b) => b >= l0start), t, 0.05);
     if (ign > 0) {
       c.strokeStyle = rgba(stage === 'ignite' ? 'ember' : 'graphite', stage === 'ignite' ? 0.95 : 0.7);
