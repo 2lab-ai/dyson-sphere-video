@@ -410,11 +410,14 @@ export default class Lidar extends Scene {
     // camera
     const [ca, cb] = CAMS[s.cam] ?? CAMS.wide!;
     const e = ease.inOutQuad(u);
-    const cp = ca.pos.map((v, i) => lerp(v, cb.pos[i]!, e)) as V3;
-    const cl = ca.look.map((v, i) => lerp(v, cb.look[i]!, e)) as V3;
+    // hosted (FILM run): the host owns the camera push; a fixed eye-level frame on the painted back wall, so the line
+    // reads as signage (>= 120 px) with the two figures below it
+    const hosted = !!this.ctx.params.hosted;
+    const cp = (hosted ? [-0.4, 1.9, -0.4] : ca.pos.map((v, i) => lerp(v, cb.pos[i]!, e))) as V3;
+    const cl = (hosted ? [-0.4, 1.9, -3] : ca.look.map((v, i) => lerp(v, cb.look[i]!, e))) as V3;
     const jig = kick * 0.012; // the rig jolts with the kick
     this.cam.position.set(cp[0] + (hash(t * 60, 1) - 0.5) * jig, cp[1] + (hash(t * 60, 2) - 0.5) * jig, cp[2]);
-    this.cam.fov = lerp(ca.fov, cb.fov, e);
+    this.cam.fov = hosted ? 62 : lerp(ca.fov, cb.fov, e);
     this.cam.aspect = 16 / 9;
     this.cam.lookAt(cl[0], cl[1], cl[2]);
     this.cam.updateProjectionMatrix();
@@ -450,7 +453,8 @@ export default class Lidar extends Scene {
     this.fanMat.uniforms.uA!.value = (s.cam === 'close' ? 0.05 : 0.12) * live * (0.6 + 0.8 * beat);
     this.coreMat.uniforms.uSize!.value = (5 + 7 * beat) * (H / 1080) * 6 * (0.35 + 0.65 * live);
 
-    clearRT(renderer, out, plin(P, 'ground'));
+    // hosted (FILM run): no room ground of its own — the host develops the swept light into ink on its stock
+    clearRT(renderer, out, this.ctx.params.hosted ? [0, 0, 0] : plin(P, 'ground'));
     renderer.setRenderTarget(out);
     renderer.render(this.scene3, this.cam);
 

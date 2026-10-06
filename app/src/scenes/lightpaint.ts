@@ -213,6 +213,8 @@ export default class Lightpaint extends Scene {
   private line!: Line;
   private lay!: LineLayout;
   private beats: number[] = [];
+  /** Hosted ink palette: the stamped (sung) syllable in the signal colour. */
+  private Pink!: NamedPalette;
   private downs: number[] = [];
   private gest: PenPath[] = [];
   /** Per character: syllable window and centre x (line-local). */
@@ -222,6 +224,7 @@ export default class Lightpaint extends Scene {
     this.plate = this.ctx.params as PlateInfo;
     this.P = palette(this.ctx.params.look?.palette ?? 'lightpaint');
     this.list = shots(this.plate, this.ctx.audio);
+    this.Pink = { ...this.P, text: this.P.signal, mid: this.P.signal };
     this.line = ownedLines(this.ctx)[0]!;
     this.L = new Layer2D();
     const au = this.ctx.audio;
@@ -282,12 +285,16 @@ export default class Lightpaint extends Scene {
     const st = stateAt(this.list, t), frame = st.frame as string;
     const sh = shotAt(this.list, t);
     const lay = this.lay, hw = lay.width / 2, my = -SIZE * 0.36;
+    // hosted (FILM run): the host owns the camera push; the exposure is printed as dark ink on white stock
+    const hosted = !!this.ctx.params.hosted, orbit = this.plate.variant === 'orbit';
     const bp = beatPulse(au, t, 0.14), kp = kickPulse(au, t, 0.12), dp = downbeatPulse(au, t, 0.22);
 
     // ---- camera (maps line-local coordinates to the screen)
     const u = clamp((t - sh.t0) / Math.max(0.1, (sh.t1 === Infinity ? this.ctx.end : sh.t1) - sh.t0));
     let M: Aff;
-    if (frame === 'wide') {
+    if (hosted) {
+      M = affine(1.0, 0, 150, orbit ? -330 : -60); // fx 150: the host shifts this frame right
+    } else if (frame === 'wide') {
       M = affine(0.7 + 0.06 * ease.inOutQuad(u), 0.012, 120 - 40 * u, -150);
     } else if (frame === 'track') {
       const px = this.penX(t + 0.12);
@@ -304,7 +311,7 @@ export default class Lightpaint extends Scene {
     // ---- bokeh: out-of-focus practicals in the studio, parallax at half the camera
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.globalCompositeOperation = 'lighter';
-    for (let k = 0; k < 9; k++) {
+    for (let k = 0; k < (hosted ? 0 : 9); k++) {
       const bx = hash(k, 1) * 2600 - 340, by = hash(k, 2) * 1400 - 160;
       const x = bx + (M[4] - W / 2) * 0.35, y = by + (M[5] - H / 2) * 0.35;
       const r = (12 + 34 * hash(k, 3)) * (0.7 + 0.5 * sc);
@@ -321,7 +328,7 @@ export default class Lightpaint extends Scene {
     const strobe = 0.16 + 0.84 * Math.max(bp, dp);
     const figX = (tt: number) => clamp(this.pen(tt - 0.25).x + 380, -hw + 200, hw + 360);
     const ghosts = frame === 'flat' ? 9 : frame === 'track' ? 2 : 1;
-    for (let g = ghosts - 1; g >= 0; g--) {
+    for (let g = orbit ? -1 : ghosts - 1; g >= 0; g--) {
       // the full exposure: the figure over its last 0.4 s of walking, overlapping dim ghosts = a smear
       const tg = frame === 'flat' ? t - 0.4 * (g / (ghosts - 1)) : t - g * 0.2;
       const a = frame === 'flat' ? 0.26 : frame === 'track' ? (g === 0 ? 0.6 : 0.25) : 1;
@@ -331,8 +338,9 @@ export default class Lightpaint extends Scene {
     // ---- the gestures: one per beat, drawn in 0.32 s behind a sparkler head; the 5th fades the oldest
     c.globalCompositeOperation = 'lighter';
     c.lineCap = 'round'; c.lineJoin = 'round';
+    if (orbit) this.orbit(c, t, bp, dp);
     this.beats.forEach((b, k) => {
-      if (t < b) return;
+      if (t < b || orbit) return;
       const gp = this.gest[k % this.gest.length]!;
       const prog = ease.outCubic(clamp((t - b) / 0.32));
       const kill = this.beats[k + KEEP];
@@ -353,8 +361,16 @@ export default class Lightpaint extends Scene {
 
     // ---- line 8, written in light: each syllable's outline traced during exactly that syllable
     const penHead: { p: Pt | null } = { p: null };
+    if (hosted) {
+      // develop: every light trail so far becomes dark ink (coverage = exposure); the lyric is stamped over it
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.globalCompositeOperation = 'source-in';
+      c.fillStyle = pcss(P, 'deep'); c.fillRect(0, 0, W, H);
+      c.globalCompositeOperation = 'source-over';
+      setM();
+    }
     // the hop between letters: the pen stays lit while it travels to the next letter
-    for (let i = 1; i < this.cw.length; i++) {
+    for (let i = 1; i < (hosted ? 0 : this.cw.length); i++) {
       const a = this.cw[i - 1]!, b = this.cw[i]!;
       if (t < b.a0) break;
       const ch0 = lay.chars[i - 1]!.ch, ch1 = lay.chars[i]!.ch;
@@ -369,7 +385,18 @@ export default class Lightpaint extends Scene {
       c.quadraticCurveTo((e.x + s.x) / 2, Math.min(e.y, s.y) - 40 - 30 * hash(i, 9), lerp(e.x, s.x, k), lerp(e.y, s.y, k));
       c.stroke();
     }
-    drawLyric(c, this.line, t, {
+    if (hosted) {
+      // the line burned into the stock: unsung glyphs a faint ink outline, each syllable stamped whole in its colour
+      // at its own start (state flip) and thickened by the beat
+      drawLyric(c, this.line, t, {
+        x: 0, y: 0, size: lay.size, family: FAM, align: 'center', lead: 0.4, unsungAlpha: 0.35, maxWidth: 1560,
+        drawChar: (cc, ch, s) => {
+          const pp = /[가-힣]/.test(ch) ? glyphPen(ch) : null;
+          if (!pp) return;
+          light(cc, s.sung ? this.Pink : P, pp, lay.size, 0, pp.n - 1, { halo: s.sung ? 0.25 : 0, glow: 0, core: 1, warm: 0, w: s.sung ? 3.4 + 1.6 * bp : 1.6 });
+        },
+      });
+    } else drawLyric(c, this.line, t, {
       x: 0, y: 0, size: lay.size, family: FAM, align: 'center', lead: 0, unsungAlpha: 0, maxWidth: 1560,
       drawChar: (cc, ch, s) => {
         const [a0, a1] = sylWin(this.line, s);
@@ -391,21 +418,26 @@ export default class Lightpaint extends Scene {
         }
       },
     });
-    if (penHead.p) sparkler(c, P, penHead.p.x, penHead.p.y, 1, t, 7);
+    if (penHead.p && !hosted) sparkler(c, P, penHead.p.x, penHead.p.y, 1, t, 7);
 
     // ---- exit: a focal-plane curtain closes the shutter over the last 0.22 s
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.globalCompositeOperation = 'source-over';
     const close = ease.inQuad(clamp((t - (this.ctx.end - 0.22)) / 0.2));
-    if (close > 0) {
+    if (close > 0 && !hosted) {
       c.fillStyle = pcss(P, 'ground', 1);
       c.fillRect(0, 0, W, H * close);
       c.fillStyle = pcss(P, 'hi', 0.5 * (1 - close));
       c.fillRect(0, H * close - 2, W, 3);
     }
 
+    if (hosted) {
+      c.globalCompositeOperation = 'destination-over';
+      c.fillStyle = 'white'; c.fillRect(0, 0, W, H);
+      c.globalCompositeOperation = 'source-over';
+    }
     L.upload();
-    clearRT(this.ctx.renderer, out, plin(P, 'ground'));
+    clearRT(this.ctx.renderer, out, hosted ? [1, 1, 1] : plin(P, 'ground'));
     this.ctx.comp.draw(this.ctx.renderer, L.texture, out, { mode: 'normal' });
 
     // ---- hits: the studio strobe on beats (harder on downbeats and on the cuts), a punch-in on the downbeat
@@ -433,6 +465,55 @@ export default class Lightpaint extends Scene {
    * The figure behind the exposure (line-local), lit only by the studio strobe: head, shoulders, a torso that
    * falls off into the dark, and the drawing arm reaching (two bones) for the pen tip.
    */
+  /**
+   * variant `orbit` (p12, hosted): the two figures double-exposed into one orbit around the host's anchor (params.filmAnchor) — two pens
+   * circling opposite each other on a shrinking ellipse (one radius step per beat), their trails the exposure; in the
+   * last beat both reach the anchor and the point is burned in (a filled disc + ring; p13's residue).
+   */
+  private orbit(c: CanvasRenderingContext2D, t: number, bp: number, dp: number) {
+    // the host's anchor in this frame (scenes/film.ts maps it onto the screen anchor (1187, 413))
+    const [ax, ay] = (this.ctx.params.filmAnchor as [number, number] | undefined) ?? [W / 2, H / 2], s0 = this.ctx.start, s1 = this.ctx.end;
+    const lastB = [...this.beats].reverse().find((b) => b < s1 - 0.3) ?? s1 - 0.5; // the plate's last full beat
+    const rad = (tt: number) => 520 * Math.pow(1 - ease.inOutQuad(clamp((tt - s0) / (lastB - s0))), 1.4);
+    const ang = (tt: number) => (tt - s0) * 2.6;
+    const pos = (tt: number, k: number): Pt => {
+      const r = rad(tt), a = ang(tt) + k * Math.PI;
+      return { x: ax + Math.cos(a) * r * 1.35, y: ay + Math.sin(a) * r * 0.55 };
+    };
+    // the last beat: the history burns off (only the final turns stay), the figures go, the point is all that is left
+    const burn = smoothstep(lastB - 0.05, lastB + 0.05, t), from = Math.max(s0, t - (burn > 0 ? 0.35 : 99));
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.globalCompositeOperation = 'lighter';
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    for (let k = 0; k < 2; k++) {
+      // the figure, double-exposed: a ghost on the orbit at every beat it has passed
+      for (const b of this.beats) {
+        if (b > t) break;
+        const q = pos(b, k), sc = 0.12 + 0.3 * (rad(b) / 520);
+        c.setTransform(sc, 0, 0, sc, q.x, q.y + 120 * sc);
+        this.figure(c, 0, { x: 0, y: -380 }, 0.22 * (1 - burn), 1);
+      }
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.globalCompositeOperation = 'lighter';
+      c.strokeStyle = pcss(this.P, 'hi', 0.9);
+      c.lineWidth = 7 + 6 * bp;
+      c.beginPath();
+      for (let i = 0; i <= 160; i++) {
+        const q = pos(from + ((Math.min(t, s1) - from) * i) / 160, k);
+        if (i) c.lineTo(q.x, q.y); else c.moveTo(q.x, q.y);
+      }
+      c.stroke();
+    }
+    // the anchor point: burned in once the orbit has closed (from the last beat to the cut)
+    if (burn > 0) {
+      c.fillStyle = pcss(this.P, 'hi', burn);
+      c.beginPath(); c.arc(ax, ay, 48 + 12 * dp, 0, TAU); c.fill();
+      c.strokeStyle = pcss(this.P, 'hi', burn); c.lineWidth = 10;
+      c.beginPath(); c.arc(ax, ay, 110 + 16 * dp, 0, TAU); c.stroke();
+    }
+    c.globalCompositeOperation = 'source-over';
+  }
+
   private figure(c: CanvasRenderingContext2D, x: number, tip: Pt, a: number, strobe: number) {
     const P = this.P, A = a * strobe;
     if (A <= 0.01) return;

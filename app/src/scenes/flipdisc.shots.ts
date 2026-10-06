@@ -11,6 +11,8 @@ export type Cam = 'wide' | 'close' | 'macro' | 'side';
 
 export function shots(p: PlateInfo, au: AudioLite): Shot[] {
   const sb = sbShotTimes(p.id);
+  // `years` (p09, the street ticker): one camera per storyboard shot, alternating
+  if (p.variant === 'years') return (sb.length ? sb : [p.start]).map((t, i) => ({ t: i ? t : p.start, s: { id: `${p.id}#${i}`, cam: (['wide', 'close', 'side'] as const)[i % 3] } }));
   const t0 = sb[0] ?? p.start, tClose = sb[1] ?? p.start + (p.end - p.start) * 0.38, tSide = sb[2] ?? p.start + (p.end - p.start) * 0.76;
   const list: Shot[] = [
     { t: t0, s: { id: `${p.id}#wide`, cam: 'wide' } },
@@ -19,7 +21,8 @@ export function shots(p: PlateInfo, au: AudioLite): Shot[] {
   // the macro snaps in on the first beat of the close shot's second half (the downbeat in the approved grid)
   const mid = beatTimes(au, tClose + 0.5, tSide - 0.3);
   const tMacro = mid.find((b) => au.downbeats.some((d) => Math.abs(d - b) < 1e-3)) ?? mid[0];
-  if (tMacro !== undefined) list.push({ t: tMacro, s: { id: `${p.id}#macro`, cam: 'macro' } });
+  // `years` (p09, the street ticker): wide -> close -> side, no macro (there is no second line to snap onto)
+  if (tMacro !== undefined && p.variant !== 'years') list.push({ t: tMacro, s: { id: `${p.id}#macro`, cam: 'macro' } });
   list.push({ t: tSide, s: { id: `${p.id}#side`, cam: 'side' } });
   return list;
 }

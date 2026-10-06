@@ -158,7 +158,8 @@ export default class Lens extends Scene {
     this.lines = ownedLines(this.ctx);
     this.layer = new Layer2D();
     const v4 = () => new THREE.Vector4();
-    const v3 = (role: 'ground' | 'deep' | 'mid' | 'hi' | 'signal') => ({ value: new THREE.Vector3(...plin(this.P, role)) });
+    // hosted (FILM run): the stock is the palette's white so the ground drops out under the host's multiply
+    const v3 = (role: 'ground' | 'deep' | 'mid' | 'hi' | 'signal') => ({ value: new THREE.Vector3(...plin(this.P, role === 'ground' && this.ctx.params.hosted ? 'hi' : role)) });
     this.pass = new FSPass(FRAG, {
       uRes: { value: new THREE.Vector2(W, H) },
       uI: { value: [v4(), v4()] },

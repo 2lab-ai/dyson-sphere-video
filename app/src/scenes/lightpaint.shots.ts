@@ -13,6 +13,15 @@ const PLAN: Record<string, ShotState[]> = {
     { frame: 'track', stage: 'pen' },
     { frame: 'flat', stage: 'exposure' },
   ],
+  // p12 (hosted on FILM; the host owns the camera): the orbit tightens shot by shot, then collapses to the anchor point
+  orbit: [
+    { frame: 'wide', stage: 'orbit' },
+    { frame: 'track', stage: 'orbit' },
+    { frame: 'flat', stage: 'orbit' },
+    { frame: 'wide', stage: 'tighten' },
+    { frame: 'flat', stage: 'collapse' },
+    { frame: 'wide', stage: 'point' },
+  ],
 };
 
 function sbTimes(p: PlateInfo): number[] {

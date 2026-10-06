@@ -19,7 +19,7 @@ import { FSPass, clearRT } from '../engine/gl';
 import { palette, pcss, plin, type NamedPalette } from '../engine/palette';
 import { drawLyric, layoutLine, ownedLines, F, type LineLayout } from '../engine/lyric';
 import type { Line } from '../engine/lyrics';
-import { beatPulse, downbeatPulse, kickPulse } from '../engine/beat';
+import { beatIndex, beatPulse, downbeatPulse, kickPulse } from '../engine/beat';
 import { shotAt, type PlateInfo, type Shot } from '../engine/shots';
 import { clamp, smoothstep } from '../engine/util';
 import { shots, type Cam } from './flipdisc.shots';
@@ -62,6 +62,7 @@ uniform vec3 uPos, uFwd, uRight, uUp; // pinhole camera; the board is the plane 
 uniform float uFocal;
 uniform vec3 uGround, uDeep, cPalMid, uHi;
 uniform float uGlint;
+uniform float uHosted; // 1 = hosted on a light world: the surround is the stock itself (it drops out under multiply)
 const float COLS = ${COLS}.0, ROWS = ${ROWS}.0;
 const float R = 0.43;
 
@@ -78,8 +79,9 @@ void main() {
   // housing: the sign's face, a darker surround outside its frame
   vec2 q = abs(bv - vec2(COLS, ROWS) * 0.5) - vec2(COLS, ROWS) * 0.5 - 1.6;
   float inside = 1.0 - smoothstep(-px, px, max(q.x, q.y));
-  vec3 col = uGround * mix(0.45, 1.0, inside);
-  if (tt <= 0.0) { fragColor = vec4(uGround * 0.45, 1.0); return; }
+  float sur = mix(0.45, 1.0, uHosted);
+  vec3 col = uGround * mix(sur, 1.0, inside);
+  if (tt <= 0.0) { fragColor = vec4(uGround * sur, 1.0); return; }
   ivec2 cell = ivec2(floor(bv));
   if (cell.x >= 0 && cell.y >= 0 && cell.x < int(COLS) && cell.y < int(ROWS)) {
     vec2 l = fract(bv) - 0.5;
@@ -156,7 +158,7 @@ export default class Flipdisc extends Scene {
       uState: { value: this.tex }, uRes: { value: new THREE.Vector2(1920, 1080) },
       uPos: { value: new THREE.Vector3() }, uFwd: { value: new THREE.Vector3() }, uRight: { value: new THREE.Vector3() }, uUp: { value: new THREE.Vector3() },
       uFocal: { value: 3 }, uGlint: { value: 1 },
-      uGround: { value: v3(plin(this.P, 'ground')) }, uDeep: { value: v3(plin(this.P, 'deep')) },
+      uGround: { value: v3(plin(this.P, this.ctx.params.hosted ? 'hi' : 'ground')) }, uHosted: { value: this.ctx.params.hosted ? 1 : 0 }, uDeep: { value: v3(plin(this.P, 'deep')) },
       cPalMid: { value: v3(plin(this.P, 'mid')) }, uHi: { value: v3(plin(this.P, 'hi')) },
     });
   }
@@ -252,6 +254,7 @@ export default class Flipdisc extends Scene {
     const { renderer, audio } = this.ctx;
     const t = f.t;
     const sh = shotAt(this.list, t), cam = sh.shot.s.cam as Cam;
+    if (this.plate.variant === 'years') return this.years(f, out);
     const [L21, L22] = this.lines as [Line, Line];
     const tSwap = L22.start;
     const WIPE = 0.0013; // s per disc column: the line-change wave
@@ -325,6 +328,71 @@ export default class Flipdisc extends Scene {
       bloom: 0,
       ca: 0.35, grain: 0.035, vignette: 0.4,
     };
+  }
+
+  // ---------------------------------------------------------------- variant `years` (p09, hosted on the FILM street)
+  // The same board as a street ticker: the lyric band on top (each syllable's discs turn as it is sung), and under it
+  // the year counter, overtaken once per beat (the changed discs turn in a left-to-right wave).
+  private yearAt(k: number): number { return 2026 + Math.round(k * k * 2.5 + k * 6); }
+  private yearCov(year: number): Float32Array {
+    const c = this.mask;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, COLS * SS, BAND * SS);
+    c.font = `${BAND * SS * 1.05}px ${F.slam()}`;
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = pcss(this.P, 'hi');
+    c.fillText(String(year), (COLS * SS) / 2, BAND * SS * 0.54);
+    const img = c.getImageData(0, 0, COLS * SS, BAND * SS).data, rowPx = COLS * SS;
+    const cov = new Float32Array(COLS * BAND);
+    for (let y = 0; y < BAND; y++) for (let x = 0; x < COLS; x++) {
+      let s = 0;
+      for (let j = 0; j < SS; j++) for (let i = 0; i < SS; i++) s += img[((y * SS + j) * rowPx + x * SS + i) * 4 + 3]!;
+      cov[y * COLS + x] = s / (SS * SS * 255);
+    }
+    return cov;
+  }
+
+  private years(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
+    const { renderer, audio } = this.ctx;
+    const t = f.t;
+    const sh = shotAt(this.list, t), cam = sh.shot.s.cam as Cam;
+    const line = this.lines[0]!;
+    const bp = beatPulse(audio, t, 0.1), twitch = 0.72 * bp;
+    const m = this.band(line, t);
+    const bi = beatIndex(audio, t), b0 = beatIndex(audio, this.ctx.start + 1e-3);
+    const k = Math.max(0, bi - b0), tb = audio.beats[bi] ?? this.ctx.start;
+    const cur = this.yearCov(this.yearAt(k)), prev = k > 0 ? this.yearCov(this.yearAt(k - 1)) : cur;
+    const YR = 38; // year band rows [38, 58)
+    const D = this.data;
+    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+      const i = y * COLS + x;
+      let a = 0;
+      const by = y - BAND_TOP, yy = y - YR;
+      if (by >= 0 && by < BAND && m.lay && m.cov[by * COLS + x]! > 0.4) {
+        const ch = this.charAt(m.lay, m.x0, x);
+        const on = ch ? ch.t + ((x - ch.a) / Math.max(1, ch.b - ch.a)) * 0.07 + by * 0.0025 : t;
+        a = this.turn(0, PI, on, t);
+      } else if (yy >= 0 && yy < BAND) {
+        const was = prev[yy * COLS + x]! > 0.4 ? PI : 0, now = cur[yy * COLS + x]! > 0.4 ? PI : 0;
+        a = was === now ? now : this.turn(was, now, tb + x * 0.0016 + yy * 0.003, t);
+      }
+      if (a > PI * 0.5) a -= twitch * 0.35;
+      D[i * 4] = Math.round(clamp((a + 0.6) / (PI + 1.2)) * 255);
+      D[i * 4 + 3] = 255;
+    }
+    this.tex.needsUpdate = true;
+    const pose = this.camera(cam, t, sh.t0, sh.t1 === Infinity ? this.ctx.end : sh.t1, m.lay, LX * SS);
+    const fwd = pose.look.clone().sub(pose.pos).normalize();
+    const right = fwd.clone().cross(new THREE.Vector3(0, 1, 0)).normalize();
+    const up = right.clone().cross(fwd).normalize();
+    const u = this.pass.u;
+    u.uPos!.value.copy(pose.pos); u.uFwd!.value.copy(fwd); u.uRight!.value.copy(right); u.uUp!.value.copy(up);
+    u.uFocal!.value = pose.focal;
+    u.uGlint!.value = 1;
+    clearRT(renderer, out, plin(this.P, 'hi'));
+    this.pass.render(renderer, out);
+    const db = downbeatPulse(audio, t, 0.16);
+    return { zoom: 1 + 0.045 * db, flash: 0, bloom: 0 };
   }
 
   override dispose() { this.tex?.dispose(); }
