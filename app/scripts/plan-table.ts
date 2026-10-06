@@ -19,7 +19,7 @@ function resolved(p: Plate, base: Plate | undefined): Record<string, string> {
     const v = p[d];
     if (v === '=' || v.startsWith('= ')) {
       if (!base) fails.push(`${p.id}.${d}: "=" with no base plate`);
-      out[d] = base ? base[d] === '=' || base[d].startsWith('= ') ? resolvedCache.get(base.id)![d] : base[d] : v;
+      out[d] = base ? resolvedCache.get(base.id)![d] : v;
     } else out[d] = v;
   }
   return out;
@@ -27,9 +27,17 @@ function resolved(p: Plate, base: Plate | undefined): Record<string, string> {
 const resolvedCache = new Map<string, Record<string, string>>();
 const groundClass = (g: string) => (/^(light|mid|dark)/.exec(g.replace(/^=\s*/, ''))?.[1] ?? (fails.push(`ground class unparsable: "${g}"`), 'dark'));
 
-// Which dims changed between two resolved rows: a dim "changes" when the cell is not "=" / "= (...)" on the row itself.
-function changed(p: Plate): string[] {
-  return T.dims.filter(d => !(p[d] === '=' || p[d].startsWith('= ')));
+// Which dims changed: compare the RESOLVED value against the base's resolved value. A cell that re-types the base's
+// value verbatim is rejected (write "=" instead) so the lint cannot be fooled by restating the same thing.
+const isEq = (v: string) => v === '=' || v.startsWith('= ');
+function changed(p: Plate, base: Plate | undefined): string[] {
+  if (!base) return T.dims.filter(d => !isEq(p[d]));
+  const cur = resolvedCache.get(p.id)!, prv = resolvedCache.get(base.id)!;
+  return T.dims.filter(d => {
+    if (isEq(p[d])) return false;
+    if (cur[d] === prv[d]) fails.push(`${p.id}.${d}: re-types the base value "${prv[d]}" — write "=" instead`);
+    return cur[d] !== prv[d];
+  });
 }
 
 let prev: Plate | undefined;
@@ -38,7 +46,7 @@ for (const p of T.plates) {
   const base = p.ref ? byId.get(p.ref) : prev;
   if (p.ref && !base) fails.push(`${p.id}: ref ${p.ref} not found`);
   resolvedCache.set(p.id, resolved(p, base));
-  const ch = changed(p);
+  const ch = changed(p, base);
   if (p.nov === '2') {
     if (ch.length > 1) fails.push(`${p.id}: nov 2 but ${ch.length} dims change (${ch.join(',')}) — a 2 keeps >=4 of 5`);
     if (ch.length === 0) fails.push(`${p.id}: nov 2 with no changed dim — identical plate`);
@@ -72,7 +80,11 @@ for (let i = 0; i <= T.plates.length; i++) {
 // Runs: <= 6 members, contiguous.
 const runs = new Map<string, string[]>();
 T.plates.forEach(p => p.run && (runs.get(p.run) ?? runs.set(p.run, []).get(p.run)!).push(p.id));
-for (const [r, m] of runs) if (m.length > 6) fails.push(`run ${r}: ${m.length} plates > 6`);
+for (const [r, m] of runs) {
+  if (m.length > 6) fails.push(`run ${r}: ${m.length} plates > 6`);
+  const idx = m.map(id => ids.indexOf(id));
+  if (idx.some((v, i) => i > 0 && v !== idx[i - 1]! + 1)) fails.push(`run ${r}: members not contiguous (${m.join(',')})`);
+}
 
 const ones = T.plates.filter(p => p.nov === '1').map(p => p.id);
 const string = str.join(' ');
@@ -101,13 +113,18 @@ String (generated): \`${string}\`
 Ones: ${ones.join(', ')}.
 Dark envelopes (cap 7 inside, 4 outside): ${T.dark_envelopes.map(([a, b]) => `${a}–${b}`).join(', ')}.
 Whiteouts: ${T.whiteouts.join(', ')} only.
+<!-- /C7 generated block — everything below this line is hand-written and preserved by --write -->
 `;
 
 if (process.argv.includes('--write')) {
   const doc = resolve(ROOT, 'docs/PLAN-V4.md');
   let s = readFileSync(doc, 'utf8');
   const i = s.indexOf('\n## C7 ');
-  s = (i >= 0 ? s.slice(0, i + 1) : s + '\n') + md;
+  const END = '<!-- /C7 generated block';
+  const j = s.indexOf(END);
+  if (i >= 0 && j < 0) throw new Error('PLAN-V4.md has a C7 block without the end marker — refusing to overwrite the hand-written clauses');
+  const tail = j >= 0 ? s.slice(s.indexOf('\n', j) + 1) : '';
+  s = (i >= 0 ? s.slice(0, i + 1) : s + '\n') + md + tail;
   writeFileSync(doc, s);
 }
 process.stdout.write(md);
