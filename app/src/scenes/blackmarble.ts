@@ -21,6 +21,7 @@ import { shotAt, type PlateInfo, type Shot } from '../engine/shots';
 import { clamp, ease, lerp, smoothstep } from '../engine/util';
 import type { Line } from '../engine/lyrics';
 import { shots } from './blackmarble.shots';
+import { ORBIT_CIRCLE as IRIS } from '../engine/anchor';
 
 // settlement mask (tangent patch of the globe), mask px
 const MW = 3072, MH = 768, MSIZE = 230;
@@ -193,7 +194,9 @@ export default class BlackMarble extends Scene {
     this.mask.texture.colorSpace = THREE.NoColorSpace;
     const ks = this.ctx.audio.onsets?.kick ?? [];
     this.kicks = ks.filter(([t, s]) => s >= 0.9 && t >= this.ctx.start - 1e-3 && t < this.ctx.end).map(([t]) => t);
-    const P = this.P, v3 = (k: 'ground' | 'deep' | 'mid' | 'hi' | 'signal') => new THREE.Vector3(...plin(P, k));
+    // hosted: no ground of its own (black drops out under the host's 'screen'); only the settlements and terminator light
+    const P = this.P, dark = this.ctx.params.hosted ? (k: string) => k === 'ground' || k === 'deep' : () => false;
+    const v3 = (k: 'ground' | 'deep' | 'mid' | 'hi' | 'signal') => (dark(k) ? new THREE.Vector3(0, 0, 0) : new THREE.Vector3(...plin(P, k)));
     this.pass = new FSPass(FRAG, {
       uRes: { value: new THREE.Vector2(W, H) },
       uCam: { value: new THREE.Vector4() },
@@ -241,7 +244,11 @@ export default class BlackMarble extends Scene {
     const sh = shotAt(this.list, t);
     const cam = String(sh.shot.s.cam ?? 'wide');
     const slt = t - sh.t0, su = clamp(slt / Math.max(0.05, Math.min(sh.t1, this.ctx.end) - sh.t0));
-    const C = this.camFor(cam, su);
+    // hosted (ORBIT, scenes/limb.ts): the globe face-on, centred, at the anchor circle's radius (the host's slot puts the
+    // centre on the anchor) — p22's iris becomes this disc; the world's own night Earth stays visible around the lights
+    const C = this.ctx.params.hosted
+      ? { cx: 960, cy: 540, R: IRIS.r, roll: 0, px: 960, py: 540 + 40 * su, textW: 1150, focus: -1, cellPx: 4.5, grid: 0 }
+      : this.camFor(cam, su);
 
     // ---- settlement mask: the owned line, drawn with drawLyric in the tangent patch
     const c = this.mask.ctx;

@@ -10,12 +10,12 @@
 // Variants (data/edit.json): freedom (p27).
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../engine/scene';
-import { FSPass, Layer2D } from '../engine/gl';
+import { FSPass, Layer2D, clearRT } from '../engine/gl';
 import { palette, pcss, pmix, plin, type NamedPalette } from '../engine/palette';
 import { drawLyric, ownedLines, F } from '../engine/lyric';
 import { beatPulse, downbeatPulse, kickPulse } from '../engine/beat';
 import { shotAt, stateAt, type PlateInfo, type Shot } from '../engine/shots';
-import { clamp, smoothstep, ease, lerp } from '../engine/util';
+import { clamp, smoothstep, ease, lerp, hash } from '../engine/util';
 import type { Line } from '../engine/lyrics';
 import { shots } from './colorfield.shots';
 
@@ -107,7 +107,57 @@ export default class Colorfield extends Scene {
     return { s: 4.2, soft: 700 }; // flat
   }
 
+  /**
+   * Variant `dawn` (p27, hosted on the ORBIT limb at dawn): the colour field is the host's — this draws the subject
+   * carried from p26, the cage of orbit rings around line 25, dissolving as the dawn comes over the limb. Each beat drops
+   * a further set of ring segments for good (persistent) and jolts the survivors outward; a sung syllable stamps
+   * signal-orange. Hosted: white surround (it drops out under the host's 'multiply'); standalone: the palette ground.
+   */
+  private dawn(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
+    const { renderer, audio } = this.ctx;
+    const t = f.t, P = this.P, start = this.ctx.start, end = this.ctx.end;
+    const u = clamp((t - start) / Math.max(0.1, end - start));
+    const bp = beatPulse(audio, t, 0.14), db = downbeatPulse(audio, t, 0.25), kp = kickPulse(audio, t, 0.1);
+    const nb = audio.beats.filter((b) => b > start && b <= t).length;
+    const gone = clamp(0.05 + 0.045 * nb + 0.25 * ease.inQuad(u), 0, 0.92);
+    const L = this.layer, c = L.ctx, cx = 960, cy = 540;
+    L.clear();
+    const RINGS = 7, SEGS = 56;
+    for (let r = 0; r < RINGS; r++) {
+      const tilt = -0.5 + (r / (RINGS - 1)) * 1.0, inc = 0.18 + 0.1 * (r % 3);
+      const rx = (600 + 40 * (r % 2)) * (1 + 0.035 * bp), ry = rx * inc;
+      c.save();
+      c.translate(cx, cy + 6 * kp);
+      c.rotate(tilt + 0.05 * t);
+      c.strokeStyle = pcss(P, r % 2 ? 'text' : 'mid', 0.9);
+      c.lineWidth = 5;
+      c.lineCap = 'round';
+      for (let s = 0; s < SEGS; s++) {
+        if (hash(r * 97 + s, 4.1) < gone) continue;
+        const a0 = (s / SEGS) * Math.PI * 2 + 0.6 * t * (r % 2 ? 0.2 : -0.2), a1 = a0 + ((Math.PI * 2) / SEGS) * 0.8;
+        c.beginPath(); c.ellipse(0, 0, rx, ry, 0, a0, a1); c.stroke();
+      }
+      c.restore();
+    }
+    for (const line of this.lines) {
+      drawLyric(c, line, t, {
+        x: cx, y: cy + 44, size: 124, maxWidth: 1380, align: 'center', family: F.slam(), lead: 0.4,
+        drawChar: (cc, ch, s) => {
+          if (!s.sung) { cc.strokeStyle = pcss(P, 'deep', 0.75); cc.lineWidth = 2.6; cc.strokeText(ch, 0, 0); return; }
+          cc.fillStyle = pcss(P, 'signal'); cc.fillText(ch, 0, 0);
+        },
+        charTransform: (_ch, _i, s) => (s.sung ? { dy: -10 * ease.outBack(clamp(s.frac * 5)) } : { dy: 0 }),
+      });
+    }
+    L.upload();
+    const hosted = !!this.ctx.params.hosted;
+    clearRT(renderer, out, hosted ? [1, 1, 1] : plin(P, 'ground'), 1);
+    this.ctx.comp.draw(renderer, L.texture, out, { mode: 'normal' });
+    return { zoom: 1 + 0.03 * db, shake: [0, 0], flash: 0, bloom: 0, vignette: 0.2 };
+  }
+
   override render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
+    if (this.plate.variant === 'dawn') return this.dawn(f, out);
     const { renderer, audio } = this.ctx;
     const t = f.t, P = this.P;
     const st = stateAt(this.list, t);

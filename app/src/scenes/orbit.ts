@@ -645,7 +645,8 @@ export default class Orbit extends Scene {
     this.amb.intensity = dark ? 0.05 : 0.18;
 
     this.upload(poses);
-    clearRT(renderer, this.rt, this.P ? plin(this.P, 'ground') : LIN.ink);
+    // hosted (ORBIT, scenes/limb.ts): no space of its own — black drops out under the host's 'screen'
+    clearRT(renderer, this.rt, this.ctx.params.hosted ? [0, 0, 0] : this.P ? plin(this.P, 'ground') : LIN.ink);
     renderer.setRenderTarget(this.rt);
     renderer.render(this.scene3, this.cam);
     this.grade.u.uNeg!.value = neg;

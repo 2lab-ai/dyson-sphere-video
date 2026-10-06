@@ -193,7 +193,9 @@ export default class Jamo extends Scene {
     const bp = beatPulse(audio, t, 0.1), kp = kickPulse(audio, t, 0.08), dp = downbeatPulse(audio, t, 0.14);
 
     const L = this.layer, c = L.ctx;
-    L.clear(pcss(P, 'ground'));
+    // hosted (ORBIT): no ground — the glyphs scatter over the host's limb glow (black drops out under 'screen')
+    const hosted = !!this.ctx.params.hosted;
+    if (hosted) L.clear(); else L.clear(pcss(P, 'ground'));
 
     // ---- break-apart envelope: per beat further (A) and faster (shorter rise), with less recoil each time
     const lock = this.beats[0] ?? p.start;
@@ -318,7 +320,7 @@ export default class Jamo extends Scene {
     }
     c.restore();
 
-    clearRT(renderer, out, plin(P, 'ground'));
+    clearRT(renderer, out, hosted ? [0, 0, 0] : plin(P, 'ground'), hosted ? 0 : 1);
     this.ctx.comp.draw(renderer, L.upload(), out, { mode: 'normal' });
 
     // hits: the downbeat lock punches in hard (with the red stamp above), every beat punches in, the scatter shakes

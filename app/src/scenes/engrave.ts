@@ -16,6 +16,7 @@ import { shotAt, type PlateInfo, type Shot } from '../engine/shots';
 import { hash, clamp, smoothstep, lerp, ease, pulse } from '../engine/util';
 import type { Line } from '../engine/lyrics';
 import { shots, type Framing, type Topo } from './engrave.shots';
+import { ORBIT_CIRCLE } from '../engine/anchor';
 
 const W = 1920, H = 1080;
 type P = { x: number; y: number };
@@ -33,6 +34,8 @@ const HS = 1.35; // hand scale
 const PALM = 230 * HS; // wrist -> knuckle bar
 const FINGER_OFS = [-84, -28, 28, 84].map((v) => v * HS);
 const FINGER_LEN = [0.9, 1, 0.96, 0.8];
+/** The ORBIT anchor circle: p22's iris disc = p23's Earth disc. */
+const IRIS = ORBIT_CIRCLE;
 const SEG = [95, 70, 52].map((v) => v * HS), SEG_R = [21, 19, 16].map((v) => v * HS), SEG_CURL = [1.05, 1.3, 1.15];
 
 interface Pose { K: V3; a: V3; n: V3; l: V3; curl: number }
@@ -451,7 +454,88 @@ export default class Engrave extends Scene {
     c.strokeText(ch, 0, 0);
   };
 
+  /**
+   * Variant `iris` (p22): the same engraved field and seam, the macro crawl drifting it along the seam (no push); the
+   * subject is an engraved iris fixed at the ORBIT anchor (IRIS) whose disc is exactly the Earth disc p23 cuts to.
+   * Lines 18/19 are cut into the iris face; a sung syllable stamps orange, then turns to hatched steel and is pulled in
+   * toward the pupil (it stays pulled). Beat: the pupil contracts one step per beat (persistent) and the rim flashes.
+   */
+  private iris(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
+    const { renderer, audio } = this.ctx;
+    const t = f.t, A = IRIS;
+    const L = this.layer, c = L.ctx;
+    L.clear();
+    const u = clamp((t - this.ctx.start) / Math.max(0.1, this.ctx.end - this.ctx.start));
+    const bp = beatPulse(audio, t, 0.13), kick = kickPulse(audio, t, 0.1), db = downbeatPulse(audio, t, 0.22);
+    const nb = audio.beats.filter((b) => b > this.ctx.start && b <= t).length;
+
+    // the crawl: the field slides along the seam under a fixed iris
+    const dx = 90 * u, dy = 12 * u;
+    c.globalAlpha = 0.12 + 0.3 * bp;
+    c.drawImage(this.ensureField().canvas, -dx, -dy, W * 1.06, H * 1.06);
+    c.globalAlpha = 1;
+    c.strokeStyle = rgba('bone', 0.85);
+    c.lineWidth = 2.4;
+    c.beginPath();
+    for (let x = -20; x <= W + 20; x += 16) {
+      const y = 560 - dy + 6 * Math.sin((x + dx) / 140) + 3 * Math.sin((x + dx) / 41);
+      if (x === -20) c.moveTo(x, y); else c.lineTo(x, y);
+    }
+    c.stroke();
+
+    // the iris: ink disc, radial fibres (width = shade), collarette, rim; the pupil steps smaller on every beat
+    c.fillStyle = rgba('ink');
+    c.beginPath(); c.arc(A.x, A.y, A.r, 0, Math.PI * 2); c.fill();
+    const rp = A.r * (0.3 - 0.012 * Math.min(nb, 10)) * (1 - 0.05 * bp);
+    for (let i = 0; i < 260; i++) {
+      const a = (i / 260) * Math.PI * 2 + 0.004 * Math.sin(i * 7.3);
+      const w = 0.6 + 2.2 * hash(i, 3) * (0.6 + 0.4 * Math.sin(a * 5 + t * 0.3));
+      const r0 = rp * (1.04 + 0.08 * hash(i, 5)), r1 = A.r * (0.93 + 0.05 * hash(i, 7));
+      const k = 0.06 * Math.sin(i * 1.7);
+      c.strokeStyle = rgba('bone', 0.35 + 0.4 * hash(i, 9));
+      c.lineWidth = w;
+      c.beginPath();
+      c.moveTo(A.x + Math.cos(a) * r0, A.y + Math.sin(a) * r0);
+      c.quadraticCurveTo(A.x + Math.cos(a + k) * (r0 + r1) / 2, A.y + Math.sin(a + k) * (r0 + r1) / 2, A.x + Math.cos(a) * r1, A.y + Math.sin(a) * r1);
+      c.stroke();
+    }
+    c.strokeStyle = rgba('bone', 0.8);
+    for (const [rr, lw] of [[0.52, 2], [0.56, 1.2], [0.995, 3 + 5 * bp]] as const) {
+      c.lineWidth = lw;
+      c.beginPath(); c.arc(A.x, A.y, A.r * rr, 0, Math.PI * 2); c.stroke();
+    }
+    c.fillStyle = rgba('ink');
+    c.beginPath(); c.arc(A.x, A.y, rp, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = rgba('signal', 0.5 + 0.5 * kick);
+    c.lineWidth = 3;
+    c.stroke();
+
+    // the words, cut into the iris face; a sung syllable is pulled toward the pupil and stays there
+    const [l18, l19] = this.lines;
+    const pull = (yLine: number) => (_ch: string, _i: number, s: CharState): CharXform => {
+      if (!s.sung) return { dy: 0 };
+      const k = ease.outBack(clamp(s.frac * 4));
+      const cx = s.box.x + s.box.w / 2 - A.x;
+      return { dx: -0.06 * cx * k, dy: (A.y - yLine > 0 ? 26 : -26) * k };
+    };
+    const rows: [Line | undefined, number, number][] = [[l18, A.y - 230, 160], [l19, A.y + 330, 130]];
+    for (const [ln, y, size] of rows) {
+      if (!ln) continue;
+      drawLyric(c, ln, t, {
+        x: A.x, y, size, maxWidth: 1080, align: 'center', family: F.slam(),
+        sungColor: 'bone', unsungColor: 'graphite', unsungAlpha: 0.6, lead: 0.4,
+        drawChar: this.drawChar, charTransform: pull(y),
+      });
+    }
+    L.upload();
+    clearRT(renderer, out, LIN.ink);
+    this.ctx.comp.draw(renderer, L.texture, out, { mode: 'normal' });
+    const sk = 6 * kick;
+    return { shake: [sk * Math.cos(t * 83), sk * Math.sin(t * 71)], zoom: 1 + 0.035 * db, flash: 0, vignette: 0.4, bloom: 0 };
+  }
+
   override render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
+    if (this.plate.variant === 'iris') return this.iris(f, out);
     const { renderer, audio } = this.ctx;
     const t = f.t;
     const sh = shotAt(this.list, t);
