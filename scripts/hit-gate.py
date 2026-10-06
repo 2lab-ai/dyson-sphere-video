@@ -1,7 +1,7 @@
 #!/usr/bin/env python3 -I
 """hit-gate.py — render-based beat/hit gate (docs/PLAN-V4.md C7 gate clause 4).
 
-    python3 -I scripts/hit-gate.py out/dyson-v4.mp4 [--json out/_check/hit-gate.json] [--calibrate]
+    .venv/bin/python -I scripts/hit-gate.py out/dyson-v4.mp4 [--json out/_check/hit-gate.json] [--calibrate] [--from 34.2]
 
 Reads the rendered file at 60 fps as 192x108 grey (ffmpeg pipe), then checks, per plate (data/edit.json) and per beat
 (data/audio.json):
@@ -43,18 +43,19 @@ def load_frames(path):
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('video'); ap.add_argument('--json'); ap.add_argument('--calibrate', action='store_true')
     ap.add_argument('--edit', default='data/edit.json'); ap.add_argument('--audio', default='data/audio.json')
+    ap.add_argument('--from', dest='t0', type=float, default=0.0, help='song time of the file\'s first frame (partial renders: render.ts video --from X)')
     a = ap.parse_args()
     E = json.load(open(a.edit))['plates']; A = json.load(open(a.audio))
     beats, downs = A['beats'], A['downbeats']
     F = load_frames(a.video); N = len(F)
-    fi = lambda t: int(round(t * FPS))
+    fi = lambda t: int(round((t - a.t0) * FPS))
     lum = F.mean(axis=(1, 2))
     report, fails = [], []
 
     for p in E:
         pid = p['id']; s, e = p['start'], p['end']
         i0, i1 = max(0, fi(s)), min(N - 1, fi(e) - 1)
-        if i1 - i0 < 8: continue
+        if i1 - i0 < 8 or i0 >= N or fi(e) <= 0: continue
         roi = pid[:3] in ROI_PLATES
         def frame(i):
             f = F[i]
@@ -94,7 +95,9 @@ def main():
     # section whiteouts
     sec = {}
     for t in SECTION_HITS:
-        k = fi(t); win = lum[max(0, k - 4): k + 5]
+        k = fi(t)
+        if k < 0 or k >= N: continue
+        win = lum[max(0, k - 4): k + 5]
         peak = float(win.max()) if len(win) else 0.0
         sec[t] = round(peak, 3)
         if not a.calibrate and peak < WHITE: fails.append(f"section hit {t}: peak luminance {peak:.3f} < {WHITE} (no whiteout)")
