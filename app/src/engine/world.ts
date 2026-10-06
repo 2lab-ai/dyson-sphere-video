@@ -33,6 +33,9 @@ let loader: SceneLoader | null = null;
 /** Set once by timeline.ts (it owns the import.meta.glob). */
 export function setSceneLoader(l: SceneLoader) { loader = l; }
 
+/** Beat snap: the subject is drawn (1 + SNAP)× at the beat and eases back by the next beat (uv scale < 1 = larger). */
+export const SNAP = 0.07;
+
 export abstract class WorldHost extends Scene {
   protected child: Scene | null = null;
   protected childRT: THREE.WebGLRenderTarget | null = null;
@@ -60,6 +63,8 @@ export abstract class WorldHost extends Scene {
   abstract renderWorld(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides | void;
   abstract slot(f: Frame): Slot;
   protected afterSubject(_f: Frame, _out: THREE.WebGLRenderTarget): void {}
+  /** 0..1 multiplier on the beat snap (a host can mute it on plates whose subject already jolts). */
+  protected snapStrength(_f: Frame): number { return 1; }
 
   override render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides | void {
     const r = this.ctx.renderer;
@@ -71,10 +76,15 @@ export abstract class WorldHost extends Scene {
     if (f.preroll) return;
     // 2. the world
     const ov = this.renderWorld(f, out);
-    // 3. the subject into the slot
+    // 3. the subject into the slot, with the run's beat snap: the subject steps up SNAP on every beat and settles over the
+    //    beat (a held change, never a one-frame flash) — the uniform "beat always visible" mark every hosted plate shares;
+    //    hosts add their own cut-in per bar on top.
     if (this.childRT) {
       const s = this.slot(f);
-      this.ctx.comp.draw(r, this.childRT.texture, out, { mode: s.mode, opacity: s.opacity ?? 1, tint: s.tint, scale: s.scale, offset: s.offset });
+      const snap = 1 + SNAP * Math.pow(1 - Math.min(1, f.beatPhase), 2);
+      const k = this.snapStrength(f);
+      const sc: [number, number] = [s.scale[0] / (1 + (snap - 1) * k), s.scale[1] / (1 + (snap - 1) * k)];
+      this.ctx.comp.draw(r, this.childRT.texture, out, { mode: s.mode, opacity: s.opacity ?? 1, tint: s.tint, scale: sc, offset: s.offset });
     }
     this.afterSubject(f, out);
     return ov;

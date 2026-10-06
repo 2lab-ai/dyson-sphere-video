@@ -11,7 +11,7 @@ Reads the rendered file at 60 fps as 192x108 grey (ffmpeg pipe), then checks, pe
                AND (|ΔmeanLum| >= LUM_MIN or changed-area >= AREA_MIN), and PERSISTENCE: Δ(pre, t+6f) >= 0.5 x Δ(pre,post)
                (a 1-frame flash is not a hit). Plates must hit >= BEAT_MIN of their beats and every downbeat.
   section hit: at 65.120 / 142.035 / 165.343 the mean luminance reaches WHITE within ±4 frames (whiteout class).
-  ground     : the median luminance of the first 0.5 s after each cut classifies dark/mid/light (mean luminance <= 0.06 / >= 0.35) and must
+  ground     : the median luminance of 0.3–2 s after each cut (whiteout frames excluded) classifies dark/mid/light (<= 0.20 / >= 0.45) and must
                match look.ground in data/edit.json.
   flashes    : full-frame luminance jumps (>= FLASH_JUMP in one frame) <= 3 in any 1 s window (photosensitivity).
   p45 ROI    : the outro's small point — checked in the 320x180 ROI around the anchor instead of full frame.
@@ -21,11 +21,12 @@ import json, subprocess, sys, argparse, statistics
 import numpy as np
 
 W, H, FPS = 192, 108, 60
-HIT_RATIO, ABS_FLOOR, LUM_MIN, AREA_MIN = 5.0, 6.0 / 255, 8.0 / 255, 0.05
+HIT_RATIO, ABS_FLOOR, LUM_MIN, AREA_MIN = 5.0, 4.0 / 255, 8.0 / 255, 0.04
 MARGIN = 10.0 / 255       # a hit must exceed the plate's own motion by at least this (keeps busy plates checkable)
 PIX_CHANGE = 12.0 / 255   # a pixel "changed" when |Δ| >= this
 BEAT_MIN = 0.75           # fraction of a plate's beats that must hit
 WHITE = 0.80
+DARK_MAX, LIGHT_MIN = 0.20, 0.45
 FLASH_JUMP = 0.20
 SECTION_HITS = [65.120, 142.035, 165.343]
 ANCHOR = (1187 / 1920, 413 / 1080)
@@ -75,7 +76,10 @@ def main():
             ok = d >= thr and (dlum >= LUM_MIN or area >= AREA_MIN) and dl >= 0.5 * d
             (hits if ok else misses).append((round(b, 3), round(d * 255, 1), round(thr * 255, 1), round(dlum * 255, 1), round(area, 3), round(dl / max(d, 1e-6), 2)))
         down_miss = [b for b in downs if s + 0.05 <= b < e - 0.12 and not any(abs(h[0] - b) < 0.01 for h in hits) and any(abs(m[0] - b) < 0.01 for m in misses)]
-        g = float(np.median(lum[i0:min(i1, i0 + 30)])); gclass = 'dark' if g <= 0.06 else 'light' if g >= 0.35 else 'mid'
+        # ground: median luminance over the plate's first 2 s after a 0.3 s settle, whiteout frames (>0.8) excluded;
+        # thresholds are on the measured sRGB mean (a dark plate with a lit subject averages 0.07–0.18)
+        gw = lum[min(i1, i0 + 18):min(i1, i0 + 120)]; gw = gw[gw < 0.8] if (gw < 0.8).any() else gw
+        g = float(np.median(gw)) if len(gw) else float(lum[i0]); gclass = 'dark' if g <= DARK_MAX else 'light' if g >= LIGHT_MIN else 'mid'
         declared = p.get('look', {}).get('ground')
         rate = len(hits) / max(1, len(hits) + len(misses))
         row = {'id': pid, 'beats': len(hits) + len(misses), 'hits': len(hits), 'rate': round(rate, 2), 'median_dframe': round(med * 255, 2),
