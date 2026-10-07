@@ -116,7 +116,7 @@ export const PALETTES = {
   // cave ochre (new H idiom, not in the research; derived: rock, ochre, red ochre, firelight)
   cave: { ground: '#1E130D', deep: '#3A2417', mid: '#B5542B', hi: '#FFB45A', text: '#D9A066', signal: S },
   // clay tablet under raking light (lit matter, derived)
-  tablet: { ground: '#8A5A3A', deep: '#4A2E1C', mid: '#B97A4F', hi: '#F0C79A', text: '#3A2415', signal: S },
+  tablet: { ground: '#E6DED0', deep: '#3A3630', mid: '#B5AA98', hi: '#F4EFE6', text: '#2E2A26', signal: S },
   // H5 stained glass
   glass: { ground: '#0B0B0B', deep: '#1B4F9C', mid: '#B3122E', hi: '#E0A526', text: '#2F8F46', signal: S },
   // S1 thermal ironbow

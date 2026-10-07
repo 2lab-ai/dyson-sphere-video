@@ -192,7 +192,7 @@ export default class Amber extends WorldHost {
     if (this.sub === 'clay' || this.sub === 'sodium') {
       const s = 1 / (1 + (this.sub === 'clay' ? 0.025 : 0.01) * Math.min(this.steps(f.t), 8));
       const off: [number, number] = [((AX - W / 2) * (1 - s)) / W, ((H / 2 - AY) * (1 - s)) / H];
-      return { scale: [s, s], offset: off, mode: this.sub === 'clay' ? 'multiply' : 'normal' };
+      return { scale: [s, s], offset: off, mode: 'normal' };
     }
     if (this.sub === 'cave') {
       // the cave's fire (bottom-centre of its frame) placed just under the anchor, the scene at 2/3 size; the flames
@@ -226,7 +226,7 @@ export default class Amber extends WorldHost {
     }
     if (this.sub === 'clay') {
       // the haze hangs in front of the tablet too: the raking-lit clay stays a light ground
-      fc.fillStyle = pcss(P, 'hi', 0.3);
+      fc.fillStyle = pcss(P, 'hi', 0.12);
       fc.fillRect(0, 0, W, H);
       draw = true;
       // the last bar: a bright square window opens in the tablet at the anchor (p35's residue)
