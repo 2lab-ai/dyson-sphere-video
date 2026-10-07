@@ -130,7 +130,7 @@ export default class Film extends WorldHost {
     this.ctx.comp.draw(r, this.L.texture, out, { mode: 'normal' });
 
     const dp = downbeatPulse(this.ctx.audio, t, 0.25);
-    return { bloom: 0.5, bloomThreshold: 0.82, bloomRadius: 0.9, halation: 0.75 + 0.2 * dp, ca: 0.4, grain: 0.11, vignette: 0.1, flash: 0 };
+    return { bloom: 0.5, bloomThreshold: 0.82, bloomRadius: 0.9, halation: 0.12 + 0.05 * dp, ca: 0.4, grain: 0.11, vignette: 0.1, flash: 0 };
   }
 
   // ---------------------------------------------------------------- the world (blown stock, ink hardware)

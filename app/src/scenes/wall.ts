@@ -82,7 +82,7 @@ export default class Wall extends WorldHost {
     this.ctx.comp.draw(this.ctx.renderer, this.L.texture, out, { mode: 'normal' });
     // film: grain + halation every plate; p29's hit is the only flash (held ≥6 frames, then decays)
     const hit = this.merge && t >= HIT ? (t < HIT + 0.135 ? 1.15 : 1.15 * Math.exp(-(t - HIT - 0.135) / 0.12)) : 0;
-    return { grain: 0.09, vignette: 0.42, halation: 0.35 + 0.15 * db, bloom: 0.35, bloomThreshold: 0.6, ca: 0.6, flash: hit, zoom: 1, fade: 0 };
+    return { grain: 0.09, vignette: 0.42, halation: 0.06 + 0.04 * db, bloom: 0.35, bloomThreshold: 0.6, ca: 0.6, flash: hit, zoom: 1, fade: 0 };
   }
 
   /** The subject sits on its piece, magnified with the camera (never below 1:1, so the lyric keeps ≥120 px). */
@@ -110,7 +110,7 @@ export default class Wall extends WorldHost {
     for (const side of [-1, 1]) {
       const lit = (bi + (side > 0 ? 1 : 0)) % 2 === 0 ? 0.3 : 0.025;
       const x = px + side * spread, g = c.createRadialGradient(x, py, 0, x, py, r);
-      g.addColorStop(0, pcss(this.P, 'signal', lit)); g.addColorStop(0.6, pcss(this.P, 'signal', lit * 0.9)); g.addColorStop(1, pcss(this.P, 'signal', 0));
+      g.addColorStop(0, pcss(this.P, 'hi', lit * 0.7)); g.addColorStop(0.6, pcss(this.P, 'hi', lit * 0.55)); g.addColorStop(1, pcss(this.P, 'hi', 0));
       c.fillStyle = g; c.fillRect(x - r, py - r, 2 * r, 2 * r);
     }
   }

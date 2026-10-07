@@ -46,11 +46,11 @@ const S = HEX.signal;
 export const PALETTES = {
   // ---- v4 run worlds (docs/PLAN-V4.md §C7). One palette per run: the G dimension is literally shared.
   // NIGHT: the hardware wall — night brick, sodium-warm highlights, signal orange on the hardware
-  wall: { ground: '#0A0806', deep: '#231A12', mid: '#7A5A3A', hi: '#FFD9A8', text: '#FFE9CC', signal: S },
+  wall: { ground: '#04050A', deep: '#141822', mid: '#3E4656', hi: '#DCE6F2', text: '#EEF3FA', signal: S },
   // COSMOS: photographic space (black, deep blue, warm highlights)
   space: { ground: '#02030A', deep: '#0C1530', mid: '#4C6AA8', hi: '#FFE3B0', text: '#FFE3B0', signal: S },
   // AMBER: sodium haze (light, warm) — p32–p34 share it
-  amber: { ground: '#FFB000', deep: '#6B3F00', mid: '#0A0703', hi: '#FFE7A3', text: '#3A2200', signal: S },
+  amber: { ground: '#FFC53A', deep: '#3A2A08', mid: '#0A0703', hi: '#FFF0C0', text: '#2A1E06', signal: S },
   // v4 credits card: pale grey card (not cream — the cream budget is the pop-up book's), red wedge, cream disc
   credits: { ground: '#F1F1EE', deep: '#C8102E', mid: '#0D0D0D', hi: '#EDE6D6', text: '#0D0D0D', signal: S },
   // demoscene AI on a dark ground (v4: the bright face is the subject, the ground stays dark)
@@ -76,7 +76,7 @@ export const PALETTES = {
   // S3 LiDAR (white returns, near orange -> far blue)
   lidar: { ground: '#000000', deep: '#1E3A5F', mid: '#6F8FA6', hi: '#FFFFFF', text: '#FFFFFF', signal: S },
   // aperture on bright, overexposed film stock (trinity override for #11; not in the research: warm blown highlights)
-  film: { ground: '#F9D9A0', deep: '#2F4A4A', mid: '#C77D3A', hi: '#FFF6E6', text: '#2F4A4A', signal: S },
+  film: { ground: '#F2F3F5', deep: '#0E1013', mid: '#5C626C', hi: '#FFFFFF', text: '#0E1013', signal: S },
   // E1 oscilloscope XY, P31 green
   scope: { ground: '#010403', deep: '#0B2A18', mid: '#39FF88', hi: '#B6FFD6', text: '#B6FFD6', signal: S },
   // M3 fluid cosmos, gold/white (#13)
@@ -86,7 +86,7 @@ export const PALETTES = {
   // S5 SDO/AIA 304
   sdo: { ground: '#000000', deep: '#7A0E00', mid: '#FF4A1C', hi: '#FFD0A0', text: '#FFD0A0', signal: S },
   // M2 claymation — backdrop was #F2D7B6 (tan, close to cream); peach backdrop
-  clay: { ground: '#F0C8A0', deep: '#29335C', mid: '#E4572E', hi: '#F3A712', text: '#29335C', signal: S },
+  clay: { ground: '#EDE6DA', deep: '#2B2F3A', mid: '#B8A48E', hi: '#F7F1E6', text: '#2B2F3A', signal: S },
   // H2 ink wash — hanji was #EDE7DA (cream); a cool grey hanji
   sumuk: { ground: '#E4E4DF', deep: '#1A1A1A', mid: '#6B6B6B', hi: '#B22222', text: '#1A1A1A', signal: S },
   // pop-up natural-history book (one of the ≤ 3 cream grounds)
